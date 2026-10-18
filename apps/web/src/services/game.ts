@@ -6,6 +6,11 @@ import type {
 } from '../../../../packages/application/src/services/backend.js';
 
 export type Player = z.output<typeof schemas.playerResponse>;
+export type PlayerStatus = Player['status'];
+export type PlayerPatch = z.input<typeof schemas.updatePlayer>;
+export type PubEvent = z.output<typeof schemas.eventResponse>;
+export type CreateEvent = z.input<typeof schemas.createEvent>;
+export type EventPatch = z.input<typeof schemas.updateEvent>;
 export type Tournament = z.output<typeof schemas.tournamentResponse>;
 export type Match = z.output<typeof schemas.liveMatchResponse>;
 export type Standings = z.output<typeof schemas.standingsResponse>;
@@ -16,6 +21,9 @@ export type Page<T> = { items: T[]; total: number; limit: number; offset: number
 export type TournamentAction = keyof typeof tournamentCommandPaths;
 export type MatchAction = keyof typeof matchCommandPaths;
 export type Pending = { path: string; body: Record<string, unknown>; key: string };
+/** A turn total, or one value per dart in throwing order. */
+export type TurnInput = number | number[];
+export type ScoreChange = { scoreId: string; score: number };
 
 /**
  * What the screens need from the game, independently of where it runs: in this browser
@@ -23,12 +31,15 @@ export type Pending = { path: string; body: Record<string, unknown>; key: string
  */
 export interface GameAdapter {
   readonly mode: 'standalone' | 'shared';
-  players(search?: string, offset?: number): Promise<Page<Player>>;
-  createPlayer(displayName: string): Promise<Player>;
-  updatePlayer(id: string, displayName: string): Promise<Player>;
+  players(search?: string, offset?: number, status?: PlayerStatus): Promise<Page<Player>>;
+  createPlayer(displayName: string, nickname?: string | null): Promise<Player>;
+  updatePlayer(id: string, patch: PlayerPatch): Promise<Player>;
   statistics(id: string): Promise<Statistics>;
   history(id: string): Promise<Page<Summary>>;
-  tournaments(offset?: number): Promise<Page<Summary>>;
+  events(): Promise<Page<PubEvent>>;
+  createEvent(input: CreateEvent): Promise<PubEvent>;
+  updateEvent(id: string, patch: EventPatch): Promise<PubEvent>;
+  tournaments(offset?: number, eventId?: string): Promise<Page<Summary>>;
   tournament(id: string): Promise<Tournament>;
   match(id: string): Promise<Match>;
   standings(id: string): Promise<Standings>;
@@ -39,9 +50,12 @@ export interface GameAdapter {
     extra?: Record<string, unknown>,
   ): Promise<Tournament>;
   matchCommand(m: Match, action: MatchAction, extra?: Record<string, unknown>): Promise<Match>;
-  /** Records the current turn's total and completes the turn. */
-  submitTurn(m: Match, score: number): Promise<Match>;
-  undo(m: Match): Promise<Match>;
+  /** Records the current turn (total or every dart) and completes the turn. */
+  submitTurn(m: Match, score: TurnInput): Promise<Match>;
+  /** Voids every score of the last scored turn, which reopens it. The reason stays in the audit. */
+  undo(m: Match, reason?: string): Promise<Match>;
+  /** Corrects recorded scores; each keeps its previous value in the audit. */
+  correct(m: Match, changes: ScoreChange[], reason?: string): Promise<Match>;
   /** A command with an unknown outcome that must be retried before new input (shared mode). */
   getPending(path: string): Pending | undefined;
 }
@@ -62,6 +76,15 @@ export const messages: Record<string, string> = {
   TIE_REQUIRES_PLAYOFF: 'Parità decisiva: gioca uno spareggio prima di proseguire.',
   MATCH_ALREADY_ACTIVE: 'È già in corso un incontro. Completa quello prima di iniziarne un altro.',
   BOARD_BUSY: 'È già in corso un incontro. Completa quello prima di iniziarne un altro.',
+  STAGE_CLOSED:
+    'Questa fase è già confermata: va riaperta dall’organizzatore prima di modificare i punteggi.',
+  INACTIVE_PLAYER: 'Un giocatore iscritto è stato disattivato: riattivalo prima di avviare.',
+  INVALID_GROUP_ASSIGNMENTS:
+    'Ogni iscritto deve stare in un solo girone, con almeno 2 giocatori e abbastanza qualificati per girone.',
+  INVALID_EXCLUSIONS: 'Vanno esclusi esattamente tutti i giocatori che non hanno finito i turni.',
+  INSUFFICIENT_PLAYERS: 'Restano troppo pochi giocatori per la finale.',
+  EVENT_CLOSED: 'La serata è conclusa o annullata: non si possono aggiungere tornei.',
+  SEED_REQUIRED: 'Per l’ordine per seed ogni iscritto deve avere un seed.',
   STALE_DATA:
     'I dati sono stati modificati in un’altra scheda. Controlla lo stato aggiornato e riprova.',
   STORAGE_FULL:
@@ -103,6 +126,50 @@ export const storage = {
     }
   },
 };
+
+export const defaultUndoReason = 'Annullamento ultimo inserimento dalla partita live';
+
+/** The scores to send for a turn, skipping those the backend already holds for it. */
+export function missingScores(m: Match, turnId: string, input: TurnInput) {
+  const recorded = m.scores.filter((s) => s.turnId === turnId && !s.voided);
+  if (!Array.isArray(input)) return recorded.length ? [] : [{ score: input, dartIndex: null }];
+  return input
+    .map((score, i) => ({ score, dartIndex: i + 1 }))
+    .filter((d) => !recorded.some((s) => s.dartIndex === d.dartIndex));
+}
+/** Scores of the last turn that holds any, which an undo removes together. */
+export function lastTurnScores(m: Match) {
+  const valid = m.scores.filter((s) => !s.voided);
+  const last = valid.at(-1);
+  return last ? valid.filter((s) => s.turnId === last.turnId) : [];
+}
+/** Versions to send with the next command on a match, read from the tournament just returned. */
+export function versionsAfter(t: Tournament, matchId: string) {
+  return {
+    expectedVersion: t.version,
+    expectedMatchVersion: t.matches.find((x) => x.id === matchId)!.version,
+  };
+}
+
+export type EntryMode = 'total' | 'dart';
+/** How the scorer likes to enter points; a per-device convenience, never game data. */
+export const entryMode = {
+  get(): EntryMode {
+    try {
+      return localStorage.getItem('bt-entry-mode') === 'dart' ? 'dart' : 'total';
+    } catch {
+      return 'total';
+    }
+  },
+  set(mode: EntryMode) {
+    try {
+      localStorage.setItem('bt-entry-mode', mode);
+    } catch {
+      /* Not remembered. */
+    }
+  },
+};
+export const nickname = (p: { nickname: string | null }) => (p.nickname ? `“${p.nickname}”` : '');
 
 /** Lighter list item, as returned by GET /tournaments. */
 export function toSummary(t: Tournament): Summary {

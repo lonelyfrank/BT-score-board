@@ -11,7 +11,10 @@ import { Setup } from './features/Setup';
 import { Live } from './features/Live';
 import { Settings } from './features/Settings';
 import { Players } from './features/Players';
-import { TournamentDetail, TournamentList } from './features/Tournaments';
+import { TournamentList } from './features/Tournaments';
+import { TournamentSetup } from './features/TournamentSetup';
+import { TournamentDetail } from './features/TournamentDetail';
+import { Events } from './features/Events';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/app.css';
@@ -55,10 +58,11 @@ function App() {
           <Route path="/partite/nuova" element={<Setup />} />
           <Route path="/partite/:gameId" element={<Live />} />
           <Route path="/tornei" element={<TournamentList />} />
-          <Route path="/tornei/nuovo" element={<Setup tournament />} />
+          <Route path="/tornei/nuovo" element={<TournamentSetup />} />
           <Route path="/tornei/:id" element={<TournamentDetail />} />
           <Route path="/hiscore" element={<TournamentList highscore />} />
-          <Route path="/hiscore/:id" element={<TournamentDetail highscore />} />
+          <Route path="/hiscore/:id" element={<TournamentDetail />} />
+          <Route path="/serate" element={<Events />} />
           <Route path="/giocatori" element={<Players />} />
           <Route path="/impostazioni" element={<Settings />} />
           <Route

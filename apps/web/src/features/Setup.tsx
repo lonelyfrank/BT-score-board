@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trophy, ChartNoAxesColumnIncreasing } from 'lucide-react';
-import { api, ApiError, type Player, type Tournament } from '../services/api';
-import { Header, Stepper, ErrorMessage, Tabs, Modal } from '../components/ui';
-import { DartIcon, TrophyEmblem } from '../components/BrandIcons';
-import { StageTimeline, plannedSteps } from '../components/StageTimeline';
-import { PlayerPicker } from './Players';
+import { ChartNoAxesColumnIncreasing, ChevronUp, Info, Plus, X } from 'lucide-react';
+import {
+  api,
+  ApiError,
+  entryMode,
+  nickname,
+  type EntryMode,
+  type Player,
+  type Tournament,
+} from '../services/api';
+import { Avatar, ErrorMessage, Header, Modal, Segmented, Stepper, Tabs } from '../components/ui';
+import { DartIcon } from '../components/BrandIcons';
+import { AddPlayerSheet } from '../components/PlayerSheets';
 
 const catalog = [
   ['301', 'Classic'],
@@ -16,46 +23,46 @@ const catalog = [
   ['501', 'Master'],
   ['1001', 'Master'],
   ['Cricket', ''],
-  ['Around the Clock', ''],
+  ['Around', 'the Clock'],
   ['Shanghai', ''],
   ['Double In', 'Double Out'],
   ['Hi-Score', ''],
   ['Exacta', ''],
 ];
-export function Setup({ tournament = false }: { tournament?: boolean }) {
-  const [selected, setSelected] = useState<Player[]>([]);
-  const [turns, setTurns] = useState(tournament ? 8 : 3);
-  const [mode, setMode] = useState<'QUICK_HIGH_SCORE' | 'GROUPS'>('QUICK_HIGH_SCORE');
-  const [name, setName] = useState(tournament ? 'BiteTrouble Open' : 'Partita libera');
-  const [qualifiers, setQualifiers] = useState(4);
-  const [groups, setGroups] = useState(2);
-  const [perGroup, setPerGroup] = useState(2);
+const MAX_PLAYERS = 4;
+export const entryNote: Record<EntryMode, string> = {
+  total: 'Un numero per turno: il più veloce al bancone.',
+  dart: 'Un valore per ogni freccetta (0 = mancata). Si può cambiare a ogni turno.',
+};
+
+/** A free Hi-Score match: a one-off qualification with every player admitted. */
+export function Setup() {
   const [category, setCategory] = useState('01');
+  const [name, setName] = useState('Partita libera');
+  const [selected, setSelected] = useState<Player[]>([]);
+  const [turns, setTurns] = useState(3);
+  const [darts, setDarts] = useState(3);
+  const [entry, setEntry] = useState<EntryMode>(entryMode.get);
+  const [picker, setPicker] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [draft, setDraft] = useState<Tournament>();
   const navigate = useNavigate();
   const reason = !name.trim()
-    ? 'Inserisci il nome del torneo.'
+    ? 'Inserisci un nome per la partita.'
     : selected.length < 2
-      ? 'Seleziona almeno 2 giocatori.'
-      : tournament && mode === 'QUICK_HIGH_SCORE' && qualifiers > selected.length
-        ? 'I finalisti non possono superare gli iscritti.'
-        : mode === 'GROUPS' &&
-            (selected.length < groups * Math.max(2, perGroup) || groups * perGroup < 2)
-          ? 'Ogni girone deve avere almeno 2 giocatori e abbastanza iscritti per i qualificati.'
-          : '';
+      ? 'Servono almeno 2 giocatori.'
+      : '';
   const create = useMutation({
     mutationFn: async () => {
+      entryMode.set(entry);
       let t = draft
         ? await api.tournament(draft.id)
         : await api.createTournament({
             name: name.trim(),
-            mode,
-            scoringConfiguration: { kind: 'HIGH_SCORE', turns, dartsPerTurn: 3, maxDartScore: 60 },
+            mode: 'QUICK_HIGH_SCORE',
+            scoringConfiguration: { kind: 'HIGH_SCORE', turns, dartsPerTurn: darts },
             tournamentConfiguration: {
-              qualifiers: tournament ? qualifiers : selected.length,
-              groupCount: groups,
-              qualifiersPerGroup: perGroup,
+              qualifiers: selected.length,
               tiePolicy: 'PLAYOFF',
               playingOrder: 'registration',
             },
@@ -67,176 +74,163 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
       }
       if (['draft', 'registration', 'ready'].includes(t.status))
         t = await api.tournamentCommand(t, 'start');
-      if (!tournament) {
-        const match = await api.match(t.matches[0]!.id);
-        if (match.status === 'ready') await api.matchCommand(match, 'start');
-        navigate(`/partite/${match.id}`);
-      } else navigate(mode === 'QUICK_HIGH_SCORE' ? `/hiscore/${t.id}` : `/tornei/${t.id}`);
+      const match = await api.match(t.matches[0]!.id);
+      if (match.status === 'ready') await api.matchCommand(match, 'start');
+      navigate(`/partite/${match.id}`);
     },
     onSettled: () => setConfirm(false),
   });
-  const subtitles: Record<string, string> = { 'Around the Clock': 'the Clock' };
+  const move = (index: number) => {
+    const next = [...selected];
+    [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
+    setSelected(next);
+  };
+  const modes = catalog.filter(
+    ([title]) =>
+      category === '01' || (category === 'Speciali' ? !/^\d/.test(title!) : /^\d/.test(title!)),
+  );
   return (
     <>
-      <Header
-        title={tournament ? 'Nuovo torneo' : 'Nuova partita'}
-        decor={tournament ? <Trophy strokeWidth={1.8} /> : undefined}
-      />
-      <main className={`content setup-page ${tournament ? 'with-graffiti' : ''}`}>
-        {!tournament && (
-          <>
-            <Tabs
-              tabs={['01', '02', 'Speciali', 'Classiche'].map((id) => ({ id, label: id }))}
-              value={category}
-              change={setCategory}
-            />
-            {category === '02' ? (
-              <div className="empty">
-                <h2>Catalogo “02” non ancora disponibile</h2>
-                <p>Le modalità di questa categoria arriveranno dal catalogo del backend.</p>
-              </div>
-            ) : (
-              <div className="mode-grid" role="radiogroup" aria-label="Modalità di gioco">
-                {catalog
-                  .filter(
-                    ([title]) =>
-                      category === '01' ||
-                      (category === 'Speciali' ? !/^\d/.test(title!) : /^\d/.test(title!)),
-                  )
-                  .map(([title, subtitle]) => {
-                    const available = title === 'Hi-Score';
-                    return (
-                      <button
-                        type="button"
-                        key={`${title}-${subtitle}`}
-                        role="radio"
-                        aria-checked={available}
-                        aria-description={available ? undefined : 'Non ancora disponibile'}
-                        disabled={!available}
-                        className={available ? 'selected' : ''}
-                      >
-                        <span>
-                          {available && <ChartNoAxesColumnIncreasing size={18} strokeWidth={3} />}
-                          {title === 'Around the Clock' ? 'Around' : title}
-                        </span>
-                        <small>{subtitles[title!] ?? subtitle}</small>
-                      </button>
-                    );
-                  })}
-              </div>
-            )}
-            <p className="hint">
-              Disponibile ora: Hi-Score. Le altre modalità sono in preparazione.
-            </p>
-          </>
+      <Header title="Nuova partita" />
+      <main className="content setup-page">
+        <Tabs
+          label="Categorie modalità"
+          tabs={['01', '02', 'Speciali', 'Classiche'].map((id) => ({ id, label: id }))}
+          value={category}
+          change={setCategory}
+        />
+        {category === '02' ? (
+          <div className="empty dashed">
+            <p>Categoria non ancora definita nel catalogo.</p>
+          </div>
+        ) : (
+          <div className="mode-grid" role="radiogroup" aria-label="Modalità di gioco">
+            {modes.map(([title, subtitle]) => {
+              const available = title === 'Hi-Score';
+              return (
+                <button
+                  type="button"
+                  key={`${title}-${subtitle}`}
+                  role="radio"
+                  aria-checked={available}
+                  aria-disabled={!available}
+                  disabled={!available}
+                  className={available ? 'selected' : ''}
+                >
+                  <span>
+                    {available && <ChartNoAxesColumnIncreasing size={17} strokeWidth={3} />}
+                    {title}
+                  </span>
+                  <small>{available ? 'Disponibile' : 'In arrivo'}</small>
+                </button>
+              );
+            })}
+          </div>
         )}
-        {tournament && (
-          <>
-            <div className="event-heading">
-              <TrophyEmblem />
-              <div>
-                <h2>{name || 'Il tuo torneo'}</h2>
-                <p>{selected.length} giocatori · Hi-Score</p>
-              </div>
-            </div>
-            <label className="field">
-              Nome torneo
-              <input
-                maxLength={120}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={!!draft}
-              />
-            </label>
-            <div className="choice-group" role="radiogroup" aria-label="Formato torneo">
-              <button
-                role="radio"
-                aria-checked={mode === 'GROUPS'}
-                disabled={!!draft}
-                onClick={() => setMode('GROUPS')}
-              >
-                A gironi
-              </button>
-              <button
-                role="radio"
-                aria-checked={mode === 'QUICK_HIGH_SCORE'}
-                disabled={!!draft}
-                onClick={() => setMode('QUICK_HIGH_SCORE')}
-              >
-                <ChartNoAxesColumnIncreasing size={18} strokeWidth={3} aria-hidden="true" />
-                Hi-Score
-              </button>
-            </div>
-            <p className="description">
-              {mode === 'GROUPS'
-                ? 'I giocatori vengono divisi in gironi; i migliori di ogni girone accedono alla fase a eliminazione.'
-                : `Un solo girone di qualifica. I ${qualifiers} migliori punteggi accedono alla finale.`}
-            </p>
-          </>
-        )}
+        <p className="note">
+          <Info aria-hidden="true" />
+          Disponibile ora: Hi-Score. X01, Cricket e le altre modalità arriveranno con il motore di
+          gioco.
+        </p>
         <fieldset disabled={!!draft || create.isPending}>
-          <PlayerPicker selected={selected} change={setSelected} max={tournament ? 256 : 4} />
-          {!tournament && (
-            <section className="form-section">
-              <h2>Tipo di partita</h2>
-              <div className="segmented" role="radiogroup" aria-label="Tipo di partita">
-                <button type="button" role="radio" aria-checked="true">
-                  Individuale
-                </button>
-                <button type="button" role="radio" aria-checked="false" disabled>
-                  Squadre · presto
-                </button>
-              </div>
-            </section>
-          )}
-          <section className={tournament ? 'settings-card' : 'form-section'}>
-            <h2>{tournament ? 'Impostazioni' : 'Opzioni'}</h2>
+          <label className="field heading-field">
+            Nome partita
+            <input maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <section className="form-section" aria-labelledby="players-title">
+            <div className="section-head">
+              <h2 id="players-title">Giocatori (2–{MAX_PLAYERS})</h2>
+              <span>Ordine = ordine di tiro</span>
+            </div>
+            <ol className="order-list">
+              {selected.map((p, i) => (
+                <li key={p.id}>
+                  <span className={`order ${i === 0 ? 'first' : ''}`}>{i + 1}</span>
+                  <Avatar name={p.displayName} className={i === 0 ? 'ring selected' : 'ring'} />
+                  <span className="order-name">
+                    <span>{p.displayName}</span>
+                    <small>
+                      {[i === 0 ? 'Tira per primo' : '', nickname(p)].filter(Boolean).join(' · ')}
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    className="mini"
+                    aria-label={`Anticipa ${p.displayName}`}
+                    disabled={i === 0}
+                    onClick={() => move(i)}
+                  >
+                    <ChevronUp size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="mini"
+                    aria-label={`Rimuovi ${p.displayName}`}
+                    onClick={() => setSelected(selected.filter((x) => x.id !== p.id))}
+                  >
+                    <X size={16} className="accent-soft" />
+                  </button>
+                </li>
+              ))}
+              {selected.length < MAX_PLAYERS && (
+                <li className="add-row">
+                  <button type="button" onClick={() => setPicker(true)}>
+                    <Plus aria-hidden="true" className="accent-icon" />
+                    Aggiungi giocatore
+                  </button>
+                </li>
+              )}
+            </ol>
+          </section>
+          <section className="form-section">
+            <h2>Tipo di partita</h2>
+            <Segmented
+              label="Tipo di partita"
+              value="single"
+              change={() => {}}
+              options={[
+                { id: 'single', label: 'Individuale' },
+                { id: 'teams', label: 'Squadre · in arrivo', disabled: true },
+              ]}
+            />
+          </section>
+          <section className="form-section">
+            <h2>Regole Hi-Score</h2>
             <div className="options">
               <Stepper label="Turni per giocatore" value={turns} change={setTurns} max={100} />
-              {tournament &&
-                (mode === 'QUICK_HIGH_SCORE' ? (
-                  <Stepper
-                    label="Migliori alla finale"
-                    value={qualifiers}
-                    change={setQualifiers}
-                    min={2}
-                    max={64}
-                  />
-                ) : (
-                  <>
-                    <Stepper
-                      label="Numero gironi"
-                      value={groups}
-                      change={setGroups}
-                      min={1}
-                      max={16}
-                    />
-                    <Stepper
-                      label="Qualificati per girone"
-                      value={perGroup}
-                      change={setPerGroup}
-                      max={16}
-                    />
-                  </>
-                ))}
+              <Stepper label="Freccette per turno" value={darts} change={setDarts} max={12} />
               <div className="settings-row">
-                <span>Modalità di gioco</span>
-                <strong>Hi-Score</strong>
+                <span>Massimo per freccetta</span>
+                <strong>60</strong>
+              </div>
+              <div className="settings-row">
+                <span>Massimo per turno</span>
+                <strong className="accent-soft">{darts * 60}</strong>
               </div>
             </div>
-            {!tournament && (
-              <p className="hint">
-                3 dardi per turno · massimo 180 punti. Set, leg e doppio out non si applicano a
-                Hi-Score.
-              </p>
-            )}
+            <p className="hint">
+              Vince chi totalizza più punti. Set, leg e doppio out non si applicano a Hi-Score.
+            </p>
+          </section>
+          <section className="form-section">
+            <h2>Inserimento punteggi</h2>
+            <Segmented
+              label="Inserimento punteggi"
+              value={entry}
+              change={setEntry}
+              options={[
+                { id: 'total', label: 'Totale turno' },
+                { id: 'dart', label: 'Per freccetta' },
+              ]}
+            />
+            <p className="hint">{entryNote[entry]}</p>
           </section>
         </fieldset>
         <ErrorMessage error={create.error} />
-        {create.error && (
+        {create.error && draft && (
           <p>
-            <Link to={draft ? `/tornei/${draft.id}` : '/tornei'}>Controlla il torneo salvato</Link>{' '}
-            prima di creare una nuova partita.
+            <Link to={`/hiscore/${draft.id}`}>Controlla la partita salvata</Link> prima di
+            crearne una nuova.
           </p>
         )}
         <div className="cta-block">
@@ -249,18 +243,8 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
             }
             onClick={() => setConfirm(true)}
           >
-            {tournament ? (
-              <Trophy className="cta-icon" fill="currentColor" />
-            ) : (
-              <DartIcon className="cta-icon" strokeWidth={2} fill="none" />
-            )}
-            {create.isPending
-              ? 'Avvio…'
-              : draft
-                ? 'Riprendi avvio'
-                : tournament
-                  ? 'AVVIA TORNEO'
-                  : 'INIZIA PARTITA'}
+            <DartIcon className="cta-icon" strokeWidth={2} fill="none" />
+            {create.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'INIZIA PARTITA'}
           </button>
           {reason && (
             <p className="form-reason" role="status">
@@ -268,38 +252,38 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
             </p>
           )}
         </div>
-        {tournament && (
-          <>
-            <StageTimeline steps={plannedSteps(mode, turns, qualifiers, groups, perGroup)} />
-            <div className="graffiti" aria-hidden="true">
-              Good
-              <br />
-              darts
-              <br />
-              good
-              <br />
-              friends
-            </div>
-          </>
+        {picker && (
+          <AddPlayerSheet
+            excluded={selected.map((p) => p.id)}
+            remaining={MAX_PLAYERS - selected.length}
+            add={(p) => setSelected((current) => [...current, p])}
+            close={() => setPicker(false)}
+          />
         )}
         {confirm && (
           <Modal
-            title="Pronti al bersaglio?"
-            close={() => {
-              if (!create.isPending) setConfirm(false);
-            }}
+            variant="dialog"
+            title={<span className="marker">Pronti al bersaglio?</span>}
+            close={() => !create.isPending && setConfirm(false)}
           >
             <p>
-              {name} · Hi-Score · {turns} turni
+              {name.trim()} · Hi-Score · {turns} {turns === 1 ? 'turno' : 'turni'} · {darts}{' '}
+              {darts === 1 ? 'freccetta' : 'freccette'}
             </p>
-            <ol>
-              {selected.map((p) => (
-                <li key={p.id}>{p.displayName}</li>
+            <ol className="confirm-order">
+              {selected.map((p, i) => (
+                <li key={p.id}>
+                  <span>{i + 1}</span>
+                  {p.displayName}
+                </li>
               ))}
             </ol>
-            <p className="hint">L’ordine mostrato è l’ordine di tiro.</p>
+            <p className="hint">Dopo l’avvio giocatori e regole non si possono più modificare.</p>
             <button className="primary" disabled={create.isPending} onClick={() => create.mutate()}>
-              {create.isPending ? 'Avvio…' : 'Conferma e inizia'}
+              {create.isPending ? 'Avvio…' : 'CONFERMA E INIZIA'}
+            </button>
+            <button disabled={create.isPending} onClick={() => setConfirm(false)}>
+              Modifica
             </button>
           </Modal>
         )}

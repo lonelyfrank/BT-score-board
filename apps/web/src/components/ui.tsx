@@ -3,7 +3,6 @@ import { Link, NavLink, useSearchParams } from 'react-router-dom';
 import { DartIcon } from './BrandIcons';
 import {
   ChevronLeft,
-  Settings,
   Home,
   Trophy,
   ChartNoAxesColumnIncreasing,
@@ -12,6 +11,8 @@ import {
   X,
   Minus,
   Plus,
+  Pause,
+  Play,
 } from 'lucide-react';
 
 export function Header({
@@ -19,16 +20,14 @@ export function Header({
   subtitle,
   back = '/',
   action,
-  decor,
 }: {
   title: string;
   subtitle?: string;
   back?: string;
   action?: ReactNode;
-  decor?: ReactNode;
 }) {
   return (
-    <header className={`app-header ${decor ? 'with-decor' : ''}`}>
+    <header className="app-header">
       <Link className="back-button" to={back} aria-label="Indietro">
         <ChevronLeft strokeWidth={2.4} />
       </Link>
@@ -36,13 +35,41 @@ export function Header({
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>
-      {decor && <span className="header-decor">{decor}</span>}
-      {action ?? (
-        <Link className="icon-button" to="/impostazioni" aria-label="Impostazioni">
-          <Settings />
-        </Link>
-      )}
+      {action ?? <span />}
     </header>
+  );
+}
+/** Pause or resume a whole tournament, from the header of its page. */
+export function PauseButton({
+  paused,
+  disabled,
+  toggle,
+}: {
+  paused: boolean;
+  disabled?: boolean;
+  toggle: () => void;
+}) {
+  return (
+    <button
+      className="icon-button"
+      aria-label={paused ? 'Riprendi torneo' : 'Metti in pausa il torneo'}
+      disabled={disabled}
+      onClick={toggle}
+    >
+      {paused ? (
+        <Play className="warning-icon" fill="currentColor" />
+      ) : (
+        <Pause fill="currentColor" />
+      )}
+    </button>
+  );
+}
+/** Primary add action in a header (new player, new event). */
+export function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="icon-button add" aria-label={label} onClick={onClick}>
+      <Plus strokeWidth={2.6} />
+    </button>
   );
 }
 export function BottomNavigation() {
@@ -119,14 +146,24 @@ export function Loading() {
     </p>
   );
 }
+/**
+ * A bottom sheet, or with `variant="dialog"` a centred confirmation without a close icon
+ * (its own buttons close it). Escape always closes.
+ */
 export function Modal({
   title,
   children,
   close,
+  variant = 'sheet',
+  tone,
+  alert = false,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   close: () => void;
+  variant?: 'sheet' | 'dialog';
+  tone?: 'warning' | 'danger';
+  alert?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -137,7 +174,8 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className="sheet"
+      className={`${variant} ${tone ?? ''}`}
+      role={alert ? 'alertdialog' : undefined}
       onCancel={(event) => {
         event.preventDefault();
         close();
@@ -146,9 +184,11 @@ export function Modal({
     >
       <header>
         <h2 id="sheet-title">{title}</h2>
-        <button onClick={close} aria-label="Chiudi" className="icon-button">
-          <X />
-        </button>
+        {variant === 'sheet' && (
+          <button onClick={close} aria-label="Chiudi" className="icon-button">
+            <X />
+          </button>
+        )}
       </header>
       {children}
     </dialog>
@@ -156,12 +196,14 @@ export function Modal({
 }
 export function Stepper({
   label,
+  hint,
   value,
   change,
   min = 1,
   max = 9,
 }: {
   label: string;
+  hint?: string;
   value: number;
   change: (n: number) => void;
   min?: number;
@@ -169,7 +211,14 @@ export function Stepper({
 }) {
   return (
     <div className="settings-row">
-      <span>{label}</span>
+      {hint ? (
+        <span className="row-label">
+          <span>{label}</span>
+          <small>{hint}</small>
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
       <div className="stepper">
         <button
           type="button"
@@ -196,13 +245,16 @@ export function Tabs({
   tabs,
   value,
   change,
+  label,
 }: {
-  tabs: { id: string; label: string }[];
+  /** `attention` marks a tab with a pending organizer action. */
+  tabs: { id: string; label: string; attention?: boolean }[];
   value: string;
   change: (id: string) => void;
+  label?: string;
 }) {
   return (
-    <div className="tabs" role="tablist">
+    <div className="tabs" role="tablist" aria-label={label}>
       {tabs.map((tab, i) => (
         <button
           role="tab"
@@ -224,9 +276,80 @@ export function Tabs({
           }}
         >
           {tab.label}
+          {tab.attention && <span className="tab-dot" aria-label="azione richiesta" />}
         </button>
       ))}
     </div>
+  );
+}
+/** Two or three mutually exclusive options in a pill. */
+export function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  change,
+}: {
+  label: string;
+  options: { id: T; label: ReactNode; disabled?: boolean }[];
+  value: T;
+  change: (id: T) => void;
+}) {
+  return (
+    <div
+      className="segmented"
+      role="radiogroup"
+      aria-label={label}
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
+      {options.map((o) => (
+        <button
+          type="button"
+          role="radio"
+          key={o.id}
+          aria-checked={value === o.id}
+          disabled={o.disabled}
+          onClick={() => change(o.id)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+export type Tone = 'live' | 'warning' | 'success' | 'neutral';
+/** Filled status chip: pink in progress, amber waiting for the organizer, green done. */
+export function StatusChip({ tone, children }: { tone: Tone; children: ReactNode }) {
+  return <span className={`status-chip tone-${tone}`}>{children}</span>;
+}
+export function tournamentTone(status: string): Tone {
+  return status === 'completed'
+    ? 'success'
+    : status === 'paused'
+      ? 'warning'
+      : status === 'active'
+        ? 'live'
+        : 'neutral';
+}
+export function Switch({
+  checked,
+  change,
+  labelledBy,
+}: {
+  checked: boolean;
+  change: (value: boolean) => void;
+  labelledBy: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      className="switch"
+      aria-checked={checked}
+      aria-labelledby={labelledBy}
+      onClick={() => change(!checked)}
+    >
+      <span />
+    </button>
   );
 }
 export function useTab(defaultValue: string) {
@@ -242,10 +365,11 @@ export const statusLabel = (status: string) =>
     registration: 'Iscrizioni aperte',
     ready: 'Da giocare',
     scheduled: 'In programma',
+    planned: 'In programma',
     active: 'In corso',
     paused: 'In pausa',
-    completed: 'Terminata',
-    cancelled: 'Annullata',
+    completed: 'Concluso',
+    cancelled: 'Annullato',
     open: 'In corso',
     finalized: 'Confermata',
     qualification: 'Qualifica',

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { appVersion, localData, sharedApi } from '../services/api';
+import { Eye, EyeOff, Lock } from 'lucide-react';
+import { ApiError, appVersion, localData, sharedApi } from '../services/api';
 import type { BackupFile, BackupSummary } from '../../../../packages/local-store/src/index.js';
 import {
   canShareFiles,
@@ -40,8 +41,9 @@ export function Settings() {
         <section className="panel">
           <h2>Modalità disponibili</h2>
           <p>
-            Hi-Score, tornei a gironi, qualificazioni, spareggi e finali. Le modalità 301/501 e le
-            squadre non sono ancora disponibili.
+            Hi-Score con inserimento a totale o per freccetta, tornei a gironi con eliminazione
+            diretta, Hi-Score Nights con finale unica, spareggi e serate. X01, Cricket e le squadre
+            non sono ancora disponibili.
           </p>
         </section>
       </main>
@@ -281,75 +283,174 @@ function AppSection() {
 
 function OrganizerAccess() {
   const [token, setToken] = useState('');
+  const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>();
+  const [error, setError] = useState('');
   const [connected, setConnected] = useState(sharedApi!.hasToken());
+  const [verifiedAt, setVerifiedAt] = useState<Date | null>(null);
   const client = useQueryClient();
   const api = sharedApi!;
+  const server = useQuery({ queryKey: ['server-info'], queryFn: () => api.serverInfo() });
   return (
-    <section className="panel">
-      <h2>Accesso organizzatore</h2>
-      <p>
-        Inserisci il token configurato sul server per gestire giocatori e punteggi. Rimane in questa
-        scheda del browser.
-      </p>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError(null);
-          api.setToken(token.trim());
-          try {
-            await api.players();
-            await client.cancelQueries();
-            client.clear();
-            setConnected(true);
-            setToken('');
-          } catch (err) {
-            api.setToken('');
-            setConnected(false);
-            client.clear();
-            setError(err);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <label className="field">
-          Token organizzatore
-          <input
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            required
-          />
-        </label>
-        <button className="primary" disabled={busy || !token.trim()}>
-          {busy ? 'Connessione…' : 'Collega applicativo'}
-        </button>
-      </form>
-      <ErrorMessage error={error} />
-      {connected && (
-        <>
-          <p className="success" role="status">
-            Accesso organizzatore attivo
-          </p>
-          <Link to="/" className="button">
-            Torna alla Home
-          </Link>
-          <button
-            onClick={async () => {
-              await client.cancelQueries();
-              api.setToken('');
-              client.clear();
-              setConnected(false);
+    <>
+      <section className={`panel access ${connected ? 'on' : ''}`} aria-labelledby="access-title">
+        <div className="access-head">
+          <span className="access-icon" aria-hidden="true">
+            <Lock />
+          </span>
+          <div>
+            <h2 id="access-title">Accesso organizzatore</h2>
+            <span role="status">
+              {connected ? 'Connesso · comandi abilitati' : 'Non connesso · solo consultazione'}
+            </span>
+          </div>
+        </div>
+        {connected ? (
+          <>
+            <dl className="access-facts">
+              <dt>Ruolo</dt>
+              <dd>Organizzatore</dd>
+              {verifiedAt && (
+                <>
+                  <dt>Verificato</dt>
+                  <dd>
+                    oggi,{' '}
+                    {verifiedAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                  </dd>
+                </>
+              )}
+              <dt>Validità</dt>
+              <dd>fino alla chiusura della scheda</dd>
+            </dl>
+            <Link to="/" className="button">
+              Torna alla Home
+            </Link>
+            <button
+              className="outline"
+              onClick={async () => {
+                await client.cancelQueries();
+                api.setToken('');
+                client.clear();
+                setConnected(false);
+              }}
+            >
+              Disconnetti questa scheda
+            </button>
+          </>
+        ) : (
+          <form
+            className="sheet-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setError('');
+              api.setToken(token.trim());
+              try {
+                // An authenticated read: 200 means the server accepts the token.
+                await api.players('', 0, 'active');
+                await client.cancelQueries();
+                client.clear();
+                setConnected(true);
+                setVerifiedAt(new Date());
+                setToken('');
+              } catch (err) {
+                api.setToken('');
+                client.clear();
+                setError(
+                  err instanceof ApiError && ['UNAUTHORIZED', 'HTTP_401'].includes(err.code)
+                    ? 'Token non accettato dal server (401). Controlla il valore in .env.'
+                    : err instanceof Error
+                      ? err.message
+                      : 'Verifica non riuscita.',
+                );
+              } finally {
+                setBusy(false);
+              }
             }}
           >
-            Disconnetti
-          </button>
-        </>
-      )}
-    </section>
+            <p>
+              Inserisci l’<strong>ORGANIZER_TOKEN</strong> configurato sul server. Serve per creare
+              partite, registrare punteggi e confermare i risultati.
+            </p>
+            <label className="field" htmlFor="token">
+              Token
+            </label>
+            <div className="token-row">
+              <input
+                id="token"
+                className={error ? 'invalid' : ''}
+                type={visible ? 'text' : 'password'}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="64 caratteri esadecimali"
+                aria-describedby="token-help"
+                value={token}
+                onChange={(e) => {
+                  setToken(e.target.value);
+                  setError('');
+                }}
+              />
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={visible ? 'Nascondi token' : 'Mostra token'}
+                onClick={() => setVisible(!visible)}
+              >
+                {visible ? <EyeOff /> : <Eye />}
+              </button>
+            </div>
+            <small id="token-help" className="hint">
+              Resta solo in questa scheda del browser. Non viene salvato nell’app né nell’URL.
+            </small>
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
+            <button className="primary" disabled={busy || !token.trim()}>
+              {busy ? 'Verifica…' : 'VERIFICA E USA'}
+            </button>
+          </form>
+        )}
+      </section>
+      <section className="panel rows-panel" aria-labelledby="server-title">
+        <h2 id="server-title">Server del locale</h2>
+        <div className="settings-row">
+          <span>Stato</span>
+          <strong className="dot-label">
+            <span
+              aria-hidden="true"
+              className={server.data?.reachable ? 'dot ok' : server.data ? 'dot off' : 'dot'}
+            />
+            {server.isPending ? 'Verifica…' : server.data?.reachable ? 'Raggiungibile' : 'Non raggiungibile'}
+          </strong>
+        </div>
+        <div className="settings-row">
+          <span>Indirizzo</span>
+          <code>{window.location.host}</code>
+        </div>
+        <div className="settings-row">
+          <span>API</span>
+          <strong>v1</strong>
+        </div>
+        <div className="settings-row">
+          <span className="row-label">
+            <span>Letture pubbliche</span>
+            <small>Classifiche visibili senza token</small>
+          </span>
+          <span className="tag-box">
+            {server.data?.publicReads == null
+              ? '—'
+              : server.data.publicReads
+                ? 'Attive'
+                : 'Disattivate'}
+          </span>
+        </div>
+      </section>
+      <p className="hint">
+        Backup, migrazioni e letture pubbliche si configurano sul server (PUBLIC_READS, db:backup).
+        Da qui non è possibile modificarle.
+      </p>
+    </>
   );
 }

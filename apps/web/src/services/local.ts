@@ -4,7 +4,7 @@ import {
   type Backend,
 } from '../../../../packages/application/src/services/backend.js';
 import { uuid } from '../../../../packages/application/src/portable.js';
-import { DomainError, matchById } from '../../../../packages/domain/src/index.js';
+import { DomainError } from '../../../../packages/domain/src/index.js';
 import {
   LocalEngine,
   readBackup,
@@ -16,14 +16,24 @@ import {
 } from '../../../../packages/local-store/src/index.js';
 import {
   ApiError,
+  defaultUndoReason,
+  lastTurnScores,
   messages,
+  missingScores,
   toSummary,
+  versionsAfter,
+  type CreateEvent,
   type CreateTournament,
+  type EventPatch,
   type GameAdapter,
   type Match,
   type MatchAction,
+  type PlayerPatch,
+  type PlayerStatus,
+  type ScoreChange,
   type Tournament,
   type TournamentAction,
+  type TurnInput,
 } from './game.js';
 
 export function toApiError(error: unknown): ApiError {
@@ -86,14 +96,25 @@ export class LocalGameAdapter implements GameAdapter {
     }
   }
 
-  players(search = '', offset = 0) {
-    return this.read((_, store) => store.listPlayers({ ...all, offset, search }));
+  players(search = '', offset = 0, status?: PlayerStatus) {
+    return this.read((_, store) =>
+      store.listPlayers({ ...all, offset, search, ...(status ? { status } : {}) }),
+    );
   }
-  createPlayer(displayName: string) {
-    return this.write((b) => b.createPlayer({ displayName }));
+  createPlayer(displayName: string, nickname: string | null = null) {
+    return this.write((b) => b.createPlayer({ displayName, nickname }));
   }
-  updatePlayer(id: string, displayName: string) {
-    return this.write((b) => b.updatePlayer(id, { displayName }));
+  updatePlayer(id: string, patch: PlayerPatch) {
+    return this.write((b) => b.updatePlayer(id, patch));
+  }
+  events() {
+    return this.read((_, store) => store.listEvents({ ...all, offset: 0 }));
+  }
+  createEvent(input: CreateEvent) {
+    return this.write((b) => b.createEvent(input));
+  }
+  updateEvent(id: string, patch: EventPatch) {
+    return this.write((b) => b.updateEvent(id, patch));
   }
   statistics(id: string) {
     return this.read((b) => b.statistics(id));
@@ -102,8 +123,10 @@ export class LocalGameAdapter implements GameAdapter {
     const page = await this.read((b) => b.history(id, { ...all, offset: 0 }));
     return { ...page, items: page.items.map(toSummary) };
   }
-  async tournaments(offset = 0) {
-    const page = await this.read((_, store) => store.listTournaments({ ...all, offset }));
+  async tournaments(offset = 0, eventId?: string) {
+    const page = await this.read((_, store) =>
+      store.listTournaments({ ...all, offset, ...(eventId ? { eventId } : {}) }),
+    );
     return { ...page, items: page.items.map(toSummary) };
   }
   tournament(id: string) {
@@ -140,23 +163,24 @@ export class LocalGameAdapter implements GameAdapter {
     });
   }
   /**
-   * RecordScore and CompleteTurn, the same two backend commands, committed together: the
-   * score is never stored without the turn moving on, and a failure changes neither.
+   * RecordScore (once, or once per dart) and CompleteTurn, the same backend commands,
+   * committed together: no score is stored without the turn moving on, and a failure changes
+   * nothing.
    */
-  submitTurn(m: Match, score: number) {
+  submitTurn(m: Match, input: TurnInput) {
     return this.write((b) => {
       const turnId = m.turnState.currentTurn?.id;
       if (!turnId) throw new ApiError('NO_TURN', 'Nessun turno attivo.');
       let versions = { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version };
-      // A total entered before (e.g. data moved from the shared backend) is completed, not re-sent.
-      if (!m.scores.some((s) => s.turnId === turnId && !s.voided)) {
+      // Scores entered before (e.g. data moved from the shared backend) are completed, not re-sent.
+      for (const { score, dartIndex } of missingScores(m, turnId, input)) {
         const t = b.execute(
           'RecordScore',
           m.tournamentId,
-          { ...versions, turnId, score },
+          { ...versions, turnId, score, dartIndex },
           { matchId: m.id, idempotencyKey: uuid() },
         );
-        versions = { expectedVersion: t.version, expectedMatchVersion: matchById(t, m.id).version };
+        versions = versionsAfter(t, m.id);
       }
       b.execute(
         'CompleteTurn',
@@ -167,20 +191,35 @@ export class LocalGameAdapter implements GameAdapter {
       return b.liveMatch(m.id);
     });
   }
-  undo(m: Match) {
+  undo(m: Match, reason = defaultUndoReason) {
     return this.write((b) => {
-      const last = m.scores.filter((s) => !s.voided).at(-1);
-      if (!last) throw new ApiError('NO_SCORE', 'Nessun punteggio da annullare.');
-      b.execute(
-        'VoidScore',
-        m.tournamentId,
-        {
-          expectedVersion: m.tournamentVersion,
-          expectedMatchVersion: m.version,
-          reason: 'Annullamento ultimo inserimento dalla partita live',
-        },
-        { scoreId: last.id, idempotencyKey: uuid() },
-      );
+      const scores = lastTurnScores(m);
+      if (!scores.length) throw new ApiError('NO_SCORE', 'Nessun punteggio da annullare.');
+      let versions = { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version };
+      for (const score of scores) {
+        const t = b.execute(
+          'VoidScore',
+          m.tournamentId,
+          { ...versions, reason },
+          { scoreId: score.id, idempotencyKey: uuid() },
+        );
+        versions = versionsAfter(t, m.id);
+      }
+      return b.liveMatch(m.id);
+    });
+  }
+  correct(m: Match, changes: ScoreChange[], reason?: string) {
+    return this.write((b) => {
+      let versions = { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version };
+      for (const { scoreId, score } of changes) {
+        const t = b.execute(
+          'CorrectScore',
+          m.tournamentId,
+          { ...versions, score, ...(reason ? { reason } : {}) },
+          { scoreId, idempotencyKey: uuid() },
+        );
+        versions = versionsAfter(t, m.id);
+      }
       return b.liveMatch(m.id);
     });
   }

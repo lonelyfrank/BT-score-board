@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -6,16 +5,14 @@ import {
   ChartNoAxesColumnIncreasing,
   Trophy,
   ChevronRight,
-  Play,
   HardDriveDownload,
+  Lock,
 } from 'lucide-react';
 import { CheersIcon, CrossedDarts, CrowdIcon } from '../components/BrandIcons';
-import { Modal } from '../components/ui';
-import { api, localData } from '../services/api';
-import { activeSession, recentResults, tournamentPath } from '../services/session';
+import { api, localData, sharedApi } from '../services/api';
+import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 
 export function Home() {
-  const [notice, setNotice] = useState(false);
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
   const recent = useQuery({ queryKey: ['recent-results'], queryFn: () => recentResults(api) });
   const backup = useQuery({
@@ -24,82 +21,90 @@ export function Home() {
     enabled: !!localData,
   });
   const s = session.data;
+  // Shared mode only: commands need the organizer token of this tab.
+  const locked = !!sharedApi && !sharedApi.hasToken();
+  const resume = s && {
+    to: s.match ? `/partite/${s.match.id}` : tournamentPath(s.tournament),
+    detail: [
+      s.tournament.name,
+      s.current
+        ? `${s.current.player} al tiro · turno ${s.current.turn} di ${s.current.turns}`
+        : s.match
+          ? 'prossimo incontro pronto'
+          : 'conferma la fase per proseguire',
+    ].join(' · '),
+  };
   return (
     <div className="home-page">
       <div className="home-hero" aria-hidden="true" />
       <div className="home-footer" aria-hidden="true" />
       <h1 className="visually-hidden">Bite Trouble — Not perfect, just real</h1>
       <div className="home-tools">
-        <Link className="icon-button" to="/impostazioni" aria-label="Impostazioni">
+        <Link className="icon-button" to="/impostazioni" aria-label="Impostazioni e accesso">
           <Settings />
         </Link>
-        <Link className="icon-button" to="/hiscore" aria-label="Statistiche e classifiche">
+        {sharedApi && (
+          <Link className={`access-pill ${locked ? 'locked' : ''}`} to="/impostazioni">
+            <span aria-hidden="true" />
+            {locked ? 'Accesso richiesto' : 'Organizzatore'}
+          </Link>
+        )}
+        <Link className="icon-button" to="/hiscore" aria-label="Classifiche Hi-Score">
           <ChartNoAxesColumnIncreasing strokeWidth={2.4} />
         </Link>
       </div>
-      <nav className="home-actions" aria-label="Azioni principali">
-        {s && (
-          <Link
-            className="home-card primary resume"
-            to={s.match ? `/partite/${s.match.id}` : tournamentPath(s.tournament)}
-          >
-            <Play fill="currentColor" />
+      <div className="home-actions">
+        {resume && (
+          <Link className="home-resume" to={resume.to}>
+            <span className="live-dot" aria-hidden="true" />
             <span>
-              <strong>
-                {s.match?.status === 'active' ? 'RIPRENDI PARTITA' : 'RIPRENDI TORNEO'}
-              </strong>
-              <small>{s.tournament.name}</small>
-              {s.current ? (
-                <small className="resume-detail">
-                  Al tiro {s.current.player} · Turno {s.current.turn} di {s.current.turns}
-                </small>
-              ) : (
-                <small className="resume-detail">
-                  {s.match ? 'Prossimo incontro pronto' : 'Conferma la fase per proseguire'}
-                </small>
-              )}
-              {s.lastScore && (
-                <small className="resume-detail">
-                  Ultimo punteggio: {s.lastScore.player} {s.lastScore.score}
-                </small>
-              )}
+              <small>IN CORSO · RIPRENDI</small>
+              <span>{resume.detail}</span>
+            </span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        )}
+        <nav aria-label="Azioni principali">
+          <Link className="home-card primary" to="/partite/nuova">
+            <CrossedDarts />
+            <span>
+              <strong>NUOVA PARTITA</strong>
+              <small>Hi-Score · 2–4 giocatori</small>
             </span>
             <ChevronRight />
           </Link>
+          <Link className="home-card" to="/tornei/nuovo">
+            <Trophy strokeWidth={1.5} />
+            <span>
+              <strong>NUOVO TORNEO</strong>
+              <small>Gironi + eliminazione diretta</small>
+            </span>
+            <ChevronRight />
+          </Link>
+          <Link className="home-card" to="/hiscore">
+            <CrowdIcon />
+            <span>
+              <strong>HI-SCORE NIGHTS</strong>
+              <small>Qualifica + finale unica</small>
+            </span>
+            <ChevronRight />
+          </Link>
+          <Link className="home-card" to="/serate">
+            <CheersIcon />
+            <span>
+              <strong>GAME NIGHT</strong>
+              <small>Una serata, più tornei</small>
+            </span>
+            <ChevronRight />
+          </Link>
+        </nav>
+        {locked && (
+          <Link className="home-locked" to="/impostazioni">
+            <Lock aria-hidden="true" />
+            <span>Inserisci il token organizzatore per creare partite e registrare punteggi.</span>
+          </Link>
         )}
-        <Link className={`home-card ${s ? '' : 'primary'}`} to="/partite/nuova">
-          <CrossedDarts />
-          <span>
-            <strong>NUOVA PARTITA</strong>
-            <small>Gioca ora sul bersaglio</small>
-          </span>
-          <ChevronRight />
-        </Link>
-        <Link className="home-card" to="/tornei/nuovo">
-          <Trophy strokeWidth={1.5} />
-          <span>
-            <strong>NUOVO TORNEO</strong>
-            <small>Organizza una competizione</small>
-          </span>
-          <ChevronRight />
-        </Link>
-        <Link className="home-card" to="/hiscore">
-          <CrowdIcon />
-          <span>
-            <strong>HI-SCORE NIGHTS</strong>
-            <small>Qualifica + Finale</small>
-          </span>
-          <ChevronRight />
-        </Link>
-        <button className="home-card" onClick={() => setNotice(true)}>
-          <CheersIcon />
-          <span>
-            <strong>GAME NIGHT</strong>
-            <small>Una serata, più partite</small>
-          </span>
-          <ChevronRight />
-        </button>
-      </nav>
+      </div>
       {(backup.data?.backupRecommended || !!recent.data?.length) && (
         <section className="home-extra" aria-label="Risultati e dati">
           {backup.data?.backupRecommended && (
@@ -120,7 +125,7 @@ export function Home() {
               <ul className="home-results">
                 {recent.data.map(({ summary, winner }) => (
                   <li key={summary.id}>
-                    <Link to={`${tournamentPath(summary)}?tab=final`}>
+                    <Link to={resultsPath(summary)}>
                       <span>{summary.name}</span>
                       <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
                       <ChevronRight aria-hidden="true" />
@@ -134,16 +139,6 @@ export function Home() {
             </>
           )}
         </section>
-      )}
-      {notice && (
-        <Modal title="Game Night" close={() => setNotice(false)}>
-          <p>
-            La gestione di una serata con più partite sarà disponibile in un prossimo aggiornamento.
-          </p>
-          <Link className="primary button" to="/tornei/nuovo">
-            Crea un torneo
-          </Link>
-        </Modal>
       )}
     </div>
   );

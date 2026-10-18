@@ -61,3 +61,6 @@ export async function recentResults(api: GameAdapter, count = 3): Promise<Recent
 
 export const tournamentPath = (t: { id: string; mode: string }) =>
   `${t.mode === 'QUICK_HIGH_SCORE' ? '/hiscore' : '/tornei'}/${t.id}`;
+/** Where the official results are shown: their own tab, or the overview of a group tournament. */
+export const resultsPath = (t: { id: string; mode: string }) =>
+  `${tournamentPath(t)}?tab=${t.mode === 'QUICK_HIGH_SCORE' ? 'results' : 'overview'}`;

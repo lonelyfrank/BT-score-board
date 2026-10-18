@@ -1,20 +1,37 @@
 import {
   ApiError,
+  defaultUndoReason,
+  lastTurnScores,
   messages,
+  missingScores,
   storage,
+  versionsAfter,
+  type CreateEvent,
   type CreateTournament,
+  type EventPatch,
   type GameAdapter,
   type Match,
   type MatchAction,
   type Page,
   type Pending,
   type Player,
+  type PlayerPatch,
+  type PlayerStatus,
+  type PubEvent,
+  type ScoreChange,
   type Standings,
   type Statistics,
   type Summary,
   type Tournament,
   type TournamentAction,
+  type TurnInput,
 } from './game.js';
+
+export interface ServerInfo {
+  reachable: boolean;
+  /** Rankings readable without a token (PUBLIC_READS on the server). */
+  publicReads: boolean | null;
+}
 
 /** Shared mode: the Fastify API is the source of truth; commands carry idempotency keys. */
 export class HttpAdapter implements GameAdapter {
@@ -27,6 +44,26 @@ export class HttpAdapter implements GameAdapter {
   }
   hasToken() {
     return !!this.token;
+  }
+  /** Health and read policy of the pub's server, both checked without the token. */
+  async serverInfo(): Promise<ServerInfo> {
+    const probe = (path: string) =>
+      fetch(path, { signal: AbortSignal.timeout(5000) }).then(
+        (r) => r.status,
+        () => 0,
+      );
+    const [health, reads] = await Promise.all([probe('/health'), probe('/api/v1/players?limit=1')]);
+    return {
+      reachable: health >= 200 && health < 300,
+      publicReads: reads === 200 ? true : reads === 401 ? false : null,
+    };
+  }
+  /** Drops unconfirmed match commands once the server state has been re-read. */
+  clearPending(matchId: string) {
+    for (const path of [`/matches/${matchId}/scores`, `/matches/${matchId}/turns/complete`]) {
+      this.pending.delete(path);
+      storage.remove(`bt-command:${path}`);
+    }
   }
   async request<T>(path: string, body?: unknown, key?: string, method = 'POST'): Promise<T> {
     let response: Response;
@@ -89,16 +126,25 @@ export class HttpAdapter implements GameAdapter {
       throw error;
     }
   }
-  players(search = '', offset = 0) {
+  players(search = '', offset = 0, status?: PlayerStatus) {
     return this.request<Page<Player>>(
-      `/players?limit=100&offset=${offset}&search=${encodeURIComponent(search)}`,
+      `/players?limit=100&offset=${offset}&search=${encodeURIComponent(search)}${status ? `&status=${status}` : ''}`,
     );
   }
-  createPlayer(displayName: string) {
-    return this.request<Player>('/players', { displayName });
+  createPlayer(displayName: string, nickname: string | null = null) {
+    return this.request<Player>('/players', { displayName, nickname });
   }
-  updatePlayer(id: string, displayName: string) {
-    return this.request<Player>(`/players/${id}`, { displayName }, undefined, 'PATCH');
+  updatePlayer(id: string, patch: PlayerPatch) {
+    return this.request<Player>(`/players/${id}`, patch, undefined, 'PATCH');
+  }
+  events() {
+    return this.request<Page<PubEvent>>('/events?limit=100');
+  }
+  createEvent(input: CreateEvent) {
+    return this.request<PubEvent>('/events', input);
+  }
+  updateEvent(id: string, patch: EventPatch) {
+    return this.request<PubEvent>(`/events/${id}`, patch, undefined, 'PATCH');
   }
   statistics(id: string) {
     return this.request<Statistics>(`/players/${id}/statistics`);
@@ -106,8 +152,10 @@ export class HttpAdapter implements GameAdapter {
   history(id: string) {
     return this.request<Page<Summary>>(`/players/${id}/history?limit=100`);
   }
-  tournaments(offset = 0) {
-    return this.request<Page<Summary>>(`/tournaments?limit=100&offset=${offset}`);
+  tournaments(offset = 0, eventId?: string) {
+    return this.request<Page<Summary>>(
+      `/tournaments?limit=100&offset=${offset}${eventId ? `&eventId=${eventId}` : ''}`,
+    );
   }
   tournament(id: string) {
     return this.request<Tournament>(`/tournaments/${id}`);
@@ -137,40 +185,61 @@ export class HttpAdapter implements GameAdapter {
     });
     return this.match(m.id);
   }
-  async submitTurn(m: Match, score: number) {
+  async submitTurn(m: Match, input: TurnInput) {
     const completion = this.getPending(`/matches/${m.id}/turns/complete`);
     if (completion) {
       await this.command(completion.path, completion.body);
       return this.match(m.id);
     }
-    const saved = this.getPending(`/matches/${m.id}/scores`);
+    const path = `/matches/${m.id}/scores`;
+    const saved = this.getPending(path);
     const turnId = (saved?.body.turnId as string | undefined) ?? m.turnState.currentTurn?.id;
     if (!turnId) throw new ApiError('NO_TURN', 'Nessun turno attivo.');
-    // Recording and completion are distinct backend commands. On reload, a
-    // recorded but open turn is completed without recording a second score.
-    const recorded = m.scores.some((s) => s.turnId === turnId && !s.voided);
-    if (!recorded || saved) {
-      await this.command(`/matches/${m.id}/scores`, {
-        expectedVersion: m.tournamentVersion,
-        expectedMatchVersion: m.version,
+    // Recording and completion are distinct backend commands. An unconfirmed score is replayed
+    // exactly first; then only what the server does not hold yet is sent, one dart at a time.
+    let fresh = m;
+    if (saved) {
+      await this.command(path, saved.body);
+      fresh = await this.match(m.id);
+    }
+    for (const { score, dartIndex } of missingScores(fresh, turnId, input)) {
+      await this.command(path, {
+        expectedVersion: fresh.tournamentVersion,
+        expectedMatchVersion: fresh.version,
         turnId,
         score,
+        ...(dartIndex === null ? {} : { dartIndex }),
       });
+      fresh = await this.match(m.id);
     }
-    const fresh = await this.match(m.id);
+    if (fresh === m) fresh = await this.match(m.id);
     if (fresh.turns.find((t) => t.id === turnId)?.status !== 'completed') {
       await this.matchCommand(fresh, 'turns/complete', { turnId });
     }
     return this.match(m.id);
   }
-  async undo(m: Match) {
-    const last = m.scores.filter((s) => !s.voided).at(-1);
-    if (!last) throw new ApiError('NO_SCORE', 'Nessun punteggio da annullare.');
-    await this.command(`/scores/${last.id}/void`, {
-      expectedVersion: m.tournamentVersion,
-      expectedMatchVersion: m.version,
-      reason: 'Annullamento ultimo inserimento dalla partita live',
-    });
+  async undo(m: Match, reason = defaultUndoReason) {
+    const scores = lastTurnScores(m);
+    if (!scores.length) throw new ApiError('NO_SCORE', 'Nessun punteggio da annullare.');
+    let versions = { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version };
+    for (const score of scores)
+      versions = versionsAfter(
+        await this.command(`/scores/${score.id}/void`, { ...versions, reason }),
+        m.id,
+      );
+    return this.match(m.id);
+  }
+  async correct(m: Match, changes: ScoreChange[], reason?: string) {
+    let versions = { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version };
+    for (const { scoreId, score } of changes)
+      versions = versionsAfter(
+        await this.command(`/scores/${scoreId}/correct`, {
+          ...versions,
+          score,
+          ...(reason ? { reason } : {}),
+        }),
+        m.id,
+      );
     return this.match(m.id);
   }
 }
