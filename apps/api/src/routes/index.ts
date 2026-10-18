@@ -4,14 +4,11 @@ import * as s from '../../../../packages/contracts/src/index.js';
 import {
   Backend,
   commandSchemas,
-  type CommandName,
+  matchCommandPaths,
+  scoreCommandPaths,
+  tournamentCommandPaths,
 } from '../../../../packages/application/src/index.js';
-import {
-  DomainError,
-  matchById,
-  turnState,
-  playerPerformance,
-} from '../../../../packages/domain/src/index.js';
+import { DomainError, matchById, turnState } from '../../../../packages/domain/src/index.js';
 
 function json(schema: z.ZodType, io: 'input' | 'output' = 'output') {
   const converted = z.toJSONSchema(schema, { io, target: 'openapi-3.0', unrepresentable: 'any' });
@@ -256,19 +253,7 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
     '/matches/:id',
     'Match with tournament version and turn state',
     s.liveMatchResponse,
-    (r) => {
-      const t = backend.forMatch(id(r));
-      const m = matchById(t, id(r));
-      return {
-        ...m,
-        tournamentVersion: t.version,
-        turnState: turnState(m),
-        scoreboard: m.participants.map((p) => ({
-          tournamentEntryId: p.tournamentEntryId,
-          ...playerPerformance(m, p.tournamentEntryId),
-        })),
-      };
-    },
+    (r) => backend.liveMatch(id(r)),
   );
   route(
     'GET',
@@ -284,25 +269,7 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
     s.turnStateResponse,
     (r) => turnState(matchById(backend.forMatch(id(r)), id(r))),
   );
-  const tournamentCommands: [string, CommandName][] = [
-    ['players', 'RegisterPlayer'],
-    ['registration/open', 'OpenRegistration'],
-    ['ready', 'ReadyTournament'],
-    ['configure', 'ConfigureTournament'],
-    ['start', 'StartTournament'],
-    ['pause', 'PauseTournament'],
-    ['resume', 'ResumeTournament'],
-    ['cancel', 'CancelTournament'],
-    ['complete', 'CompleteTournament'],
-    ['qualification/finalize', 'FinalizeQualification'],
-    ['qualification/close-early', 'CloseQualificationEarly'],
-    ['finals/generate', 'GenerateFinal'],
-    ['tiebreaks', 'CreateTieBreak'],
-    ['stages/reopen', 'ReopenStage'],
-    ['matches/reorder', 'ReorderMatches'],
-    ['elimination/advance', 'AdvanceKnockout'],
-  ];
-  for (const [path, name] of tournamentCommands)
+  for (const [path, name] of Object.entries(tournamentCommandPaths))
     route(
       'POST',
       `/tournaments/:id/${path}`,
@@ -314,14 +281,7 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
         }),
       { body: commandSchemas[name], command: true },
     );
-  for (const [path, name] of [
-    ['start', 'StartMatch'],
-    ['pause', 'PauseMatch'],
-    ['resume', 'ResumeMatch'],
-    ['scores', 'RecordScore'],
-    ['turns/complete', 'CompleteTurn'],
-    ['complete', 'CompleteMatch'],
-  ] as const) {
+  for (const [path, name] of Object.entries(matchCommandPaths)) {
     route(
       'POST',
       `/matches/:id/${path}`,
@@ -335,10 +295,7 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
       { body: commandSchemas[name], command: true, score: name === 'RecordScore' },
     );
   }
-  for (const [path, name] of [
-    ['correct', 'CorrectScore'],
-    ['void', 'VoidScore'],
-  ] as const)
+  for (const [path, name] of Object.entries(scoreCommandPaths))
     route(
       'POST',
       `/scores/:id/${path}`,

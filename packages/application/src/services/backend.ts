@@ -1,7 +1,7 @@
-import { randomUUID, createHash } from 'node:crypto';
 import * as d from '../../../domain/src/index.js';
 import * as s from '../../../contracts/src/index.js';
 import type { Store, ListOptions } from '../ports.js';
+import { sha256Hex, uuid } from '../portable.js';
 import type { z } from 'zod';
 
 export type CommandName = keyof typeof commandSchemas;
@@ -35,11 +35,42 @@ export const commandSchemas = {
   }),
 };
 type CommandInput<K extends CommandName> = z.output<(typeof commandSchemas)[K]>;
+// Command paths shared by the REST routes and the standalone adapter, relative to their resource.
+export const tournamentCommandPaths = {
+  players: 'RegisterPlayer',
+  'registration/open': 'OpenRegistration',
+  ready: 'ReadyTournament',
+  configure: 'ConfigureTournament',
+  start: 'StartTournament',
+  pause: 'PauseTournament',
+  resume: 'ResumeTournament',
+  cancel: 'CancelTournament',
+  complete: 'CompleteTournament',
+  'qualification/finalize': 'FinalizeQualification',
+  'qualification/close-early': 'CloseQualificationEarly',
+  'finals/generate': 'GenerateFinal',
+  tiebreaks: 'CreateTieBreak',
+  'stages/reopen': 'ReopenStage',
+  'matches/reorder': 'ReorderMatches',
+  'elimination/advance': 'AdvanceKnockout',
+} as const satisfies Record<string, CommandName>;
+export const matchCommandPaths = {
+  start: 'StartMatch',
+  pause: 'PauseMatch',
+  resume: 'ResumeMatch',
+  scores: 'RecordScore',
+  'turns/complete': 'CompleteTurn',
+  complete: 'CompleteMatch',
+} as const satisfies Record<string, CommandName>;
+export const scoreCommandPaths = {
+  correct: 'CorrectScore',
+  void: 'VoidScore',
+} as const satisfies Record<string, CommandName>;
 export class Backend {
   constructor(
     public readonly store: Store,
     private readonly context: d.Context = {
-      id: randomUUID,
+      id: uuid,
       now: () => new Date().toISOString(),
       operator: 'organizer',
       role: 'organizer',
@@ -205,18 +236,16 @@ export class Backend {
         'Use 8–128 letters, digits, dots, colons, underscores or hyphens',
         400,
       );
-    const fingerprint = createHash('sha256')
-      .update(
-        JSON.stringify({
-          name,
-          tournamentId,
-          matchId: options.matchId,
-          scoreId: options.scoreId,
-          input,
-          operator: this.context.operator,
-        }),
-      )
-      .digest('hex');
+    const fingerprint = sha256Hex(
+      JSON.stringify({
+        name,
+        tournamentId,
+        matchId: options.matchId,
+        scoreId: options.scoreId,
+        input,
+        operator: this.context.operator,
+      }),
+    );
     return this.store.transaction(() => {
       if (options.idempotencyKey) {
         const previous = this.store.getIdempotency(options.idempotencyKey);
@@ -431,6 +460,19 @@ export class Backend {
         this.store.saveIdempotency(options.idempotencyKey, fingerprint, t);
       return t;
     });
+  }
+  liveMatch(id: string) {
+    const t = this.forMatch(id);
+    const m = d.matchById(t, id);
+    return {
+      ...m,
+      tournamentVersion: t.version,
+      turnState: d.turnState(m),
+      scoreboard: m.participants.map((p) => ({
+        tournamentEntryId: p.tournamentEntryId,
+        ...d.playerPerformance(m, p.tournamentEntryId),
+      })),
+    };
   }
   standings(id: string) {
     const t = this.tournament(id);

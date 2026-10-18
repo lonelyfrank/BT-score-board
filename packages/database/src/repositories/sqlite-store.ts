@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { and, count, desc, eq, gt, like, or } from 'drizzle-orm';
+import { and, count, desc, eq, gt, like, or, sql } from 'drizzle-orm';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -154,7 +154,7 @@ export class SqliteStore implements Store {
         .select()
         .from(schema.tournaments)
         .where(where)
-        .orderBy(desc(schema.tournaments.id))
+        .orderBy(...newestTournamentsFirst)
         .limit(o.limit)
         .offset(o.offset)
         .all()
@@ -170,6 +170,7 @@ export class SqliteStore implements Store {
       .from(schema.tournaments)
       .innerJoin(schema.entries, eq(schema.entries.tournamentId, schema.tournaments.id))
       .where(eq(schema.entries.playerId, playerId))
+      .orderBy(...newestTournamentsFirst)
       .all()
       .map((r) => r.data);
   }
@@ -372,6 +373,11 @@ export class SqliteStore implements Store {
       .run();
   }
 }
+// UUIDs carry no order: list by creation time, as the standalone store does.
+const newestTournamentsFirst = [
+  desc(sql`json_extract(${schema.tournaments.data}, '$.createdAt')`),
+  desc(schema.tournaments.id),
+];
 // SQLite LIKE wildcards are documented as search syntax; parameters remain bound.
 function escapeLike(value: string) {
   return value;

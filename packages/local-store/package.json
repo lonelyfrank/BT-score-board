@@ -1,0 +1,14 @@
+{
+  "name": "@bt/local-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@bt/application": "workspace:*",
+    "@bt/contracts": "workspace:*",
+    "@bt/domain": "workspace:*",
+    "idb": "8.0.3",
+    "zod": "4.6.7"
+  }
+}
