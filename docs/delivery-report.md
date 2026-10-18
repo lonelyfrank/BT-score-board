@@ -26,7 +26,7 @@ Il frontend deve conservare gli ID delle iscrizioni, leggere le versioni restitu
 
 ## Verifiche
 
-75 test automatici coprono dominio, due modalità torneo, API complete, autorizzazioni, vincoli, rollback, concorrenza, idempotenza, riavvio e validazione formale OpenAPI. Typecheck strict e build completati; formattazione uniforme verificata. Seed dimostrativo verificato con otto giocatori, un Quick concluso e un torneo a gironi attivo; secondo seed rifiutato senza sostituire dati. Backup verificato con integrity_check e foreign_key_check.
+Alla consegna del backend, 75 test automatici coprivano (oggi 101, vedi [testing](testing.md)) dominio, due modalità torneo, API complete, autorizzazioni, vincoli, rollback, concorrenza, idempotenza, riavvio e validazione formale OpenAPI. Typecheck strict e build completati; formattazione uniforme verificata. Seed dimostrativo verificato con otto giocatori, un Quick concluso e un torneo a gironi attivo; secondo seed rifiutato senza sostituire dati. Backup verificato con integrity_check e foreign_key_check.
 
 Le verifiche sono state eseguite con Node 22.23.1; `.nvmrc` indica Node 24 LTS come runtime consigliato. Il comando `pnpm smoke` permette di ripetere la verifica HTTP reale del build, inclusa la persistenza dopo riavvio.
 

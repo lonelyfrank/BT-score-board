@@ -30,28 +30,29 @@ export function registerWeb(app: FastifyInstance, directory = resolve('apps/web/
         .send(await readFile(resolve(directory, 'index.html')));
     });
   }
-  app.get<{ Params: { '*': string } }>('/assets/*', options, async (request, reply) => {
-    const root = resolve(directory, 'assets');
-    const file = resolve(root, request.params['*']);
-    if (!file.startsWith(root + sep)) return reply.code(404).send();
-    const types: Record<string, string> = {
-      '.js': 'text/javascript',
-      '.css': 'text/css',
-      '.woff2': 'font/woff2',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.svg': 'image/svg+xml',
-      '.txt': 'text/plain',
-    };
-    if (!types[extname(file)]) return reply.code(404).send();
-    try {
-      const content = await readFile(file);
-      return reply
-        .header('X-Content-Type-Options', 'nosniff')
-        .type(types[extname(file)]!)
-        .send(content);
-    } catch {
-      return reply.code(404).send();
-    }
-  });
+  for (const folder of ['assets', 'icons'])
+    app.get<{ Params: { '*': string } }>(`/${folder}/*`, options, async (request, reply) => {
+      const root = resolve(directory, folder);
+      const file = resolve(root, request.params['*']);
+      if (!file.startsWith(root + sep)) return reply.code(404).send();
+      const types: Record<string, string> = {
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.woff2': 'font/woff2',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.txt': 'text/plain',
+      };
+      if (!types[extname(file)]) return reply.code(404).send();
+      try {
+        const content = await readFile(file);
+        return reply
+          .header('X-Content-Type-Options', 'nosniff')
+          .type(types[extname(file)]!)
+          .send(content);
+      } catch {
+        return reply.code(404).send();
+      }
+    });
 }

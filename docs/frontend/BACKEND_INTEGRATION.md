@@ -25,4 +25,6 @@ CreateTournament non supporta idempotenza nell'API attuale: in caso di risposta 
 
 ## Differenze dall'handoff
 
-HIGH_SCORE soltanto; niente bust/checkout/doppi fittizi. Finale Quick unica. Nessun endpoint catalogo, restart-leg, team o semantica definitiva della categoria 02. Il codice non implementa regole di gioco nel browser.
+HIGH_SCORE soltanto; niente bust/checkout/doppi fittizi. Finale Quick unica. Nessun endpoint catalogo, restart-leg, team o semantica definitiva della categoria 02. I componenti React non implementano regole di gioco: in modalità standalone il browser esegue lo stesso `packages/domain` e lo stesso `Backend` del server (vedi [architettura standalone](../standalone/ARCHITECTURE.md)).
+
+Questo documento descrive la modalità **shared** (`vite build --mode shared`, `HttpAdapter`).

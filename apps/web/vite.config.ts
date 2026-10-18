@@ -67,6 +67,11 @@ export default defineConfig(({ mode }) => {
       // /assets keeps the unhashed brand files from public/.
       assetsDir: shared ? 'assets' : 'static',
       rollupOptions: {
+        onwarn(warning, warn) {
+          // Harmless in a client-only bundle: "use client" directives and comment annotations.
+          if (['MODULE_LEVEL_DIRECTIVE', 'INVALID_ANNOTATION'].includes(warning.code ?? '')) return;
+          warn(warning);
+        },
         output: {
           // Stable vendor chunks: an app update re-downloads only what changed.
           manualChunks(id: string) {

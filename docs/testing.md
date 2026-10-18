@@ -18,6 +18,9 @@ pnpm smoke
 | groups      | Gironi pari/dispari, assegnazione manuale, punti e differenza, spareggi, seeding, bye, semifinali, finale, ordine di gioco e riaperture |
 | persistence | Migrazioni, FK/UNIQUE, audit append-only, atomicità, idempotenza, versioni fra connessioni, backup e riavvio                            |
 | api         | Due tornei completi via REST, schemi, errori, paginazione, token, letture spectator, rate limit e validatore OpenAPI swagger-parser     |
+| equivalence | SHA-256 e UUID portabili; stessi scenari Quick e gironi su SQLite e MemoryStore con risultati identici; idempotenza, rollback, vincoli  |
+| local-store | IndexedDB (fake-indexeddb): riapertura, commit atomico, rollback a metà transazione, doppio invio, schede obsolete, backup, migrazioni  |
+| e2e         | Playwright shared (Fastify) e standalone: Quick 8 giocatori con spareggio, gironi, backup su nuovo dispositivo, offline, aggiornamento  |
 
 Le proprietà del calendario controllano tutte le coppie e l'assenza di doppie presenze nello stesso round; non si limitano a confrontare uno snapshot. Le prove di rollback iniettano un errore dopo il salvataggio delle proiezioni per assicurare che nemmeno score, eventi o chiave di idempotenza rimangano parzialmente scritti.
 

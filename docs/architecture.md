@@ -8,7 +8,9 @@ BT Darts Score Board è un monolite TypeScript ESM, per un organizzatore e un be
 | `packages/contracts`   | Zod, DTO pubblici, input e output HTTP                                 | Zod                                    |
 | `packages/application` | Comandi autorizzati, query, transazioni, versioni, audit e idempotenza | Dominio, contratti, porta Store        |
 | `packages/database`    | Adapter Store, Drizzle, SQLite, migrazioni e backup                    | Dominio e tipi della porta applicativa |
+| `packages/local-store` | Store in memoria, IndexedDB, motore locale, backup (solo browser)      | Dominio, application, contracts, idb   |
 | `apps/api`             | Fastify, autenticazione, rate limit, Pino, OpenAPI                     | Application, contracts, database       |
+| `apps/web`             | React; adapter standalone (predefinito) e HTTP                         | Contracts, application, local-store    |
 
 Il dominio riceve un Context con generatore di ID, orologio e operatore. Le regole non leggono variabili d'ambiente né aprono connessioni. L'application valida gli input anche quando viene chiamata senza HTTP. Il ruolo organizer è necessario per ogni scrittura; spectator è solo lettura.
 
@@ -21,3 +23,5 @@ Gli eventi applicativi sono persistiti in un outbox ordinato. `/changes?after=..
 La versione del torneo cambia per ogni comando accettato; la versione della partita cambia quando cambiano dati o stato di quella partita. La risposta idempotente resta quella originale: può contenere una versione ormai superata, quindi un client che riprende una sessione deve leggere lo stato corrente.
 
 Un solo incontro può occupare il bersaglio per torneo, incluse partite sospese. Tornei diversi possono essere gestiti indipendentemente: l'assegnazione di un bersaglio condiviso tra tornei non è modellata.
+
+La modalità standalone esegue lo stesso Backend nel browser: `MemoryStore` implementa la porta Store e ogni comando viene confermato in una transazione IndexedDB prima di aggiornare la memoria. Dettagli in [standalone/ARCHITECTURE.md](standalone/ARCHITECTURE.md).

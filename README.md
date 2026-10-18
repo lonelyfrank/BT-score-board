@@ -1,84 +1,60 @@
 # BT Darts Score Board
 
-Applicativo locale TypeScript con frontend Bite Trouble mobile-first: giocatori, Quick High Score, gironi round-robin ed eliminazione diretta, punteggi manuali, spareggi e recupero dopo riavvio. Nessun collegamento elettronico al Pub Time Darts.
+Webapp mobile-first per gestire partite e tornei di freccette al Bite Trouble: giocatori, Quick High Score, gironi round-robin ed eliminazione diretta, punteggi manuali, spareggi, classifiche e storico. Nessun collegamento elettronico al bersaglio.
 
-## Avvio
+L'app funziona in due modalità che condividono schermate, dominio e servizi applicativi:
 
-Requisiti: Node **24 LTS** consigliato; verificato anche con Node 22.23.1. Il vincolo minimo della linea 22 è 22.19. pnpm **12.14.0** è fissato in package.json. Se pnpm non è installato, è possibile usare `npm exec --yes --package pnpm@12.14.0 -- pnpm <comando>`.
+| Modalità                     | Dati                         | Uso                                                        |
+| ---------------------------- | ---------------------------- | ---------------------------------------------------------- |
+| **Standalone** (predefinita) | IndexedDB del browser        | Un telefono, nessun server, offline; deploy statico Vercel |
+| **Shared** (opzionale)       | SQLite tramite l'API Fastify | Base per una futura gestione multi-dispositivo             |
+
+## Uso standalone
+
+Si apre l'indirizzo pubblicato dal telefono e si installa l'app («Aggiungi a schermata Home» su iPhone, «Installa app» su Android). Dopo la prima apertura online l'app parte anche senza connessione. Tutte le regole di gioco girano nel browser, con lo stesso codice di dominio del backend.
+
+I dati restano **solo su quel dispositivo**. Esportare un backup da **Impostazioni → Backup** prima e dopo ogni serata, e conservarlo fuori dal telefono. Cancellare i dati del sito, disinstallare il browser o perdere il telefono elimina l'archivio. Il browser può negare l'archiviazione persistente: l'app lo segnala, ma non può garantirla. Lo stesso backup si importa su un nuovo dispositivo.
+
+Dettagli: [architettura standalone](docs/standalone/ARCHITECTURE.md), [checklist smartphone](docs/standalone/MOBILE_CHECKLIST.md), [audit iniziale](docs/standalone/AUDIT.md).
+
+## Sviluppo locale
+
+Requisiti: Node **24 LTS** consigliato (verificato con 22.23.1; minimo 22.19). pnpm **12.14.0** è fissato in `package.json`; senza pnpm installato si può usare `npm exec --yes --package pnpm@12.14.0 -- pnpm <comando>`.
 
 ```sh
 pnpm install --frozen-lockfile
-cp .env.example .env
-openssl rand -hex 32
+pnpm dev:web            # standalone su http://127.0.0.1:5173, senza backend
+pnpm check              # typecheck, test Vitest, build server + web
+pnpm --filter @bt/web build && pnpm --filter @bt/web preview   # build statica con PWA
 ```
 
-Inserire il segreto generato in `ORGANIZER_TOKEN` nel file `.env`, sostituendo il valore di esempio. Poi:
+In sviluppo il service worker è disattivato; si verifica con `build` + `preview`. Da un telefono nella stessa rete servono HTTPS o `localhost` per il service worker; IndexedDB e il gioco funzionano anche via `http://<ip-del-pc>`.
+
+## Deploy su Vercel
+
+`vercel.json` contiene la configurazione: install con pnpm 12.14.0 senza script nativi, build di `apps/web`, output `apps/web/dist`, fallback SPA e cache immutabile per i bundle con hash. Nel progetto Vercel: **Root Directory** = radice del repository, Node 22.x o 24.x, nessuna variabile d'ambiente. Procedura e verifiche in [docs/standalone/VERCEL.md](docs/standalone/VERCEL.md).
+
+## Modalità condivisa (backend Fastify)
+
+Il backend resta completo e testato: API REST `/api/v1`, SQLite con migrazioni, autenticazione organizzatore, outbox, idempotenza e OpenAPI.
 
 ```sh
-pnpm build
-pnpm start
+cp .env.example .env
+openssl rand -hex 32     # valore per ORGANIZER_TOKEN in .env
+pnpm build               # server + web standalone (dist) + web shared (dist-shared)
+pnpm start               # http://127.0.0.1:3000, frontend shared con token in Impostazioni
+pnpm dev                 # watcher API; con `pnpm dev:web:shared` Vite inoltra /api alla porta 3000
 ```
 
-Il server carica `.env`, crea `./data/darts.sqlite`, applica le migrazioni e ascolta su `http://127.0.0.1:3000`. `pnpm dev` avvia il watcher. Nessuna credenziale predefinita consente scritture. Per usare la rete locale impostare `HOST=0.0.0.0` e mantenere la protezione del token.
-
-Aprire **http://127.0.0.1:3000** per il frontend. In **Impostazioni** inserire il valore di `ORGANIZER_TOKEN` configurato sul server: viene conservato soltanto nella sessione della scheda. La build include frontend e API, serviti sulla stessa origine. I dati di gioco rimangono nel database esistente.
-
-Per sviluppare l'interfaccia, eseguire `pnpm dev` e, in un secondo terminale, `pnpm dev:web`: Vite espone `http://127.0.0.1:5173` e inoltra le chiamate API al server sulla porta 3000.
-
-Sono operative **Hi-Score e le modalità torneo già presenti**. 301/501, squadre e altre modalità della reference sono indicate come non disponibili. Quick High Score usa una finale unica tra i qualificati; semifinali ed eliminazione diretta appartengono al formato a gironi.
-
-Documentazione dell'integrazione: [stato e limiti](docs/frontend/IMPLEMENTATION_STATUS.md), [architettura](docs/frontend/FRONTEND_ARCHITECTURE.md), [flussi](docs/frontend/USER_FLOWS.md), [verifiche visuali e screenshot](docs/frontend/VISUAL_QA.md).
+Il server crea `./data/darts.sqlite` e applica le migrazioni. Nessuna credenziale predefinita consente scritture. Per usare la rete locale impostare `HOST=0.0.0.0` e mantenere il token. Strategia per migrare un archivio standalone su questo backend: [docs/standalone/FUTURE_SHARED_MODE.md](docs/standalone/FUTURE_SHARED_MODE.md).
 
 ```sh
 curl http://127.0.0.1:3000/health
 curl -H "Authorization: Bearer $ORGANIZER_TOKEN" http://127.0.0.1:3000/api/v1/tournaments
-```
-
-La variabile del secondo comando deve essere esportata nella shell; il caricamento di `.env` nel server non modifica la shell chiamante.
-
-## Dati dimostrativi e verifiche
-
-```sh
-pnpm seed
-DATABASE_PATH=./data/demo.sqlite pnpm start
-pnpm openapi
-pnpm check
-pnpm smoke
-```
-
-Il seed crea un database **separato** `data/demo.sqlite`, otto giocatori, una serata, un Quick completato e un torneo a gironi in corso. Rifiuta database già popolati senza modificarne i dati. Il valore DATABASE_PATH esportato nella shell prevale sul file `.env`.
-
-```sh
-DATABASE_PATH=./data/darts.sqlite pnpm db:migrate
+pnpm seed                                   # database demo separato data/demo.sqlite
 DATABASE_PATH=./data/darts.sqlite pnpm db:backup ./backups/serata-01.sqlite
+pnpm openapi && pnpm smoke
 ```
-
-Gli script database/seed leggono le variabili di ambiente della shell; il caricamento automatico di `.env` riguarda l'avvio del server.
-
-## Moduli e documenti
-
-```text
-apps/api/src/{server,routes,middleware,plugins}
-apps/web/src/{components,features,services,styles}
-packages/domain/src/{rules,scoring,matches,standings,tournaments}
-packages/application/src/services
-packages/database/src/{schema,migrations,repositories}
-packages/contracts/src/schemas
-tests/
-scripts/
-docs/
-```
-
-Le entità piccole Player/Event e i tipi condivisi sono in `domain/src/model.ts`; comandi e query sono raccolti in `application/src/services/backend.ts`, senza cartelle vuote o classi wrapper per ogni operazione.
-
-- [Architettura](docs/architecture.md) e [modello di dominio](docs/domain-model.md)
-- [Regole di punteggio](docs/scoring-rules.md), [modalità torneo](docs/tournament-modes.md), [macchine a stati](docs/state-machines.md)
-- [API ed endpoint](docs/api.md), [OpenAPI generato](docs/openapi.json), [contratto frontend ed esempi JSON](docs/frontend-integration.md)
-- [Database, migrazioni e backup](docs/database.md), [test](docs/testing.md)
-
-L'API usa `/api/v1`; ogni comando critico richiede versioni attese e RecordScore richiede Idempotency-Key. I pareggi decisivi richiedono uno spareggio registrato. Una fase già confermata si corregge tramite riapertura amministrativa, con invalidazione esplicita delle fasi successive.
-
-## Configurazione
 
 | Variabile       | Default               | Significato                          |
 | --------------- | --------------------- | ------------------------------------ |
@@ -89,19 +65,32 @@ L'API usa `/api/v1`; ogni comando critico richiede versioni attese e RecordScore
 | LOG_LEVEL       | `info`                | Livello Pino, token oscurati         |
 | RATE_LIMIT_MAX  | `300`                 | Richieste per IP al minuto           |
 
-Dipendenze verificate sul registro npm prima dell'installazione e fissate nel lockfile: Fastify 5.12.7, Drizzle 0.45.4, better-sqlite3 13.0.3, Zod 4.6.7, Vitest 5.0.5, TypeScript 7.0.2. Compatibilità di riferimento: [Node release schedule](https://github.com/nodejs/Release), [Fastify v5](https://fastify.dev/docs/latest/Guides/Migration-Guide-V5/), [Drizzle SQLite](https://orm.drizzle.team/docs/get-started-sqlite).
+## Moduli
+
+```text
+apps/web/src/{components,features,services,styles}   React; services/{local,http}.ts sono i due adapter
+apps/api/src/{server,routes,middleware,plugins}      Fastify (modalità shared)
+packages/domain        regole, turni, classifiche, spareggi, calendario, tabellone (puro)
+packages/contracts     schemi Zod di input/output
+packages/application   Backend: comandi, versioni, audit, idempotenza; porta Store
+packages/local-store   MemoryStore, IndexedDB, motore locale, backup (browser)
+packages/database      SqliteStore, migrazioni, backup (server)
+tests/                 Vitest: dominio, modalità, API, SQLite, equivalenza, IndexedDB
+apps/web/e2e/          Playwright: progetti shared e standalone
+```
+
+Documenti: [architettura](docs/architecture.md), [modello di dominio](docs/domain-model.md), [regole di punteggio](docs/scoring-rules.md), [modalità torneo](docs/tournament-modes.md), [macchine a stati](docs/state-machines.md), [API](docs/api.md), [OpenAPI](docs/openapi.json), [database](docs/database.md), [test](docs/testing.md), [stato frontend](docs/frontend/IMPLEMENTATION_STATUS.md).
+
+## Test
+
+```sh
+pnpm test                                        # 101 test Vitest
+pnpm --filter @bt/web exec playwright install chromium
+pnpm test:e2e                                    # 9 flussi: 3 shared + 6 standalone/PWA
+```
+
+Playwright costruisce entrambe le versioni da sé. Fastify gira sulla porta 3107 con SQLite in memoria; la build statica è servita sulla 3108. Per usare un Chromium già installato, impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
 ## Limiti intenzionali
 
-HIGH_SCORE è completo; X01 è un contratto di estensione. Nessun websocket, sincronizzazione offline, account pubblici o integrazione hardware. SQLite e snapshot di aggregato sono pensati per piccoli tornei; massimi di configurazione non equivalgono a una promessa di capacità sotto carico. Un bersaglio alla volta è imposto all'interno di ciascun torneo; l'assegnazione del bersaglio fra tornei diversi resta responsabilità dell'organizzatore. HTTPS e proxy per un'eventuale esposizione in rete sono esterni al processo API.
-
-## Test frontend
-
-`pnpm check` verifica i tipi, esegue i test di dominio/API/adapter e compila l'applicativo. Per i test browser, dopo la build:
-
-```sh
-pnpm --filter @bt/web exec playwright install chromium
-pnpm test:e2e
-```
-
-Playwright avvia un backend separato su porta 3107, con SQLite in memoria e token di prova; non modifica `data/darts.sqlite`. Gli screenshot finiscono in `docs/frontend/screenshots`. Per usare un Chromium già installato, impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` al suo percorso. La suite verifica Hi-Score, reload, undo, gironi/eliminazione e layout responsive.
+HIGH_SCORE è completo; X01 è un contratto di estensione. In standalone non esistono sincronizzazione, account o condivisione fra dispositivi: un solo telefono è la fonte dei dati. Il backend shared resta pensato per piccoli tornei locali; HTTPS e proxy sono esterni al processo API. Un bersaglio alla volta è imposto all'interno di ciascun torneo.

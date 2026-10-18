@@ -24,12 +24,19 @@ Ambito concordato: integrare prima le modalità già operative. Il frontend usa 
 ## Limiti ancora presenti
 
 - X01, Cricket, altre modalità, squadre, set/leg e double-out non implementati dal backend.
-- Game Night, PWA/offline e display spettatore dedicato non implementati.
+- Game Night e display spettatore dedicato non implementati. PWA, offline e persistenza locale sono disponibili dalla Fase 1 standalone (vedi sotto).
 - Nessun endpoint di restart-leg: non viene esposto un reset fittizio. Annullamento reale tramite VoidScore; fasi finalizzate richiedono la procedura amministrativa di riapertura, non disponibile in questa UI.
 - Nessun MockAdapter in produzione: i test usano API vere e SQLite in memoria; il seed esistente rimane disponibile per demo separate.
 - Asset hero/footer ancora temporanei dal mockup. Logo e graffiti definitivi rimangono da fornire.
 - Storybook, Lighthouse e audit axe non eseguiti.
 
-Verificati: build produzione, TypeScript strict, 79 test Vitest e 3 flussi Playwright.
+## Fase 1 — Standalone PWA (18 ottobre 2026)
+
+- Modalità predefinita standalone: dominio e servizi applicativi nel browser, IndexedDB, nessuna richiesta HTTP; HttpAdapter conservato per la modalità shared.
+- Home con ripresa della partita in corso e risultati recenti; Impostazioni con dati del dispositivo, archiviazione persistente, backup e ripristino.
+- PWA installabile, avvio offline, aggiornamenti mai forzati durante lo scoring.
+- Nessun reset, MockAdapter o dato simulato in produzione.
+
+Verificati: build produzione standalone e shared, TypeScript strict, 101 test Vitest, 9 flussi Playwright (3 shared, 6 standalone/PWA). Verifiche su dispositivi fisici: [checklist](../standalone/MOBILE_CHECKLIST.md).
 
 Verifiche e screenshot: [VISUAL_QA.md](VISUAL_QA.md). Avvio: [README](../../README.md).
