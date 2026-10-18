@@ -1,4 +1,11 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["apps/web", "tests", "vitest.config.ts", "node_modules", "dist"]
+  "exclude": [
+    "apps/web",
+    "packages/local-store",
+    "tests",
+    "vitest.config.ts",
+    "node_modules",
+    "dist"
+  ]
 }

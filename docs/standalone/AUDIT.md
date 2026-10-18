@@ -4,13 +4,13 @@ Data: 18 ottobre 2026. Branch di partenza `feat/design-bite-trouble-ui` (commit 
 
 ## Struttura e dipendenze effettive
 
-| Modulo                 | Dipende da                                   | Note per il browser                                                         |
-| ---------------------- | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `packages/domain`      | nulla                                        | TypeScript puro, nessun I/O: eseguibile nel browser senza modifiche         |
-| `packages/contracts`   | zod                                          | Utilizzabile nel browser                                                    |
-| `packages/application` | domain, contracts, zod, **`node:crypto`**    | Unica dipendenza server-only: `randomUUID` e `createHash('sha256')`         |
-| `packages/database`    | better-sqlite3, drizzle, `node:fs`, crypto   | Solo server                                                                 |
-| `apps/api`             | Fastify, application, database               | Solo server; serve anche `apps/web/dist`                                    |
+| Modulo                 | Dipende da                                    | Note per il browser                                                         |
+| ---------------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| `packages/domain`      | nulla                                         | TypeScript puro, nessun I/O: eseguibile nel browser senza modifiche         |
+| `packages/contracts`   | zod                                           | Utilizzabile nel browser                                                    |
+| `packages/application` | domain, contracts, zod, **`node:crypto`**     | Unica dipendenza server-only: `randomUUID` e `createHash('sha256')`         |
+| `packages/database`    | better-sqlite3, drizzle, `node:fs`, crypto    | Solo server                                                                 |
+| `apps/api`             | Fastify, application, database                | Solo server; serve anche `apps/web/dist`                                    |
 | `apps/web`             | React, TanStack Query, Router; tipi contracts | Unico punto di I/O: `HttpAdapter` in `services/api.ts`, istanza unica `api` |
 
 Il frontend non importa codice di dominio a runtime: usa solo tipi derivati dagli schemi Zod di risposta. Tutte le schermate passano dall'oggetto `api`, quindi un'interfaccia comune può sostituirlo senza duplicare le schermate.
@@ -31,12 +31,12 @@ L'aggregato di consistenza è il Tournament (match, turni, punteggi e risultati 
 
 ## Baseline eseguita
 
-| Verifica                    | Esito                                                                                                       |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `tsc --noEmit` root e web   | OK                                                                                                          |
-| Vitest                      | 79/79 superati (6 file)                                                                                     |
-| Build backend + web         | OK, bundle 268 kB (83 kB gzip)                                                                              |
-| Playwright (3 flussi)       | 3/3 superati usando `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`: nella cache c'è Chromium 1243, la 1.64 cerca 1248 |
+| Verifica                  | Esito                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `tsc --noEmit` root e web | OK                                                                                                           |
+| Vitest                    | 79/79 superati (6 file)                                                                                      |
+| Build backend + web       | OK, bundle 268 kB (83 kB gzip)                                                                               |
+| Playwright (3 flussi)     | 3/3 superati usando `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`: nella cache c'è Chromium 1243, la 1.64 cerca 1248 |
 
 ## Differenze fra documentazione e codice
 
