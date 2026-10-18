@@ -14,6 +14,7 @@ export function NumberKeypad({
   canUndo,
   maximum = 180,
   locked = false,
+  notify,
 }: {
   value: string;
   change: (value: string) => void;
@@ -23,11 +24,15 @@ export function NumberKeypad({
   canUndo: boolean;
   maximum?: number;
   locked?: boolean;
+  /** Riceve gli avvisi del tastierino; senza, vengono mostrati sotto i tasti. */
+  notify?: (message: string) => void;
 }) {
-  const [hint, setHint] = useState('');
+  const [ownHint, setOwnHint] = useState('');
+  const setHint = (message: string) => (notify ? message && notify(message) : setOwnHint(message));
+  const hint = notify ? '' : ownHint;
   function digit(d: string) {
     const next = appendDigit(value, d, maximum);
-    setHint(next === value && !(value === '0' && d === '0') ? `Maximum ${maximum}` : '');
+    setHint(next === value && !(value === '0' && d === '0') ? `Massimo ${maximum}` : '');
     change(next);
   }
   useEffect(() => {
@@ -53,7 +58,7 @@ export function NumberKeypad({
   return (
     <>
       <div className="input-area">
-        <div className="keypad" aria-label="Tastierino punteggio">
+        <div className="keypad" role="group" aria-label="Tastierino punteggio">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '✓'].map((key) => (
             <button
               type="button"
@@ -75,13 +80,13 @@ export function NumberKeypad({
                 key === 'C' ? change(value.slice(0, -1)) : key === '✓' ? submit() : digit(key)
               }
             >
-              {key === '✓' ? <Check /> : key}
+              {key === '✓' ? <Check strokeWidth={2.6} /> : key}
             </button>
           ))}
         </div>
         <div className="quick-panel">
-          <h3>COLPI RAPIDI</h3>
-          <div className="quick-grid">
+          <span className="quick-label">COLPI RAPIDI</span>
+          <div className="quick-grid" role="group" aria-label="Colpi rapidi">
             {[20, 40, 60, 80, 100, 120, 140, 180].map((score) => (
               <button
                 key={score}
@@ -94,6 +99,8 @@ export function NumberKeypad({
                 {score}
               </button>
             ))}
+          </div>
+          <div className="quick-grid quick-tools">
             <button
               disabled={busy || locked || !value}
               aria-label="Azzera input"
@@ -113,7 +120,7 @@ export function NumberKeypad({
       </div>
       {hint && (
         <p role="status" className="keypad-hint">
-          {hint.replace('Maximum', 'Massimo')}
+          {hint}
         </p>
       )}
     </>

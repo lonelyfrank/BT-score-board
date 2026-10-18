@@ -42,7 +42,7 @@ export function Settings() {
               }
             }}
           >
-            <label>
+            <label className="field">
               Token organizzatore
               <input
                 type="password"

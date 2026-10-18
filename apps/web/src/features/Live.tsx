@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { Settings, Crown } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import { CrownIcon, DartIcon, PaintSplash } from '../components/BrandIcons';
 import { api, storage } from '../services/api';
 import { Avatar, ErrorMessage, Header, Loading, Modal, statusLabel } from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
@@ -19,6 +20,11 @@ export function Live() {
   const [history, setHistory] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState(false);
   const [feedback, setFeedback] = useState('');
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => setFeedback(''), 1800);
+    return () => clearTimeout(timer);
+  }, [feedback]);
   const query = useQuery({
     queryKey: ['match', gameId],
     queryFn: () => api.match(gameId),
@@ -89,6 +95,11 @@ export function Live() {
     .filter((s) => !s.voided)
     .slice(-5)
     .reverse();
+  const tag = mutation.isPending
+    ? 'Registrazione…'
+    : locked
+      ? 'Da completare · conferma per recuperare'
+      : feedback;
   const back = t?.mode === 'GROUPS' ? `/tornei/${m.tournamentId}` : `/hiscore/${m.tournamentId}`;
   return (
     <div className="live-page">
@@ -99,7 +110,7 @@ export function Live() {
         action={
           <button
             className="icon-button"
-            aria-label="Cronologia partita"
+            aria-label="Opzioni partita e cronologia"
             onClick={() => setHistory(true)}
           >
             <Settings />
@@ -107,58 +118,85 @@ export function Live() {
         }
       />
       <main className="live-content">
-        <div className="scoreboard">
-          {m.participants.map((p) => (
-            <article
-              className={`score-card ${turn?.participantId === p.tournamentEntryId ? 'selected' : ''}`}
-              aria-current={turn?.participantId === p.tournamentEntryId ? 'true' : undefined}
-              key={p.tournamentEntryId}
-            >
-              <Avatar name={name(p.tournamentEntryId)} />
-              <span className="player-name">{name(p.tournamentEntryId)}</span>
-              <strong>
-                {m.scoreboard.find((s) => s.tournamentEntryId === p.tournamentEntryId)?.total ?? 0}
-              </strong>
-              <small>
-                {turn?.participantId === p.tournamentEntryId ? 'AL TIRO' : 'PUNTI TOTALI'}
-              </small>
-            </article>
-          ))}
+        <div className="scoreboard" role="list" aria-label="Punteggi">
+          {m.participants.map((p) => {
+            const current = turn?.participantId === p.tournamentEntryId;
+            const last = m.scores
+              .filter((s) => !s.voided && s.tournamentEntryId === p.tournamentEntryId)
+              .slice(-3)
+              .map((s) => String(s.score));
+            return (
+              <article
+                role="listitem"
+                className={`score-card ${current ? 'selected' : ''}`}
+                aria-current={current ? 'true' : undefined}
+                key={p.tournamentEntryId}
+              >
+                {current && <CrownIcon className="card-crown" />}
+                <Avatar name={name(p.tournamentEntryId)} />
+                <span className="player-name">{name(p.tournamentEntryId)}</span>
+                <strong>
+                  {m.scoreboard.find((s) => s.tournamentEntryId === p.tournamentEntryId)?.total ??
+                    0}
+                </strong>
+                <span className="turn-chips" aria-label="Ultimi turni">
+                  {[...Array<string>(3 - last.length).fill('—'), ...last].map((v, i) => (
+                    <span key={i}>{v}</span>
+                  ))}
+                </span>
+              </article>
+            );
+          })}
         </div>
         {m.status === 'active' && (
           <>
             <div className="score-center">
-              <div>
-                <div className="turn-banner" aria-live="polite">
-                  TURNO DI {turn ? name(turn.participantId) : '—'}
+              <div className="score-stage">
+                <div className="turn-row">
+                  <div className="turn-banner" aria-live="polite">
+                    <DartIcon />
+                    <span>TURNO DI {turn ? name(turn.participantId) : '—'}</span>
+                  </div>
+                  <div
+                    className="darts-left"
+                    role="img"
+                    aria-label={`${m.scoringConfiguration.dartsPerTurn} dardi`}
+                  >
+                    <span>
+                      {Array.from({ length: m.scoringConfiguration.dartsPerTurn }, (_, i) => (
+                        <i key={i} />
+                      ))}
+                    </span>
+                  </div>
                 </div>
-                <div className={`score-paper ${!value ? 'is-empty' : ''}`}>
-                  <output aria-live="polite" aria-label="Punteggio da confermare">
-                    {value || '0'}
-                  </output>
-                  <span>
-                    {locked
-                      ? 'Da completare · conferma per recuperare'
-                      : `${m.scoringConfiguration.dartsPerTurn} dardi · totale turno`}
-                  </span>
+                <div className="paper-area">
+                  <PaintSplash className="paper-splash" />
+                  <div className={`score-paper ${!value ? 'is-empty' : ''}`}>
+                    <output aria-live="polite" aria-label="Punteggio da confermare">
+                      {value || '0'}
+                    </output>
+                  </div>
+                  <p className={`paper-tag ${tag ? 'shown' : ''}`} role="status">
+                    {tag}
+                  </p>
                 </div>
               </div>
-              <aside className="stats">
+              <dl className="stats">
                 <div>
-                  <span>MEDIA</span>
-                  <strong>{active?.average.toFixed(1) ?? '—'}</strong>
+                  <dt>MEDIA</dt>
+                  <dd>{active?.average.toFixed(1) ?? '—'}</dd>
                 </div>
                 <div>
-                  <span>TURNI</span>
-                  <strong>
+                  <dt>TURNI</dt>
+                  <dd>
                     {active?.turns ?? 0}/{m.scoringConfiguration.turns}
-                  </strong>
+                  </dd>
                 </div>
                 <div>
-                  <span>MIGLIOR GIRO</span>
-                  <strong>{active?.bestTurn ?? '—'}</strong>
+                  <dt>MIGLIOR GIRO</dt>
+                  <dd>{active?.bestTurn ?? '—'}</dd>
                 </div>
-              </aside>
+              </dl>
             </div>
             <NumberKeypad
               value={value}
@@ -169,6 +207,7 @@ export function Live() {
               canUndo={recent.length > 0}
               maximum={m.scoringConfiguration.maxTurnScore}
               locked={locked}
+              notify={setFeedback}
             />
           </>
         )}
@@ -185,17 +224,11 @@ export function Live() {
           </section>
         )}
         {m.status === 'completed' && (
-          <section className="winner panel">
-            <Crown />
+          <section className="winner">
+            <CrownIcon className="winner-crown" />
             <h2>Incontro terminato</h2>
-            <button
-              disabled={mutation.isPending || !recent.length}
-              onClick={() => setConfirmUndo(true)}
-            >
-              Annulla ultimo turno
-            </button>
             {m.winnerEntryId ? (
-              <p className="winner-name">{name(m.winnerEntryId)}</p>
+              <p className="winner-name">{name(m.winnerEntryId)} vince!</p>
             ) : (
               <p>Consulta la classifica per qualificazioni e parità.</p>
             )}
@@ -205,44 +238,56 @@ export function Live() {
             <Link className="button" to="/partite/nuova">
               Nuova partita
             </Link>
+            <button
+              className="ghost"
+              disabled={mutation.isPending || !recent.length}
+              onClick={() => setConfirmUndo(true)}
+            >
+              Annulla ultimo turno
+            </button>
           </section>
         )}
         <ErrorMessage error={query.error ?? mutation.error} />
-        <p className="live-feedback" role="status">
-          {mutation.isPending ? 'Registrazione…' : feedback}
-        </p>
-        <section className="recent">
-          <h3>ULTIMI TURNI</h3>
-          <div>
+        {m.status !== 'active' && feedback && (
+          <p className="live-feedback" role="status">
+            {feedback}
+          </p>
+        )}
+        <section className="recent" aria-labelledby="recent-title">
+          <h2 id="recent-title">ULTIMI TURNI</h2>
+          <ol>
             {Array.from({ length: 5 }, (_, index) => {
               const s = recent[index];
               return (
-                <article key={index}>
+                <li key={index} className={s && index === 0 ? 'new' : ''}>
                   {s ? (
                     <>
                       <small>{name(s.tournamentEntryId)}</small>
                       <strong>{s.score}</strong>
                     </>
                   ) : (
-                    '—'
+                    <strong>-</strong>
                   )}
-                </article>
+                </li>
               );
             })}
-          </div>
+          </ol>
         </section>
       </main>
       {history && (
-        <Modal title="Cronologia partita" close={() => setHistory(false)}>
-          {m.scores
-            .filter((s) => !s.voided)
-            .slice()
-            .reverse()
-            .map((s) => (
-              <p key={s.id}>
-                {name(s.tournamentEntryId)} · {s.score} punti
-              </p>
-            ))}
+        <Modal title="Cronologia turni" close={() => setHistory(false)}>
+          <ol className="history-list">
+            {m.scores
+              .filter((s) => !s.voided)
+              .map((s, i) => (
+                <li key={s.id}>
+                  <span>
+                    {i + 1}. {name(s.tournamentEntryId)}
+                  </span>
+                  <strong>{s.score}</strong>
+                </li>
+              ))}
+          </ol>
           {!recent.length && <p>Nessun turno registrato.</p>}
           <p className="hint">
             Annulla riapre l’ultimo turno. Le fasi già confermate richiedono la riapertura

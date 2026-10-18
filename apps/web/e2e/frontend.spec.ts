@@ -82,8 +82,8 @@ test('home, real scoring, reload, undo, qualification and final', async ({ page 
   await page.getByRole('button', { name: 'Conferma turno' }).click();
   await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
-  await page.getByRole('tab', { name: 'Finale', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Risultato ufficiale' })).toBeVisible();
+  await page.getByRole('tab', { name: /^Finale/ }).click();
+  await expect(page.getByRole('heading', { name: 'Podio finale' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 test('group setup and responsive views', async ({ page }) => {
@@ -124,8 +124,8 @@ test('group setup and responsive views', async ({ page }) => {
   await playNext();
   await playNext();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
-  await page.getByRole('tab', { name: 'Finale', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Risultato ufficiale' })).toBeVisible();
+  await page.getByRole('tab', { name: /^Finale/ }).click();
+  await expect(page.getByRole('heading', { name: 'Podio finale' })).toBeVisible();
   for (const width of [360, 430, 1024]) {
     await page.setViewportSize({ width, height: 844 });
     for (const path of ['/', '/partite/nuova', '/tornei/nuovo', '/giocatori']) {
@@ -202,6 +202,6 @@ test('resolves a tied final with a real playoff', async ({ page, request }) => {
   await page.getByRole('button', { name: 'Conferma turno' }).click();
   await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
-  await page.getByRole('tab', { name: 'Finale', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Risultato ufficiale' })).toBeVisible();
+  await page.getByRole('tab', { name: /^Finale/ }).click();
+  await expect(page.getByRole('heading', { name: 'Podio finale' })).toBeVisible();
 });

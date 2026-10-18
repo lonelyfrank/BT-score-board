@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Link, NavLink, useSearchParams } from 'react-router-dom';
 import { DartIcon } from './BrandIcons';
 import {
-  ArrowLeft,
+  ChevronLeft,
   Settings,
   Home,
   Trophy,
@@ -19,21 +19,24 @@ export function Header({
   subtitle,
   back = '/',
   action,
+  decor,
 }: {
   title: string;
   subtitle?: string;
   back?: string;
   action?: ReactNode;
+  decor?: ReactNode;
 }) {
   return (
-    <header className="app-header">
-      <Link className="icon-button" to={back} aria-label="Indietro">
-        <ArrowLeft />
+    <header className={`app-header ${decor ? 'with-decor' : ''}`}>
+      <Link className="back-button" to={back} aria-label="Indietro">
+        <ChevronLeft strokeWidth={2.4} />
       </Link>
       <div>
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>
+      {decor && <span className="header-decor">{decor}</span>}
       {action ?? (
         <Link className="icon-button" to="/impostazioni" aria-label="Impostazioni">
           <Settings />
@@ -46,16 +49,16 @@ export function BottomNavigation() {
   return (
     <nav className="bottom-nav" aria-label="Navigazione principale">
       {[
-        ['/', 'Home', Home],
-        ['/partite/nuova', 'Partite', DartIcon],
-        ['/tornei', 'Tornei', Trophy],
-        ['/hiscore', 'Hi-Score', ChartNoAxesColumnIncreasing],
-        ['/giocatori', 'Giocatori', Users],
-      ].map(([url, name, Icon]) => {
+        ['/', 'Home', Home, true],
+        ['/partite/nuova', 'Partite', DartIcon, false],
+        ['/tornei', 'Tornei', Trophy, true],
+        ['/hiscore', 'Hi-Score', ChartNoAxesColumnIncreasing, false],
+        ['/giocatori', 'Giocatori', Users, false],
+      ].map(([url, name, Icon, fillable]) => {
         const Glyph = Icon as typeof Home;
         return (
           <NavLink key={String(url)} to={String(url)} end={url === '/'}>
-            <Glyph aria-hidden="true" />
+            <Glyph aria-hidden="true" className={fillable ? 'fill-active' : undefined} />
             <span>{String(name)}</span>
           </NavLink>
         );
@@ -63,16 +66,31 @@ export function BottomNavigation() {
     </nav>
   );
 }
-export function Avatar({ name, active = false }: { name: string; active?: boolean }) {
+const avatarColors = ['#5B2340', '#23405B', '#5B4A23', '#2F5B23', '#4A235B', '#235B55', '#5B3323'];
+export function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words.map((x) => x[0]).join('') : (words[0] ?? '?'))
+    .slice(0, 2)
+    .toUpperCase();
+}
+export function Avatar({
+  name,
+  active = false,
+  className = '',
+}: {
+  name: string;
+  active?: boolean;
+  className?: string;
+}) {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return (
-    <span aria-hidden="true" className={`avatar ${active ? 'selected' : ''}`}>
-      {name
-        .trim()
-        .split(/\s+/)
-        .map((x) => x[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()}
+    <span
+      aria-hidden="true"
+      className={`avatar ${active ? 'selected' : ''} ${className}`}
+      style={{ background: avatarColors[hash % avatarColors.length] }}
+    >
+      {initials(name)}
     </span>
   );
 }

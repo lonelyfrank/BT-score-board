@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trophy, Crosshair, ChartNoAxesColumnIncreasing } from 'lucide-react';
+import { Trophy, ChartNoAxesColumnIncreasing } from 'lucide-react';
 import { api, ApiError, type Player, type Tournament } from '../services/api';
 import { Header, Stepper, ErrorMessage, Tabs, Modal } from '../components/ui';
+import { DartIcon, TrophyEmblem } from '../components/BrandIcons';
+import { StageTimeline, plannedSteps } from '../components/StageTimeline';
 import { PlayerPicker } from './Players';
 
 const catalog = [
@@ -73,10 +75,14 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
     },
     onSettled: () => setConfirm(false),
   });
+  const subtitles: Record<string, string> = { 'Around the Clock': 'the Clock' };
   return (
     <>
-      <Header title={tournament ? 'Nuovo torneo' : 'Nuova partita'} />
-      <main className="content setup-page">
+      <Header
+        title={tournament ? 'Nuovo torneo' : 'Nuova partita'}
+        decor={tournament ? <Trophy strokeWidth={1.8} /> : undefined}
+      />
+      <main className={`content setup-page ${tournament ? 'with-graffiti' : ''}`}>
         {!tournament && (
           <>
             <Tabs
@@ -85,7 +91,10 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
               change={setCategory}
             />
             {category === '02' ? (
-              <p className="empty">Categoria non ancora definita nel catalogo.</p>
+              <div className="empty">
+                <h2>Catalogo “02” non ancora disponibile</h2>
+                <p>Le modalità di questa categoria arriveranno dal catalogo del backend.</p>
+              </div>
             ) : (
               <div className="mode-grid" role="radiogroup" aria-label="Modalità di gioco">
                 {catalog
@@ -94,23 +103,26 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
                       category === '01' ||
                       (category === 'Speciali' ? !/^\d/.test(title!) : /^\d/.test(title!)),
                   )
-                  .map(([title, subtitle]) => (
-                    <button
-                      type="button"
-                      key={`${title}-${subtitle}`}
-                      role="radio"
-                      aria-checked={title === 'Hi-Score'}
-                      disabled={title !== 'Hi-Score'}
-                      className={title === 'Hi-Score' ? 'selected' : ''}
-                    >
-                      <span>
-                        {title === 'Hi-Score' && <ChartNoAxesColumnIncreasing size={19} />} {title}
-                      </span>
-                      <small>
-                        {title === 'Hi-Score' ? 'Disponibile' : subtitle || 'Non disponibile'}
-                      </small>
-                    </button>
-                  ))}
+                  .map(([title, subtitle]) => {
+                    const available = title === 'Hi-Score';
+                    return (
+                      <button
+                        type="button"
+                        key={`${title}-${subtitle}`}
+                        role="radio"
+                        aria-checked={available}
+                        aria-description={available ? undefined : 'Non ancora disponibile'}
+                        disabled={!available}
+                        className={available ? 'selected' : ''}
+                      >
+                        <span>
+                          {available && <ChartNoAxesColumnIncreasing size={18} strokeWidth={3} />}
+                          {title === 'Around the Clock' ? 'Around' : title}
+                        </span>
+                        <small>{subtitles[title!] ?? subtitle}</small>
+                      </button>
+                    );
+                  })}
               </div>
             )}
             <p className="hint">
@@ -121,13 +133,13 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
         {tournament && (
           <>
             <div className="event-heading">
-              <Trophy />
+              <TrophyEmblem />
               <div>
                 <h2>{name || 'Il tuo torneo'}</h2>
                 <p>{selected.length} giocatori · Hi-Score</p>
               </div>
             </div>
-            <label>
+            <label className="field">
               Nome torneo
               <input
                 maxLength={120}
@@ -136,7 +148,7 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
                 disabled={!!draft}
               />
             </label>
-            <div className="segmented" role="radiogroup" aria-label="Formato torneo">
+            <div className="choice-group" role="radiogroup" aria-label="Formato torneo">
               <button
                 role="radio"
                 aria-checked={mode === 'GROUPS'}
@@ -151,69 +163,71 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
                 disabled={!!draft}
                 onClick={() => setMode('QUICK_HIGH_SCORE')}
               >
-                ▥ Hi-Score
+                <ChartNoAxesColumnIncreasing size={18} strokeWidth={3} aria-hidden="true" />
+                Hi-Score
               </button>
             </div>
-            <p>
+            <p className="description">
               {mode === 'GROUPS'
-                ? 'Gironi tutti contro tutti, poi incontri a eliminazione diretta.'
-                : 'Un girone di qualifica. I migliori punteggi accedono a una finale unica.'}
+                ? 'I giocatori vengono divisi in gironi; i migliori di ogni girone accedono alla fase a eliminazione.'
+                : `Un solo girone di qualifica. I ${qualifiers} migliori punteggi accedono alla finale.`}
             </p>
           </>
         )}
         <fieldset disabled={!!draft || create.isPending}>
           <PlayerPicker selected={selected} change={setSelected} max={tournament ? 256 : 4} />
           {!tournament && (
-            <>
+            <section className="form-section">
               <h2>Tipo di partita</h2>
               <div className="segmented" role="radiogroup" aria-label="Tipo di partita">
                 <button type="button" role="radio" aria-checked="true">
                   Individuale
                 </button>
                 <button type="button" role="radio" aria-checked="false" disabled>
-                  Squadre · prossimamente
+                  Squadre · presto
                 </button>
               </div>
-            </>
+            </section>
           )}
-          <h2>Impostazioni</h2>
-          <section className="panel options">
-            <Stepper label="Turni per giocatore" value={turns} change={setTurns} max={100} />
-            {tournament &&
-              (mode === 'QUICK_HIGH_SCORE' ? (
-                <Stepper
-                  label="Migliori alla finale"
-                  value={qualifiers}
-                  change={setQualifiers}
-                  min={2}
-                  max={64}
-                />
-              ) : (
-                <>
+          <section className={tournament ? 'settings-card' : 'form-section'}>
+            <h2>{tournament ? 'Impostazioni' : 'Opzioni'}</h2>
+            <div className="options">
+              <Stepper label="Turni per giocatore" value={turns} change={setTurns} max={100} />
+              {tournament &&
+                (mode === 'QUICK_HIGH_SCORE' ? (
                   <Stepper
-                    label="Numero gironi"
-                    value={groups}
-                    change={setGroups}
-                    min={1}
-                    max={16}
+                    label="Migliori alla finale"
+                    value={qualifiers}
+                    change={setQualifiers}
+                    min={2}
+                    max={64}
                   />
-                  <Stepper
-                    label="Qualificati per girone"
-                    value={perGroup}
-                    change={setPerGroup}
-                    max={16}
-                  />
-                </>
-              ))}
-            <div className="settings-row">
-              <span>Modalità di gioco</span>
-              <strong>Hi-Score</strong>
+                ) : (
+                  <>
+                    <Stepper
+                      label="Numero gironi"
+                      value={groups}
+                      change={setGroups}
+                      min={1}
+                      max={16}
+                    />
+                    <Stepper
+                      label="Qualificati per girone"
+                      value={perGroup}
+                      change={setPerGroup}
+                      max={16}
+                    />
+                  </>
+                ))}
+              <div className="settings-row">
+                <span>Modalità di gioco</span>
+                <strong>Hi-Score</strong>
+              </div>
             </div>
             {!tournament && (
               <p className="hint">
-                3 dardi per turno · massimo 180 punti.
-                <br />
-                Set, leg e doppio out non si applicano a Hi-Score.
+                3 dardi per turno · massimo 180 punti. Set, leg e doppio out non si applicano a
+                Hi-Score.
               </p>
             )}
           </section>
@@ -225,34 +239,49 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
             prima di creare una nuova partita.
           </p>
         )}
-        <button
-          className="primary cta"
-          disabled={
-            !!reason ||
-            create.isPending ||
-            (!draft && create.error instanceof ApiError && create.error.uncertain)
-          }
-          onClick={() => setConfirm(true)}
-        >
-          {tournament ? <Trophy /> : <Crosshair />}
-          {create.isPending
-            ? 'Avvio…'
-            : draft
-              ? 'Riprendi avvio'
-              : tournament
-                ? 'AVVIA TORNEO'
-                : 'INIZIA PARTITA'}
-        </button>
-        {reason && (
-          <p className="hint" role="status">
-            {reason}
-          </p>
-        )}
-        <div className="graffiti" aria-hidden="true">
-          Good darts.
-          <br />
-          Good friends.
+        <div className="cta-block">
+          <button
+            className="primary cta"
+            disabled={
+              !!reason ||
+              create.isPending ||
+              (!draft && create.error instanceof ApiError && create.error.uncertain)
+            }
+            onClick={() => setConfirm(true)}
+          >
+            {tournament ? (
+              <Trophy className="cta-icon" fill="currentColor" />
+            ) : (
+              <DartIcon className="cta-icon" strokeWidth={2} fill="none" />
+            )}
+            {create.isPending
+              ? 'Avvio…'
+              : draft
+                ? 'Riprendi avvio'
+                : tournament
+                  ? 'AVVIA TORNEO'
+                  : 'INIZIA PARTITA'}
+          </button>
+          {reason && (
+            <p className="form-reason" role="status">
+              {reason}
+            </p>
+          )}
         </div>
+        {tournament && (
+          <>
+            <StageTimeline steps={plannedSteps(mode, turns, qualifiers, groups, perGroup)} />
+            <div className="graffiti" aria-hidden="true">
+              Good
+              <br />
+              darts
+              <br />
+              good
+              <br />
+              friends
+            </div>
+          </>
+        )}
         {confirm && (
           <Modal
             title="Pronti al bersaglio?"
@@ -268,7 +297,7 @@ export function Setup({ tournament = false }: { tournament?: boolean }) {
                 <li key={p.id}>{p.displayName}</li>
               ))}
             </ol>
-            <p>L’ordine mostrato è l’ordine di tiro.</p>
+            <p className="hint">L’ordine mostrato è l’ordine di tiro.</p>
             <button className="primary" disabled={create.isPending} onClick={() => create.mutate()}>
               {create.isPending ? 'Avvio…' : 'Conferma e inizia'}
             </button>

@@ -20,6 +20,8 @@
   --bt-border-subtle: #2c2c30; /* card, tile */
   --bt-border-section: #26262a; /* contenitori */
   --bt-divider: #1e1e22; /* righe di lista */
+  --bt-border-key: #2e2e33; /* tasti del tastierino e colpi rapidi */
+  --bt-border-strong: #4a4a50; /* cerchio "Aggiungi", linea timeline */
 
   /* ---- Colore: accento ---- */
   --bt-accent-primary: #ff238b; /* CTA, selezioni, neon */
@@ -31,12 +33,16 @@
   --bt-text-primary: #f8f7f5;
   --bt-text-secondary: #a8a8ad; /* ≥ 4.5:1 su --bt-bg-primary e --bt-surface-card */
   --bt-text-muted: #c9c9ce; /* sottotitoli su card scure */
+  --bt-text-subtle: #b4b4ba; /* caption, label stat */
+  --bt-text-soft: #e4e4e7; /* tab inattive */
+  --bt-text-disabled: #8a8a90;
   --bt-text-on-accent: #ffffff;
   --bt-text-on-paper: #0b0b0d;
 
   /* ---- Colore: stato ---- */
   --bt-success: #00b987; /* tasto conferma, badge "Terminata" (testo scuro #04140F) */
   --bt-success-bright: #00d49b;
+  --bt-success-ink: #04140f;
   --bt-warning: #ffbf38; /* bust, corona, 1° posto */
   --bt-paper: #ece8e3; /* carta strappata del punteggio */
 

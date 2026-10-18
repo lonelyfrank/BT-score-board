@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, Plus } from 'lucide-react';
 import { api, type Player } from '../services/api';
+import { CrownIcon } from '../components/BrandIcons';
 import { Avatar, Header, Modal, ErrorMessage, Loading, Empty } from '../components/ui';
 
 export function PlayerPicker({
@@ -14,14 +16,12 @@ export function PlayerPicker({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <>
-      <h2>
-        Giocatori{' '}
-        <span className="muted">
-          ({selected.length}/{max})
-        </span>
-      </h2>
-      <div className="player-picker panel">
+    <section className="picker-section" aria-labelledby="picker-title">
+      <div className="section-head">
+        <h2 id="picker-title">Giocatori ({max > 16 ? selected.length : `2-${max}`})</h2>
+        {selected.length > 0 && <span>Tocca per rimuovere</span>}
+      </div>
+      <div className="player-picker">
         {selected.map((p, index) => (
           <div className="player-chip" key={p.id}>
             <button
@@ -29,7 +29,8 @@ export function PlayerPicker({
               aria-label={`Rimuovi ${p.displayName}`}
               onClick={() => change(selected.filter((x) => x.id !== p.id))}
             >
-              <Avatar name={p.displayName} active={index === 0} />
+              <Avatar name={p.displayName} active className="ring" />
+              {index === 0 && <CrownIcon className="chip-crown" />}
               <span>{p.displayName}</span>
             </button>
             {index > 0 && (
@@ -43,20 +44,24 @@ export function PlayerPicker({
                   change(next);
                 }}
               >
-                ←
+                <ChevronLeft size={16} />
               </button>
             )}
           </div>
         ))}
-        <button
-          type="button"
-          className="player-chip add-player"
-          aria-label="Aggiungi"
-          disabled={selected.length >= max}
-          onClick={() => setOpen(true)}
-        >
-          <span className="avatar">+</span>Aggiungi
-        </button>
+        {selected.length < max && (
+          <button
+            type="button"
+            className="player-chip add-player"
+            aria-label="Aggiungi"
+            onClick={() => setOpen(true)}
+          >
+            <span className="add-ring">
+              <Plus size={26} />
+            </span>
+            <span>Aggiungi</span>
+          </button>
+        )}
       </div>
       {open && (
         <Modal title="Aggiungi giocatore" close={() => setOpen(false)}>
@@ -70,7 +75,7 @@ export function PlayerPicker({
           />
         </Modal>
       )}
-    </>
+    </section>
   );
 }
 function PlayerList({
@@ -106,7 +111,7 @@ function PlayerList({
   });
   return (
     <>
-      <label>
+      <label className="field">
         Cerca giocatore
         <input
           type="search"
@@ -125,7 +130,7 @@ function PlayerList({
           mutation.mutate();
         }}
       >
-        <label>
+        <label className="field">
           {editing ? 'Modifica nome' : 'Nuovo giocatore'}
           <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} required />
         </label>
@@ -157,7 +162,11 @@ function PlayerList({
             >
               <Avatar name={p.displayName} />
               <span>{p.displayName}</span>
-              <span className="muted">{select ? '+' : 'Modifica'}</span>
+              {select ? (
+                <Plus className="list-plus" size={20} />
+              ) : (
+                <span className="muted">Modifica</span>
+              )}
             </button>
           ))}
       </div>

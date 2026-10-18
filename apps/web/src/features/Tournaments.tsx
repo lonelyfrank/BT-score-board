@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { Trophy, ChevronRight, Crown } from 'lucide-react';
+import { Trophy, ChevronRight, ChartNoAxesColumnIncreasing, Lock } from 'lucide-react';
+import { CrownIcon, DartIcon, TrophyEmblem } from '../components/BrandIcons';
+import { StageTimeline, tournamentSteps } from '../components/StageTimeline';
 import { api, type Player, type Tournament, type Standings } from '../services/api';
 import {
   Avatar,
@@ -24,10 +26,13 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
   });
   return (
     <>
-      <Header title={highscore ? 'Hi-Score Nights' : 'Tornei'} />
-      <main className="content">
-        <Link className="primary button" to="/tornei/nuovo">
-          <Trophy /> NUOVO TORNEO
+      <Header
+        title={highscore ? 'Hi-Score Nights' : 'Tornei'}
+        decor={highscore ? undefined : <Trophy strokeWidth={1.8} />}
+      />
+      <main className="content with-graffiti">
+        <Link className="primary button cta" to="/tornei/nuovo">
+          <Trophy className="cta-icon" fill="currentColor" /> NUOVO TORNEO
         </Link>
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
@@ -36,18 +41,23 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
             .filter((t) => !highscore || t.mode === 'QUICK_HIGH_SCORE')
             .map((t) => (
               <Link
-                className="panel event-heading"
+                className="event-card"
                 key={t.id}
                 to={`${t.mode === 'QUICK_HIGH_SCORE' ? '/hiscore' : '/tornei'}/${t.id}`}
               >
-                <Trophy />
+                <TrophyEmblem />
                 <div>
                   <h2>{t.name}</h2>
                   <p>
-                    {statusLabel(t.status)} · {t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}
+                    {new Date(t.createdAt).toLocaleDateString('it-IT', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    })}{' '}
+                    · {t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}
                   </p>
-                  <small>{new Date(t.createdAt).toLocaleDateString('it-IT')}</small>
                 </div>
+                <span className={`status-tag status-${t.status}`}>{statusLabel(t.status)}</span>
                 <ChevronRight />
               </Link>
             ))}
@@ -78,28 +88,79 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
     </>
   );
 }
-function Ranking({ table, t }: { table: Standings[number]; t: Tournament }) {
+const entryName = (t: Tournament, id: string) =>
+  t.entries.find((e) => e.id === id)?.displayNameAtRegistration ?? '?';
+function RankBadge({ placement }: { placement: number }) {
+  return <span className={`rank-badge rank-${placement}`}>{placement}</span>;
+}
+function Ranking({
+  table,
+  t,
+  highlight = 0,
+  title = true,
+}: {
+  table: Standings[number];
+  t: Tournament;
+  highlight?: number;
+  title?: boolean;
+}) {
   return (
-    <section className="ranking panel">
-      <h2>{table.groupName ?? statusLabel(table.stageKind)}</h2>
-      {table.rows.map((row) => (
-        <div className={`ranking-row rank-${row.placement}`} key={row.tournamentEntryId}>
-          <span className="rank-badge">{row.placement}</span>
-          <Avatar
-            name={
-              t.entries.find((e) => e.id === row.tournamentEntryId)?.displayNameAtRegistration ??
-              '?'
-            }
-          />
-          <span>
-            {t.entries.find((e) => e.id === row.tournamentEntryId)?.displayNameAtRegistration}
-            {row.tied && <small> · pari merito</small>}
-          </span>
-          {row.placement === 1 && !row.tied && <Crown size={16} aria-label="Primo posto" />}
-          <strong>{table.stageKind === 'group' ? row.points : row.total}</strong>
-        </div>
-      ))}
-      {!table.rows.length && <p>In attesa dei primi risultati.</p>}
+    <section className="ranking">
+      {title && <h2>{table.groupName ?? statusLabel(table.stageKind)}</h2>}
+      <ol aria-label={`Classifica ${table.groupName ?? statusLabel(table.stageKind)}`}>
+        {table.rows.map((row) => (
+          <li
+            className={`ranking-row ${row.placement <= highlight ? 'top' : ''} ${row.placement === 1 ? 'first' : ''}`}
+            key={row.tournamentEntryId}
+          >
+            <RankBadge placement={row.placement} />
+            <Avatar name={entryName(t, row.tournamentEntryId)} />
+            <span className="ranking-name">
+              {entryName(t, row.tournamentEntryId)}
+              {row.placement === 1 && !row.tied && (
+                <CrownIcon role="img" aria-label="Primo classificato" aria-hidden={undefined} />
+              )}
+              {row.tied && <small> · pari merito</small>}
+            </span>
+            <strong>{table.stageKind === 'group' ? row.points : row.total}</strong>
+          </li>
+        ))}
+      </ol>
+      {!table.rows.length && <p className="hint">In attesa dei primi risultati.</p>}
+    </section>
+  );
+}
+function Podium({ t }: { t: Tournament }) {
+  const placed = [...t.results].sort((a, b) => a.finalPlacement - b.finalPlacement);
+  const order = [placed[1], placed[0], placed[2]];
+  return (
+    <section className="podium" aria-labelledby="podium-title">
+      <h2 id="podium-title">Podio finale</h2>
+      <ol>
+        {order.map(
+          (r) =>
+            r && (
+              <li key={r.tournamentEntryId} className={`place-${r.finalPlacement}`}>
+                {r.finalPlacement === 1 && <CrownIcon className="podium-crown" />}
+                <Avatar name={entryName(t, r.tournamentEntryId)} />
+                <span>{entryName(t, r.tournamentEntryId)}</span>
+                <small>{r.points} punti</small>
+                <span className="podium-step" aria-label={`${r.finalPlacement}° posto`}>
+                  {r.finalPlacement}
+                </span>
+              </li>
+            ),
+        )}
+      </ol>
+      {placed.length > 3 && (
+        <ul className="podium-rest">
+          {placed.slice(3).map((r) => (
+            <li key={r.tournamentEntryId}>
+              {r.finalPlacement}° · {entryName(t, r.tournamentEntryId)} · {r.points} punti
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -171,28 +232,29 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
     matches.length ? (
       <div className="match-grid">
         {matches.map((m) => (
-          <article className="panel match-card" key={m.id}>
+          <article className="match-card" key={m.id}>
             <div className="section-title">
               <h3>
                 {statusLabel(m.matchType)} {m.sequence}
               </h3>
-              <span className="badge">{statusLabel(m.status)}</span>
+              <span className={`status-tag status-${m.status}`}>{statusLabel(m.status)}</span>
             </div>
-            {m.participants.map((p) => (
-              <div className="match-player" key={p.tournamentEntryId}>
-                <Avatar
-                  name={
-                    t.entries.find((e) => e.id === p.tournamentEntryId)
-                      ?.displayNameAtRegistration ?? '?'
-                  }
-                />
-                <span>
-                  {t.entries.find((e) => e.id === p.tournamentEntryId)?.displayNameAtRegistration}
-                </span>
-                <strong>{p.finalScore ?? '—'}</strong>
-              </div>
-            ))}
-            <Link className="button" to={`/partite/${m.id}`}>
+            <ul>
+              {m.participants.map((p) => (
+                <li
+                  className={`match-player ${m.winnerEntryId === p.tournamentEntryId ? 'win' : ''}`}
+                  key={p.tournamentEntryId}
+                >
+                  <Avatar name={entryName(t, p.tournamentEntryId)} />
+                  <span>{entryName(t, p.tournamentEntryId)}</span>
+                  <strong>{p.finalScore ?? '—'}</strong>
+                </li>
+              ))}
+            </ul>
+            <Link
+              className={`button ${m.status === 'completed' ? '' : 'outline'}`}
+              to={`/partite/${m.id}`}
+            >
               {m.status === 'completed'
                 ? 'Vedi risultato'
                 : m.status === 'active'
@@ -280,19 +342,24 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
       )}
     </div>
   );
+  const qualStage = stages.find((s) => s.kind === 'qualification' || s.kind === 'group');
+  const finalists = tables
+    .find((r) => r.stageKind === 'qualification')
+    ?.rows.slice(0, t.tournamentConfiguration.qualifiers);
   return (
     <>
       <Header
         title={highscore ? 'Hi-Score Nights' : 'Torneo'}
         back={highscore ? '/hiscore' : '/tornei'}
+        decor={highscore ? undefined : <Trophy strokeWidth={1.8} fill="currentColor" />}
       />
-      <main className="content tournament-page">
+      <main className="content tournament-page with-graffiti">
         <Tabs
           tabs={
             highscore
               ? [
                   { id: 'qualification', label: 'Qualifica' },
-                  { id: 'final', label: 'Finale' },
+                  { id: 'final', label: `Finale Top ${t.tournamentConfiguration.qualifiers}` },
                   { id: 'ranking', label: 'Classifica' },
                 ]
               : [
@@ -305,15 +372,24 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
           value={tab}
           change={setTab}
         />
-        <div className="event-heading">
-          <Trophy />
-          <div>
-            <h2>{t.name}</h2>
-            <p>
-              {t.entries.length} giocatori · {statusLabel(t.status)}
-            </p>
+        {!highscore && (
+          <div className="event-heading">
+            <TrophyEmblem />
+            <div>
+              <h2>{t.name}</h2>
+              <p>
+                {new Date(t.createdAt).toLocaleDateString('it-IT', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}{' '}
+                · {t.entries.length} giocatori
+              </p>
+            </div>
+            <span className={`status-tag status-${t.status}`}>{statusLabel(t.status)}</span>
           </div>
-        </div>
+        )}
         <ErrorMessage
           error={query.error ?? ranking.error ?? mutation.error}
           retry={() => {
@@ -323,29 +399,45 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
         />
         {tab === 'overview' && (
           <>
-            <section className="panel">
+            <div className="choice-group static" aria-label="Formato torneo">
+              <span className={t.mode === 'GROUPS' ? 'on' : ''}>A gironi</span>
+              <span className={t.mode === 'GROUPS' ? '' : 'on'}>
+                <ChartNoAxesColumnIncreasing size={18} strokeWidth={3} aria-hidden="true" />
+                Hi-Score
+              </span>
+            </div>
+            <section className="settings-card">
               <h2>Impostazioni</h2>
-              <div className="settings-row">
-                <span>Formato</span>
-                <strong>{t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}</strong>
-              </div>
-              <div className="settings-row">
-                <span>Turni per giocatore</span>
-                <strong>{t.scoringConfiguration.turns}</strong>
-              </div>
-              <div className="settings-row">
-                <span>
-                  {t.mode === 'GROUPS' ? 'Gironi / qualificati per girone' : 'Migliori alla finale'}
-                </span>
-                <strong>
-                  {t.mode === 'GROUPS'
-                    ? `${t.tournamentConfiguration.groupCount} / ${t.tournamentConfiguration.qualifiersPerGroup}`
-                    : t.tournamentConfiguration.qualifiers}
-                </strong>
+              <div className="options">
+                <div className="settings-row">
+                  <span>Formato</span>
+                  <strong>{t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}</strong>
+                </div>
+                <div className="settings-row">
+                  <span>Turni per giocatore</span>
+                  <strong>{t.scoringConfiguration.turns}</strong>
+                </div>
+                {t.mode === 'GROUPS' ? (
+                  <>
+                    <div className="settings-row">
+                      <span>Numero gironi</span>
+                      <strong>{t.tournamentConfiguration.groupCount}</strong>
+                    </div>
+                    <div className="settings-row">
+                      <span>Qualificati per girone</span>
+                      <strong>{t.tournamentConfiguration.qualifiersPerGroup}</strong>
+                    </div>
+                  </>
+                ) : (
+                  <div className="settings-row">
+                    <span>Migliori alla finale</span>
+                    <strong>{t.tournamentConfiguration.qualifiers}</strong>
+                  </div>
+                )}
               </div>
             </section>
             {isDraft && (
-              <section className="panel">
+              <section className="form-section">
                 <PlayerPicker selected={players} change={setPlayers} />
                 <button
                   disabled={!players.length || mutation.isPending}
@@ -353,42 +445,48 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
                 >
                   Iscrivi giocatori
                 </button>
-                <p>
+                <p className="hint">
                   Iscritti:{' '}
                   {t.entries.map((p) => p.displayNameAtRegistration).join(', ') || 'nessuno'}
                 </p>
               </section>
             )}
             {controls}
-            <h2>Stato torneo</h2>
-            <ol className="stage-list">
-              {stages.length ? (
-                stages.map((s) => (
-                  <li key={s.id}>
-                    <strong>{statusLabel(s.kind)}</strong>
-                    <span>{statusLabel(s.status)}</span>
-                  </li>
-                ))
-              ) : (
-                <li>Qualifica · Non iniziata</li>
-              )}
-            </ol>
+            <StageTimeline steps={tournamentSteps(t)} />
             {matchCards(stageMatches)}
           </>
         )}
         {tab === 'qualification' && (
           <>
-            <section className="panel qualification-status">
-              <h2>Qualifica</h2>
-              <p>
-                {t.scoringConfiguration.turns} turni ·{' '}
-                {statusLabel(stages.find((s) => s.kind === 'qualification')?.status ?? 'ready')}
-              </p>
+            <section className="phase-card">
+              <DartIcon className="phase-icon" />
+              <div>
+                <h2>Qualifica</h2>
+                <p>
+                  {t.scoringConfiguration.turns}{' '}
+                  {t.scoringConfiguration.turns === 1 ? 'turno' : 'turni'} ·{' '}
+                  {statusLabel(qualStage?.status ?? (isDraft ? 'ready' : t.status))}
+                </p>
+              </div>
+              {qualStage?.status === 'finalized' ? (
+                <span className="badge solid">Terminata</span>
+              ) : (
+                <span className={`status-tag status-${t.status}`}>{statusLabel(t.status)}</span>
+              )}
             </section>
+            <p className="event-line">
+              {t.name} · {t.entries.length} giocatori
+            </p>
             {tables
               .filter((r) => r.stageKind === 'qualification')
               .map((r) => (
-                <Ranking table={r} t={t} key={r.targetId} />
+                <Ranking
+                  table={r}
+                  t={t}
+                  key={r.targetId}
+                  highlight={t.tournamentConfiguration.qualifiers}
+                  title={false}
+                />
               ))}
             {matchCards(
               t.matches.filter(
@@ -399,17 +497,33 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
               ),
             )}
             {controls}
-            <section className="panel">
-              <h2>Finale · Top {t.tournamentConfiguration.qualifiers}</h2>
-              <p>I qualificati giocano una finale unica, con punteggio azzerato.</p>
-              <button
-                className="primary"
-                disabled={!stages.some((s) => s.kind === 'final')}
-                onClick={() => setTab('final')}
-              >
-                VAI ALLA FINALE <ChevronRight />
-              </button>
+            <section className="finals-card">
+              <div className="finals-head">
+                <DartIcon className="phase-icon" />
+                <div>
+                  <h2>Finale · Top {t.tournamentConfiguration.qualifiers}</h2>
+                  <p>Prossima fase · finale unica, punteggio azzerato</p>
+                </div>
+              </div>
+              {finalists && finalists.length > 0 && (
+                <ul className="finalists">
+                  {finalists.map((row) => (
+                    <li key={row.tournamentEntryId}>
+                      <RankBadge placement={row.placement} />
+                      <Avatar name={entryName(t, row.tournamentEntryId)} />
+                      <span>{entryName(t, row.tournamentEntryId)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
+            <button
+              className="primary cta"
+              disabled={!stages.some((s) => s.kind === 'final')}
+              onClick={() => setTab('final')}
+            >
+              VAI ALLA FINALE <ChevronRight strokeWidth={2.6} />
+            </button>
             {isDraft && (
               <Link className="button" to={`/tornei/${id}`}>
                 Completa iscrizioni e avvia
@@ -422,12 +536,18 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
             {t.groups
               .filter((g) => g.status !== 'invalidated')
               .map((g) => (
-                <section key={g.id}>
+                <section key={g.id} className="group-block">
                   <h2>{g.name}</h2>
                   {tables
                     .filter((r) => r.targetId === g.id)
                     .map((r) => (
-                      <Ranking table={r} t={t} key={r.targetId} />
+                      <Ranking
+                        table={r}
+                        t={t}
+                        key={r.targetId}
+                        highlight={t.tournamentConfiguration.qualifiersPerGroup}
+                        title={false}
+                      />
                     ))}
                   {matchCards(
                     t.matches.filter((m) => m.groupId === g.id && m.status !== 'cancelled'),
@@ -438,8 +558,8 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
               <Empty title="Nessun girone">
                 <p>
                   {t.mode === 'QUICK_HIGH_SCORE'
-                    ? 'Questo torneo usa una qualifica Hi-Score.'
-                    : 'Avvia il torneo per generare i gironi.'}
+                    ? 'Il formato Hi-Score usa un unico girone di qualifica.'
+                    : 'I gironi vengono generati all’avvio del torneo.'}
                 </p>
               </Empty>
             )}
@@ -449,30 +569,29 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
         )}
         {tab === 'final' && (
           <>
-            {t.results.length > 0 && (
-              <section className="panel winner">
-                <Crown />
-                <h2>Risultato ufficiale</h2>
-                {t.results.map((r) => (
-                  <p key={r.tournamentEntryId}>
-                    {r.finalPlacement}° ·{' '}
-                    {t.entries.find((e) => e.id === r.tournamentEntryId)?.displayNameAtRegistration}{' '}
-                    · {r.points} punti
-                  </p>
-                ))}
-              </section>
-            )}
-            {matchCards(
-              t.matches.filter(
-                (m) =>
-                  stages.some(
-                    (s) =>
-                      s.id === m.stageId &&
-                      (s.kind === 'final' ||
-                        s.kind === 'semifinal' ||
-                        s.kind.startsWith('elimination_')),
-                  ) && m.status !== 'cancelled',
-              ),
+            {t.results.length > 0 && <Podium t={t} />}
+            {!stages.some(
+              (s) =>
+                s.kind === 'final' || s.kind === 'semifinal' || s.kind.startsWith('elimination_'),
+            ) ? (
+              <div className="empty locked">
+                <Lock aria-hidden="true" />
+                <h2>Fase finale bloccata</h2>
+                <p>Il tabellone si sblocca quando la qualifica è confermata.</p>
+              </div>
+            ) : (
+              matchCards(
+                t.matches.filter(
+                  (m) =>
+                    stages.some(
+                      (s) =>
+                        s.id === m.stageId &&
+                        (s.kind === 'final' ||
+                          s.kind === 'semifinal' ||
+                          s.kind.startsWith('elimination_')),
+                    ) && m.status !== 'cancelled',
+                ),
+              )
             )}
             {controls}
           </>
@@ -480,50 +599,62 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
         {tab === 'ranking' && (
           <>
             {tables.map((table) => (
-              <div key={table.targetId}>
-                <Ranking table={table} t={t} />
-                <div className="table-scroll">
-                  <table>
-                    <caption>
-                      {table.groupName ?? statusLabel(table.stageKind)} · statistiche
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th>Giocatore</th>
-                        <th>Media</th>
-                        <th>Best</th>
-                        <th>Turni</th>
+              <div className="table-scroll" key={table.targetId}>
+                <table>
+                  <caption>
+                    {table.groupName ?? statusLabel(table.stageKind)} ·{' '}
+                    {t.scoringConfiguration.turns} turni · ordinata dal backend
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Giocatore</th>
+                      <th scope="col" className="num">
+                        {table.stageKind === 'group' ? 'Punti' : 'Totale'}
+                      </th>
+                      <th scope="col" className="num">
+                        Media/turno
+                      </th>
+                      <th scope="col" className="num">
+                        Best
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.rows.map((r) => (
+                      <tr key={r.tournamentEntryId} className={`rank-${r.placement}`}>
+                        <td className="pos">{r.placement}</td>
+                        <td>
+                          {entryName(t, r.tournamentEntryId)}
+                          {r.tied && <small> · pari</small>}
+                        </td>
+                        <td className="num strong">
+                          {table.stageKind === 'group' ? r.points : r.total}
+                        </td>
+                        <td className="num muted">{r.average.toFixed(1)}</td>
+                        <td className="num muted">{r.bestTurn}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {table.rows.map((r) => (
-                        <tr key={r.tournamentEntryId}>
-                          <td>
-                            {
-                              t.entries.find((e) => e.id === r.tournamentEntryId)
-                                ?.displayNameAtRegistration
-                            }
-                          </td>
-                          <td>{r.average.toFixed(1)}</td>
-                          <td>{r.bestTurn}</td>
-                          <td>{r.turns}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ))}
             {!tables.length && (
-              <Empty title="Classifica in attesa">I risultati compariranno dopo l’avvio.</Empty>
+              <Empty title="Classifica vuota">
+                <p>La classifica compare dopo i primi incontri.</p>
+              </Empty>
             )}
             {controls}
           </>
         )}
         <div className="graffiti" aria-hidden="true">
-          Good darts.
+          Good
           <br />
-          Good friends.
+          darts
+          <br />
+          good
+          <br />
+          friends
         </div>
         {tie && (
           <Modal title="Spareggio" close={() => setTie(false)}>
@@ -531,7 +662,7 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
               Seleziona la classifica e l’intero gruppo a pari merito. Il risultato sarà deciso sul
               bersaglio.
             </p>
-            <label>
+            <label className="field">
               Classifica
               <select
                 value={targetId}
