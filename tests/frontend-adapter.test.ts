@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../apps/api/src/server/app.js';
 import { readConfig } from '../apps/api/src/server/config.js';
-import { HttpAdapter } from '../apps/web/src/services/api.js';
+import { HttpAdapter } from '../apps/web/src/services/http.js';
 
 let app: FastifyInstance;
 let adapter: HttpAdapter;

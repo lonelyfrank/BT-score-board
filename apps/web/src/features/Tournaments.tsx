@@ -4,7 +4,15 @@ import { Link, useParams } from 'react-router-dom';
 import { Trophy, ChevronRight, ChartNoAxesColumnIncreasing, Lock } from 'lucide-react';
 import { CrownIcon, DartIcon, TrophyEmblem } from '../components/BrandIcons';
 import { StageTimeline, tournamentSteps } from '../components/StageTimeline';
-import { api, type Player, type Tournament, type Standings } from '../services/api';
+import {
+  api,
+  localData,
+  pollInterval,
+  type Player,
+  type Tournament,
+  type Standings,
+  type TournamentAction,
+} from '../services/api';
 import {
   Avatar,
   Empty,
@@ -175,16 +183,22 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
   const query = useQuery({
     queryKey: ['tournament', id],
     queryFn: () => api.tournament(id),
-    refetchInterval: 5000,
+    refetchInterval: pollInterval,
   });
   const ranking = useQuery({
     queryKey: ['standings', id],
     queryFn: () => api.standings(id),
     enabled: !!query.data,
-    refetchInterval: 5000,
+    refetchInterval: pollInterval,
   });
   const mutation = useMutation({
-    mutationFn: async ({ action, extra }: { action: string; extra?: Record<string, unknown> }) => {
+    mutationFn: async ({
+      action,
+      extra,
+    }: {
+      action: TournamentAction | 'register';
+      extra?: Record<string, unknown>;
+    }) => {
       let t = await api.tournament(id);
       if (action === 'register') {
         for (const player of players) {
@@ -226,7 +240,7 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
   const final = stage?.kind === 'final';
   const tables = ranking.data?.filter((r) => r.stageStatus !== 'invalidated') ?? [];
   const isDraft = ['draft', 'registration', 'ready'].includes(t.status);
-  const command = (action: string, extra?: Record<string, unknown>) =>
+  const command = (action: TournamentAction | 'register', extra?: Record<string, unknown>) =>
     mutation.mutate({ action, extra });
   const matchCards = (matches: Tournament['matches']) =>
     matches.length ? (
@@ -570,6 +584,11 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
         {tab === 'final' && (
           <>
             {t.results.length > 0 && <Podium t={t} />}
+            {t.results.length > 0 && localData && (
+              <Link className="button" to="/impostazioni#backup">
+                Salva un backup della serata
+              </Link>
+            )}
             {!stages.some(
               (s) =>
                 s.kind === 'final' || s.kind === 'semifinal' || s.kind.startsWith('elimination_'),
@@ -603,7 +622,7 @@ export function TournamentDetail({ highscore = false }: { highscore?: boolean })
                 <table>
                   <caption>
                     {table.groupName ?? statusLabel(table.stageKind)} ·{' '}
-                    {t.scoringConfiguration.turns} turni · ordinata dal backend
+                    {t.scoringConfiguration.turns} turni · ordine ufficiale
                   </caption>
                   <thead>
                     <tr>

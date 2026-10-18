@@ -571,6 +571,175 @@ form > .primary {
   color: #ffe3f0;
 }
 
+/* Ripresa della sessione e informazioni secondarie in Home */
+.home-card.resume {
+  min-height: 96px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.home-card.resume > svg:first-child {
+  width: 40px;
+  height: 40px;
+  color: #111114;
+}
+.home-card.primary .resume-detail {
+  font-size: 16px;
+  color: #ffe3f0;
+}
+.home-extra {
+  position: relative;
+  z-index: 1;
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.home-extra h2 {
+  font: 600 var(--bt-text-lg) / 1.1 var(--bt-font-display);
+  letter-spacing: 0.5px;
+  margin: 6px 0 0;
+}
+.home-backup,
+.home-results a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 14px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: var(--bt-radius-lg);
+  background: rgba(20, 20, 22, 0.94);
+  color: var(--bt-text-primary);
+  text-decoration: none;
+}
+.home-backup {
+  border-color: var(--bt-warning);
+}
+.home-backup > svg:first-child {
+  flex: none;
+  color: var(--bt-warning);
+}
+.home-backup > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.home-backup small,
+.home-results small {
+  color: var(--bt-text-muted);
+  font-size: var(--bt-text-sm);
+}
+.home-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-results span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--bt-text-md);
+  font-weight: 600;
+}
+.home-all {
+  align-self: flex-start;
+  min-height: var(--bt-touch-min);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px solid var(--bt-border-default);
+  border-radius: var(--bt-radius-md);
+  background: rgba(20, 20, 22, 0.94);
+  color: var(--bt-text-primary);
+  text-decoration: none;
+}
+
+/* Avvisi di sistema: archivio locale e aggiornamenti dell'app */
+.app-notice {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) var(--bt-gutter) 10px;
+  background: var(--bt-accent-deep);
+  border-bottom: 1px solid var(--bt-accent-soft);
+  color: #ffcee6;
+}
+.app-notice p {
+  margin: 0;
+  font-size: var(--bt-text-md);
+  line-height: 1.3;
+}
+.app-notice button {
+  flex: none;
+}
+.update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bt-nav-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 40;
+  transform: translateX(-50%);
+  width: min(520px, calc(100% - 2 * var(--bt-gutter)));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  background: var(--bt-bg-secondary);
+  border: 1px solid var(--bt-accent-primary);
+  border-radius: var(--bt-radius-lg);
+  box-shadow: var(--bt-neon);
+}
+.update-toast p {
+  flex: 1;
+  margin: 0;
+  font-size: var(--bt-text-md);
+}
+.update-toast button {
+  flex: none;
+}
+
+/* Impostazioni: dati sul dispositivo e backup */
+.data-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 4px 0 12px;
+}
+.data-rows .settings-row strong {
+  text-align: right;
+}
+.data-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.data-actions .primary,
+.data-actions .button,
+.data-actions button {
+  width: 100%;
+  min-height: 54px;
+}
+.file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.file-button:focus-within {
+  outline: 2px solid var(--bt-accent-soft);
+  outline-offset: 2px;
+}
+.warning-text {
+  color: var(--bt-warning);
+}
+
 /* ---- Moduli: nuova partita / nuovo torneo ---- */
 .setup-page,
 .tournament-page {

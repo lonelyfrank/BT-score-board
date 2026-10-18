@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { CrownIcon, DartIcon, PaintSplash } from '../components/BrandIcons';
-import { api, storage } from '../services/api';
+import { api, pollInterval, storage } from '../services/api';
 import { Avatar, ErrorMessage, Header, Loading, Modal, statusLabel } from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
 
@@ -28,7 +28,7 @@ export function Live() {
   const query = useQuery({
     queryKey: ['match', gameId],
     queryFn: () => api.match(gameId),
-    refetchInterval: 5000,
+    refetchInterval: pollInterval,
   });
   const m = query.data;
   const tournament = useQuery({
@@ -56,16 +56,27 @@ export function Live() {
         action === 'undo'
           ? 'Ultimo turno annullato'
           : action === 'score'
-            ? 'Turno registrato'
+            ? 'Turno salvato'
             : 'Partita avviata',
       );
       void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
       void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
     },
     onError: () => {
+      // The draft stays: the same player can confirm again once the problem is solved.
       void query.refetch();
     },
+    onSettled: () => {
+      inFlight.current = false;
+    },
   });
+  // A second tap can arrive before React disables the keypad: only one command at a time.
+  const inFlight = useRef(false);
+  const run = (action: 'score' | 'undo' | 'start' | 'resume') => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    mutation.mutate(action);
+  };
   if (query.isPending) return <Loading />;
   if (!m)
     return (
@@ -96,7 +107,7 @@ export function Live() {
     .slice(-5)
     .reverse();
   const tag = mutation.isPending
-    ? 'Registrazione…'
+    ? 'Salvataggio…'
     : locked
       ? 'Da completare · conferma per recuperare'
       : feedback;
@@ -201,7 +212,7 @@ export function Live() {
             <NumberKeypad
               value={value}
               change={change}
-              submit={() => mutation.mutate('score')}
+              submit={() => run('score')}
               undo={() => setConfirmUndo(true)}
               busy={mutation.isPending || !turn}
               canUndo={recent.length > 0}
@@ -217,7 +228,7 @@ export function Live() {
             <button
               className="primary"
               disabled={mutation.isPending}
-              onClick={() => mutation.mutate(m.status === 'paused' ? 'resume' : 'start')}
+              onClick={() => run(m.status === 'paused' ? 'resume' : 'start')}
             >
               {m.status === 'paused' ? 'Riprendi partita' : 'Inizia incontro'}
             </button>
@@ -299,11 +310,7 @@ export function Live() {
         <Modal title="Annullare l’ultimo turno?" close={() => setConfirmUndo(false)}>
           <p>Il punteggio verrà rimosso e il turno riaperto.</p>
           <ErrorMessage error={mutation.error} />
-          <button
-            className="primary"
-            disabled={mutation.isPending}
-            onClick={() => mutation.mutate('undo')}
-          >
+          <button className="primary" disabled={mutation.isPending} onClick={() => run('undo')}>
             Conferma annullamento
           </button>
         </Modal>

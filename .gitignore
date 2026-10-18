@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-shared/
+dev-dist/
 data/
 coverage/
 .env
@@ -7,3 +9,4 @@ coverage/
 *.db*
 apps/web/test-results/
 apps/web/playwright-report/
+.vercel

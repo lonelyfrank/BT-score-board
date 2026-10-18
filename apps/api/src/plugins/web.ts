@@ -10,7 +10,7 @@ declare module 'fastify' {
 }
 
 // Only the compiled client is public. API routes retain bearer authentication.
-export function registerWeb(app: FastifyInstance, directory = resolve('apps/web/dist')) {
+export function registerWeb(app: FastifyInstance, directory = resolve('apps/web/dist-shared')) {
   if (!existsSync(resolve(directory, 'index.html'))) return;
   const options = { config: { publicWeb: true }, schema: { hide: true } };
   for (const path of [

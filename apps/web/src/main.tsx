@@ -1,8 +1,11 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { BottomNavigation, Empty } from './components/ui';
+import { AppStatus } from './components/AppStatus';
+import { dataMode, localData } from './services/api';
+import { registerPwa } from './services/pwa';
 import { Home } from './features/Home';
 import { Setup } from './features/Setup';
 import { Live } from './features/Live';
@@ -13,20 +16,39 @@ import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/app.css';
 
+// Standalone reads and writes never touch the network: they must run while offline too.
+const networkMode = dataMode === 'standalone' ? 'always' : 'online';
 const client = new QueryClient({
-  defaultOptions: { queries: { retry: false, staleTime: 2000 }, mutations: { retry: false } },
+  defaultOptions: {
+    queries: { retry: false, staleTime: 2000, networkMode },
+    mutations: { retry: false, networkMode },
+  },
 });
 function App() {
   const { pathname } = useLocation();
   const hideNav = pathname.startsWith('/partite/');
+  const queries = useQueryClient();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
+  // Commands update the screens through invalidation; other tabs and imports notify here.
+  useEffect(
+    () =>
+      localData?.subscribe((event) => {
+        if (event.type !== 'changed') return;
+        if (event.origin !== 'local') void queries.invalidateQueries();
+        else
+          for (const key of ['session', 'recent-results', 'local-status'])
+            void queries.invalidateQueries({ queryKey: [key] });
+      }),
+    [queries],
+  );
   return (
     <div className={`app-shell ${hideNav ? 'without-nav' : 'with-nav'}`}>
       <a href="#main-content" className="skip-link">
         Vai al contenuto
       </a>
+      <AppStatus />
       <div id="main-content">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -53,6 +75,7 @@ function App() {
     </div>
   );
 }
+registerPwa();
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={client}>

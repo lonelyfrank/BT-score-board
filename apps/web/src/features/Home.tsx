@@ -1,11 +1,29 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings, ChartNoAxesColumnIncreasing, Trophy, ChevronRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Settings,
+  ChartNoAxesColumnIncreasing,
+  Trophy,
+  ChevronRight,
+  Play,
+  HardDriveDownload,
+} from 'lucide-react';
 import { CheersIcon, CrossedDarts, CrowdIcon } from '../components/BrandIcons';
 import { Modal } from '../components/ui';
+import { api, localData } from '../services/api';
+import { activeSession, recentResults, tournamentPath } from '../services/session';
 
 export function Home() {
   const [notice, setNotice] = useState(false);
+  const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
+  const recent = useQuery({ queryKey: ['recent-results'], queryFn: () => recentResults(api) });
+  const backup = useQuery({
+    queryKey: ['local-status'],
+    queryFn: () => localData!.status(),
+    enabled: !!localData,
+  });
+  const s = session.data;
   return (
     <div className="home-page">
       <div className="home-hero" aria-hidden="true" />
@@ -20,7 +38,36 @@ export function Home() {
         </Link>
       </div>
       <nav className="home-actions" aria-label="Azioni principali">
-        <Link className="home-card primary" to="/partite/nuova">
+        {s && (
+          <Link
+            className="home-card primary resume"
+            to={s.match ? `/partite/${s.match.id}` : tournamentPath(s.tournament)}
+          >
+            <Play fill="currentColor" />
+            <span>
+              <strong>
+                {s.match?.status === 'active' ? 'RIPRENDI PARTITA' : 'RIPRENDI TORNEO'}
+              </strong>
+              <small>{s.tournament.name}</small>
+              {s.current ? (
+                <small className="resume-detail">
+                  Al tiro {s.current.player} · Turno {s.current.turn} di {s.current.turns}
+                </small>
+              ) : (
+                <small className="resume-detail">
+                  {s.match ? 'Prossimo incontro pronto' : 'Conferma la fase per proseguire'}
+                </small>
+              )}
+              {s.lastScore && (
+                <small className="resume-detail">
+                  Ultimo punteggio: {s.lastScore.player} {s.lastScore.score}
+                </small>
+              )}
+            </span>
+            <ChevronRight />
+          </Link>
+        )}
+        <Link className={`home-card ${s ? '' : 'primary'}`} to="/partite/nuova">
           <CrossedDarts />
           <span>
             <strong>NUOVA PARTITA</strong>
@@ -53,6 +100,41 @@ export function Home() {
           <ChevronRight />
         </button>
       </nav>
+      {(backup.data?.backupRecommended || !!recent.data?.length) && (
+        <section className="home-extra" aria-label="Risultati e dati">
+          {backup.data?.backupRecommended && (
+            <Link className="home-backup" to="/impostazioni#backup">
+              <HardDriveDownload aria-hidden="true" />
+              <span>
+                <strong>Backup consigliato</strong>
+                <small>
+                  {backup.data.meta.changesSinceBackup} modifiche non salvate fuori dal telefono
+                </small>
+              </span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          )}
+          {!!recent.data?.length && (
+            <>
+              <h2>Risultati recenti</h2>
+              <ul className="home-results">
+                {recent.data.map(({ summary, winner }) => (
+                  <li key={summary.id}>
+                    <Link to={`${tournamentPath(summary)}?tab=final`}>
+                      <span>{summary.name}</span>
+                      <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
+                      <ChevronRight aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Link className="home-all" to="/tornei">
+                Tutti i tornei
+              </Link>
+            </>
+          )}
+        </section>
+      )}
       {notice && (
         <Modal title="Game Night" close={() => setNotice(false)}>
           <p>

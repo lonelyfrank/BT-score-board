@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Plus } from 'lucide-react';
 import { api, type Player } from '../services/api';
 import { CrownIcon } from '../components/BrandIcons';
-import { Avatar, Header, Modal, ErrorMessage, Loading, Empty } from '../components/ui';
+import { Avatar, Header, Modal, ErrorMessage, Loading, Empty, statusLabel } from '../components/ui';
+import { tournamentPath } from '../services/session';
 
 export function PlayerPicker({
   selected,
@@ -89,6 +91,7 @@ function PlayerList({
   const [offset, setOffset] = useState(0);
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<Player | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
   const client = useQueryClient();
   const query = useQuery({
     queryKey: ['players', search, offset],
@@ -102,11 +105,18 @@ function PlayerList({
       setEditing(null);
       void client.invalidateQueries({ queryKey: ['players'] });
       if (!editing) select?.(p);
+      // Ready for the next name: a whole table can be entered with the keyboard alone.
+      nameInput.current?.focus();
     },
   });
   const profile = useQuery({
     queryKey: ['player-stats', editing?.id],
     queryFn: () => api.statistics(editing!.id),
+    enabled: !!editing,
+  });
+  const history = useQuery({
+    queryKey: ['player-history', editing?.id],
+    queryFn: () => api.history(editing!.id),
     enabled: !!editing,
   });
   return (
@@ -132,7 +142,15 @@ function PlayerList({
       >
         <label className="field">
           {editing ? 'Modifica nome' : 'Nuovo giocatore'}
-          <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} required />
+          <input
+            ref={nameInput}
+            value={name}
+            maxLength={120}
+            enterKeyHint="done"
+            autoCapitalize="words"
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
         </label>
         <button className="primary" disabled={mutation.isPending || !name.trim()}>
           {editing ? 'Salva' : 'Crea'}
@@ -198,6 +216,21 @@ function PlayerList({
               {s.bestTurn}
             </p>
           ))}
+          {!!history.data?.items.length && (
+            <>
+              <h3>Storico</h3>
+              <ul className="history-list">
+                {history.data.items.map((t) => (
+                  <li key={t.id}>
+                    <Link to={tournamentPath(t)}>{t.name}</Link>
+                    <span className="muted">
+                      {new Date(t.createdAt).toLocaleDateString('it-IT')} · {statusLabel(t.status)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
       )}
     </>
