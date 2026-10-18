@@ -1,0 +1,37 @@
+// Versioned SQL is authoritative for composite FKs, checks and append-only triggers.
+export const migration1 = `
+CREATE TABLE players (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, nickname TEXT, status TEXT NOT NULL CHECK(status IN ('active','inactive')), data TEXT NOT NULL CHECK(json_valid(data)));
+CREATE INDEX players_name_idx ON players(display_name COLLATE NOCASE);
+CREATE INDEX players_status_idx ON players(status);
+CREATE TABLE events (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)));
+CREATE TABLE tournaments (id TEXT PRIMARY KEY, event_id TEXT REFERENCES events(id), name TEXT NOT NULL, mode TEXT NOT NULL CHECK(mode IN ('QUICK_HIGH_SCORE','GROUPS')), status TEXT NOT NULL CHECK(status IN ('draft','registration','ready','active','paused','completed','cancelled')), version INTEGER NOT NULL CHECK(version>=0), data TEXT NOT NULL CHECK(json_valid(data)));
+CREATE INDEX tournaments_event_idx ON tournaments(event_id);
+CREATE INDEX tournaments_status_idx ON tournaments(status);
+CREATE TABLE tournament_entries (id TEXT PRIMARY KEY, tournament_id TEXT NOT NULL REFERENCES tournaments(id), player_id TEXT NOT NULL REFERENCES players(id), seed INTEGER CHECK(seed>0), data TEXT NOT NULL CHECK(json_valid(data)), UNIQUE(tournament_id,player_id), UNIQUE(tournament_id,seed), UNIQUE(id,tournament_id));
+CREATE INDEX entries_player_idx ON tournament_entries(player_id);
+CREATE TABLE stages (id TEXT PRIMARY KEY, tournament_id TEXT NOT NULL REFERENCES tournaments(id), ordering INTEGER NOT NULL CHECK(ordering>0), status TEXT NOT NULL CHECK(status IN ('open','finalized','invalidated')), data TEXT NOT NULL CHECK(json_valid(data)), UNIQUE(tournament_id,ordering), UNIQUE(id,tournament_id));
+CREATE TABLE competition_groups (id TEXT PRIMARY KEY, stage_id TEXT NOT NULL REFERENCES stages(id), data TEXT NOT NULL CHECK(json_valid(data)), UNIQUE(id,stage_id));
+CREATE INDEX groups_stage_idx ON competition_groups(stage_id);
+CREATE TABLE matches (id TEXT PRIMARY KEY, tournament_id TEXT NOT NULL REFERENCES tournaments(id), stage_id TEXT NOT NULL, group_id TEXT, status TEXT NOT NULL CHECK(status IN ('scheduled','ready','active','paused','completed','cancelled')), version INTEGER NOT NULL CHECK(version>=0), data TEXT NOT NULL CHECK(json_valid(data)), UNIQUE(id,tournament_id), FOREIGN KEY(stage_id,tournament_id) REFERENCES stages(id,tournament_id), FOREIGN KEY(group_id,stage_id) REFERENCES competition_groups(id,stage_id));
+CREATE INDEX matches_tournament_idx ON matches(tournament_id,status);
+CREATE INDEX matches_stage_idx ON matches(stage_id);
+CREATE TABLE match_participants (match_id TEXT NOT NULL, entry_id TEXT NOT NULL, tournament_id TEXT NOT NULL, playing_order INTEGER NOT NULL CHECK(playing_order>0), data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(match_id,entry_id), UNIQUE(match_id,playing_order), FOREIGN KEY(match_id,tournament_id) REFERENCES matches(id,tournament_id), FOREIGN KEY(entry_id,tournament_id) REFERENCES tournament_entries(id,tournament_id));
+CREATE INDEX participants_entry_idx ON match_participants(entry_id);
+CREATE TABLE turns (id TEXT PRIMARY KEY, match_id TEXT NOT NULL, entry_id TEXT NOT NULL, turn_number INTEGER NOT NULL CHECK(turn_number>0), status TEXT NOT NULL CHECK(status IN ('pending','active','completed','skipped')), data TEXT NOT NULL CHECK(json_valid(data)), UNIQUE(match_id,entry_id,turn_number), UNIQUE(id,match_id,entry_id), FOREIGN KEY(match_id,entry_id) REFERENCES match_participants(match_id,entry_id));
+CREATE INDEX turns_match_idx ON turns(match_id,status);
+CREATE TABLE score_entries (id TEXT PRIMARY KEY, match_id TEXT NOT NULL, entry_id TEXT NOT NULL, turn_id TEXT NOT NULL, score INTEGER NOT NULL CHECK(typeof(score)='integer' AND score>=0 AND score<=12000), dart_index INTEGER CHECK(dart_index>=1 AND dart_index<=12), voided INTEGER NOT NULL CHECK(voided IN (0,1)), data TEXT NOT NULL CHECK(json_valid(data)), FOREIGN KEY(turn_id,match_id,entry_id) REFERENCES turns(id,match_id,entry_id));
+CREATE UNIQUE INDEX score_slot_unique ON score_entries(turn_id,COALESCE(dart_index,0)) WHERE voided=0;
+CREATE INDEX scores_match_idx ON score_entries(match_id);
+CREATE TRIGGER score_mode_insert BEFORE INSERT ON score_entries WHEN NEW.voided=0 AND EXISTS(SELECT 1 FROM score_entries WHERE turn_id=NEW.turn_id AND voided=0 AND (dart_index IS NULL OR NEW.dart_index IS NULL)) BEGIN SELECT RAISE(ABORT,'incompatible score input mode'); END;
+CREATE TRIGGER score_mode_update BEFORE UPDATE ON score_entries WHEN NEW.voided=0 AND EXISTS(SELECT 1 FROM score_entries WHERE id<>NEW.id AND turn_id=NEW.turn_id AND voided=0 AND (dart_index IS NULL OR NEW.dart_index IS NULL)) BEGIN SELECT RAISE(ABORT,'incompatible score input mode'); END;
+CREATE TABLE tournament_results (tournament_id TEXT NOT NULL, entry_id TEXT NOT NULL, placement INTEGER NOT NULL CHECK(placement>0), data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(tournament_id,entry_id), FOREIGN KEY(entry_id,tournament_id) REFERENCES tournament_entries(id,tournament_id));
+CREATE TABLE audit_log (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, tournament_id TEXT REFERENCES tournaments(id), data TEXT NOT NULL CHECK(json_valid(data)));
+CREATE INDEX audit_tournament_idx ON audit_log(tournament_id,sequence);
+CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT,'audit log is append only'); END;
+CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT,'audit log is append only'); END;
+CREATE TABLE application_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, tournament_id TEXT NOT NULL REFERENCES tournaments(id), data TEXT NOT NULL CHECK(json_valid(data)));
+CREATE INDEX application_events_tournament_idx ON application_events(tournament_id,sequence);
+CREATE TRIGGER events_no_update BEFORE UPDATE ON application_events BEGIN SELECT RAISE(ABORT,'events are append only'); END;
+CREATE TRIGGER events_no_delete BEFORE DELETE ON application_events BEGIN SELECT RAISE(ABORT,'events are append only'); END;
+CREATE TABLE idempotency (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, response TEXT NOT NULL CHECK(json_valid(response)), created_at TEXT NOT NULL);
+`;

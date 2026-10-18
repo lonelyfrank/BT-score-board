@@ -1,0 +1,125 @@
+/* BT Darts Score Board — design tokens
+ * Fonte unica dei valori visivi. I componenti usano SOLO queste variabili
+ * (direttamente o tramite tailwind.preset.ts). Valori allineati al prototipo.
+ *
+ * Font (Google Fonts):
+ * https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@400;500;600;700&family=Oswald:wght@500;600;700&family=Permanent+Marker&display=swap
+ */
+:root {
+  /* ---- Colore: superfici ---- */
+  --bt-bg-primary: #09090b; /* sfondo app */
+  --bt-bg-secondary: #141416; /* header button, superfici */
+  --bt-bg-nav: #0e0e10; /* bottom navigation */
+  --bt-surface-card: #1b1b1e; /* card, tasti, input */
+  --bt-surface-sunken: #111113; /* contenitori di sezione (opzioni, impostazioni) */
+  --bt-surface-tile: #161618; /* tile modalità, tab inattive */
+  --bt-surface-selected: #1f1219; /* tile selezionata (sotto il neon) */
+
+  /* ---- Colore: bordi ---- */
+  --bt-border-default: #37373b; /* bottoni, input */
+  --bt-border-subtle: #2c2c30; /* card, tile */
+  --bt-border-section: #26262a; /* contenitori */
+  --bt-divider: #1e1e22; /* righe di lista */
+
+  /* ---- Colore: accento ---- */
+  --bt-accent-primary: #ff238b; /* CTA, selezioni, neon */
+  --bt-accent-bright: #ff3b9d; /* testo/icone attive, highlight */
+  --bt-accent-soft: #ff83c0; /* focus ring, messaggi, testo su scuro */
+  --bt-accent-deep: #3a0f24; /* fondo tasto C */
+
+  /* ---- Colore: testo ---- */
+  --bt-text-primary: #f8f7f5;
+  --bt-text-secondary: #a8a8ad; /* ≥ 4.5:1 su --bt-bg-primary e --bt-surface-card */
+  --bt-text-muted: #c9c9ce; /* sottotitoli su card scure */
+  --bt-text-on-accent: #ffffff;
+  --bt-text-on-paper: #0b0b0d;
+
+  /* ---- Colore: stato ---- */
+  --bt-success: #00b987; /* tasto conferma, badge "Terminata" (testo scuro #04140F) */
+  --bt-success-bright: #00d49b;
+  --bt-warning: #ffbf38; /* bust, corona, 1° posto */
+  --bt-paper: #ece8e3; /* carta strappata del punteggio */
+
+  /* ---- Podio / posizioni ---- */
+  --bt-rank-1: #ffbf38;
+  --bt-rank-2: #b9b9be;
+  --bt-rank-3: #c77b4a;
+  --bt-rank-4: #a9643e;
+
+  /* ---- Tipografia ---- */
+  --bt-font-display: 'Oswald', 'Arial Narrow', sans-serif; /* titoli, etichette CTA */
+  --bt-font-ui: 'Barlow Condensed', 'Arial Narrow', sans-serif; /* interfaccia, testo */
+  --bt-font-score: 'Anton', Impact, sans-serif; /* numeri grandi */
+  --bt-font-graffiti: 'Permanent Marker', 'Marker Felt', cursive; /* banner turno, decorazioni */
+
+  --bt-text-xs: 13px; /* label stat, chip */
+  --bt-text-sm: 15px; /* sottotitoli */
+  --bt-text-md: 17px; /* testo corrente */
+  --bt-text-lg: 20px; /* titoli di sezione */
+  --bt-text-xl: 23px; /* CTA */
+  --bt-text-2xl: 25px; /* titolo header */
+  --bt-score-card: 36px; /* punteggio residuo nella card giocatore */
+  --bt-score-hero: 116px; /* input corrente sulla carta strappata */
+
+  /* ---- Spaziatura (scala 4/8) ---- */
+  --bt-space-1: 4px;
+  --bt-space-2: 8px;
+  --bt-space-3: 12px;
+  --bt-space-4: 16px;
+  --bt-space-6: 24px;
+  --bt-gutter: 14px; /* padding laterale schermate (10px nella partita live) */
+
+  /* ---- Raggi ---- */
+  --bt-radius-sm: 8px; /* tab, chip, tasti rapidi, select */
+  --bt-radius-md: 10px; /* card giocatore, header button, tile */
+  --bt-radius-lg: 12px; /* CTA, card azioni, contenitori */
+  --bt-radius-sheet: 16px;
+
+  /* ---- Misure ---- */
+  --bt-touch-min: 44px;
+  --bt-header-h: 64px; /* 68px nelle schermate con titolo singolo */
+  --bt-nav-h: 72px;
+  --bt-cta-h: 58px; /* 62px in Nuova partita, 88px card Home primaria */
+  --bt-key-h: 58px;
+
+  /* ---- Effetti ---- */
+  --bt-neon:
+    0 0 0 1px rgba(255, 35, 139, 0.55), 0 0 16px rgba(255, 35, 139, 0.45),
+    inset 0 0 12px rgba(255, 35, 139, 0.2);
+  --bt-neon-pressed: 0 0 0 1px rgba(255, 59, 157, 0.9), 0 0 10px rgba(255, 35, 139, 0.7);
+  --bt-glow-cta: 0 0 0 1px rgba(255, 59, 157, 0.6), 0 0 22px rgba(255, 35, 139, 0.4);
+  --bt-key-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 #050506;
+
+  /* ---- Movimento ---- */
+  --bt-dur-press: 110ms;
+  --bt-dur-tab: 180ms;
+  --bt-dur-turn: 200ms;
+  --bt-ease: ease;
+  --bt-press-scale: 0.97; /* .95 sui tasti del tastierino */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --bt-dur-press: 0ms;
+    --bt-dur-tab: 0ms;
+    --bt-dur-turn: 0ms;
+    --bt-press-scale: 1;
+  }
+}
+
+/* Utility condivise */
+.bt-tabular {
+  font-variant-numeric: tabular-nums;
+}
+.bt-neon {
+  border-color: var(--bt-accent-primary);
+  box-shadow: var(--bt-neon);
+}
+.bt-focus:focus-visible {
+  outline: 2px solid var(--bt-accent-soft);
+  outline-offset: 2px;
+}
+.bt-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 3px 3px;
+}

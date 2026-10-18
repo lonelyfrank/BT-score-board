@@ -1,0 +1,16 @@
+{
+  "name": "@bt/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bt/application": "workspace:*",
+    "@bt/database": "workspace:*",
+    "@bt/contracts": "workspace:*",
+    "@bt/domain": "workspace:*",
+    "fastify": "5.12.7",
+    "@fastify/swagger": "9.9.2",
+    "@fastify/rate-limit": "11.2.1",
+    "zod": "4.6.7"
+  }
+}
