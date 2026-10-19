@@ -114,7 +114,7 @@ describe('portable primitives', () => {
     for (const text of [
       '',
       'abc',
-      'é🎯 Bite Trouble',
+      'é🎯 Bite the Trouble',
       'x'.repeat(55),
       'y'.repeat(64),
       'z'.repeat(1000),

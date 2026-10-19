@@ -90,7 +90,7 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   await expect(page.locator('.result-list li').first()).toContainText('700');
   await page.goto('/');
   const resume = page.getByRole('link', { name: /IN CORSO · RIPRENDI/ });
-  await expect(resume).toContainText('BiteTrouble Open · Hi-Score · 8 in gara · 5 punteggi');
+  await expect(resume).toContainText('Bite the Trouble Open · Hi-Score · 8 in gara · 5 punteggi');
   await resume.click();
   for (let i = 3; i < 8; i++) await enterScore(page, players[i]!, scores[i]!);
   await expect(page.getByRole('heading', { name: 'Risultato registrato' })).toBeVisible();
@@ -135,7 +135,7 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   await expect(reopened.locator('.place-1')).toContainText('Bruno');
   await expect(reopened.locator('table')).toContainText('Dario');
   await reopened.goto('/');
-  await expect(reopened.getByRole('list').filter({ hasText: 'BiteTrouble Open' })).toContainText(
+  await expect(reopened.getByRole('list').filter({ hasText: 'Bite the Trouble Open' })).toContainText(
     'Vince Bruno',
   );
   await expect(reopened.getByRole('link', { name: /RIPRENDI/ })).toHaveCount(0);
@@ -279,7 +279,7 @@ test('game night with a tournament and players with nicknames', async ({ page })
   await expect(page.locator('.entry-list li')).toHaveCount(1);
   await page.goto('/serate');
   await expect(page.locator('article.event', { hasText: 'Halloween Darts' })).toContainText(
-    'BiteTrouble Open',
+    'Bite the Trouble Open',
   );
 
   await page.goto('/giocatori');

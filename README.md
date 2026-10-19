@@ -1,6 +1,6 @@
 # BT Darts Score Board
 
-Webapp mobile-first, companion del totem **Pub Time Darts (1987)** del Bite Trouble: giocatori, partite singole, Hi-Score Nights (qualifica + finale dei migliori 4), gironi round-robin ed eliminazione diretta, spareggi o decisioni dell'organizzatore, classifiche, statistiche e storico. Il totem gioca e calcola; l'app registra solo i **risultati finali** degli otto giochi della macchina (301, 301 Double In/Out, 501, Hi-Score, 301 Masters, Exacta, Odd & Even, Shanghai). Nessun collegamento con il totem.
+Webapp mobile-first, companion del totem **Pub Time Darts (1987)** del Bite the Trouble: giocatori, partite singole, Hi-Score Nights (qualifica + finale dei migliori 4), gironi round-robin ed eliminazione diretta, spareggi o decisioni dell'organizzatore, classifiche, statistiche e storico. Il totem gioca e calcola; l'app registra solo i **risultati finali** degli otto giochi della macchina (301, 301 Double In/Out, 501, Hi-Score, 301 Masters, Exacta, Odd & Even, Shanghai). Nessun collegamento con il totem.
 
 L'app funziona in due modalità che condividono schermate, dominio e servizi applicativi:
 

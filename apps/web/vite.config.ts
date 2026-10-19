@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
           name: 'BT Darts Score Board',
           short_name: 'BT Darts',
           description:
-            'Bite Trouble — partite, tornei e Hi-Score Nights gestiti da un solo telefono, anche senza connessione.',
+            'Bite the Trouble — partite, tornei e Hi-Score Nights gestiti da un solo telefono, anche senza connessione.',
           lang: 'it',
           dir: 'ltr',
           start_url: '/',

@@ -43,7 +43,7 @@ export function Home() {
     <div className="home-page">
       <div className="home-hero" aria-hidden="true" />
       <div className="home-footer" aria-hidden="true" />
-      <h1 className="visually-hidden">Bite Trouble — Not perfect, just real</h1>
+      <h1 className="visually-hidden">Bite the Trouble — Not perfect, just real</h1>
       <div className="home-tools">
         <Link className="icon-button" to="/impostazioni" aria-label="Impostazioni e accesso">
           <Settings />

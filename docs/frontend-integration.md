@@ -157,7 +157,7 @@ Una correzione usa `/scores/{scoreId}/correct`, versioni correnti, nuovo score e
 
 Polling semplice: GET del torneo oppure `/changes?after=<ultimo cursore>`; sugli eventi rileggere il read model necessario. Non assumere push, supporto offline o sincronizzazione automatica multi-device.
 
-## Frontend Bite Trouble integrato
+## Frontend Bite the Trouble integrato
 
 `apps/web` usa questi contratti direttamente attraverso `HttpAdapter`. `GET /matches/:id` espone anche `scoreboard[]`, con `tournamentEntryId`, `total`, `turns`, `bestTurn`, `average` e `progression`. I valori sono prodotti da `playerPerformance` nel dominio: il browser li presenta senza ricalcolarli.
 

@@ -1,6 +1,6 @@
 # Verifica visuale e funzionale — 18 ottobre 2026
 
-Reference: cinque schermate Bite Trouble consegnate nell'handoff. Implementazione verificata con screenshot Chromium a 390×844, DPR 2. I file `-full.png` documentano anche il contenuto scorrevole; la bottom nav rimane ancorata al viewport, quindi nei full-page compare all'altezza del viewport originale.
+Reference: cinque schermate Bite the Trouble consegnate nell'handoff. Implementazione verificata con screenshot Chromium a 390×844, DPR 2. I file `-full.png` documentano anche il contenuto scorrevole; la bottom nav rimane ancorata al viewport, quindi nei full-page compare all'altezza del viewport originale.
 
 | Schermata        | Screenshot                                                                                        | Confronto e differenze                                                                                                                                                                                      |
 | ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

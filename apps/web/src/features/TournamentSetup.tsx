@@ -61,7 +61,7 @@ function PointStepper({
 export function TournamentSetup() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const [name, setName] = useState('BiteTrouble Open');
+  const [name, setName] = useState('Bite the Trouble Open');
   const [eventId, setEventId] = useState(params.get('serata') ?? '');
   const [format, setFormat] = useState<Format>('GROUPS');
   const [gameMode, setGameMode] = useState<GameMode>('HI_SCORE');
