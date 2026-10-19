@@ -57,6 +57,8 @@ test('home, result entry, reload, correction, qualification and final', async ({
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
   await expect(page.getByRole('tab', { name: 'Finale', selected: true })).toBeVisible();
   await page.getByRole('link', { name: 'GIOCA LA FINALE' }).click();
+  // Typing before the keypad is ready would be lost.
+  await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type('1270');
   // The keypad refuses more than 7 rounds × 180.
   await expect(page.getByLabel('Punteggio finale da confermare')).toHaveText('127');

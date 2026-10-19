@@ -1,6 +1,6 @@
 # BT Darts Score Board
 
-Webapp mobile-first, companion del totem **Pub Time Darts (1987)** del Bite the Trouble: giocatori, partite singole, Hi-Score Nights (qualifica + finale dei migliori 4), gironi round-robin ed eliminazione diretta, spareggi o decisioni dell'organizzatore, classifiche, statistiche e storico. Il totem gioca e calcola; l'app registra solo i **risultati finali** degli otto giochi della macchina (301, 301 Double In/Out, 501, Hi-Score, 301 Masters, Exacta, Odd & Even, Shanghai). Nessun collegamento con il totem.
+Webapp mobile-first, companion del totem **Pub Time Darts (1987)** del Bite the Trouble: giocatori, partite singole, Hi-Score Nights (qualifica + finale dei migliori 4), gironi round-robin ed eliminazione diretta, spareggi o decisioni dell'organizzatore, classifiche, statistiche e storico. Il totem gioca e calcola; l'app registra i **risultati finali** degli otto giochi della macchina (301, 301 Double In/Out, 501, Hi-Score, 301 Masters, Exacta, Odd & Even, Shanghai) e, se l'organizzatore lo sceglie, i **round** man mano. Iscritti senza limiti legati al totem, singoli o squadre anche disomogenee, manche multiple quando gli iscritti superano i posti, rotazione dei tiratori nelle squadre. Nessun collegamento con il totem: dettagli in [docs/competition/ARCHITECTURE.md](docs/competition/ARCHITECTURE.md).
 
 L'app funziona in due modalità che condividono schermate, dominio e servizi applicativi:
 
@@ -84,13 +84,13 @@ Documenti: [architettura](docs/architecture.md), [modello di dominio](docs/domai
 ## Test
 
 ```sh
-pnpm test                                        # 122 test Vitest
+pnpm test                                        # 155 test Vitest
 pnpm --filter @bt/web exec playwright install chromium
-pnpm test:e2e                                    # 11 flussi: 3 shared + 8 standalone/PWA
+pnpm test:e2e                                    # 13 flussi: 3 shared + 10 standalone/PWA
 ```
 
 Playwright costruisce entrambe le versioni da sé. Fastify gira sulla porta 3107 con SQLite in memoria; la build statica è servita sulla 3108. Per usare un Chromium già installato, impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
 ## Limiti intenzionali
 
-Gli otto giochi si registrano come risultato finale; l'app non conta dardi né turni (i tornei a turni creati prima restano leggibili e giocabili fino alla fine). Odd & Even è limitato a 2 giocatori in attesa di conferma sul totem. In standalone non esistono sincronizzazione, account o condivisione fra dispositivi: un solo telefono è la fonte dei dati. Il backend shared resta pensato per piccoli tornei locali; HTTPS e proxy sono esterni al processo API. Un bersaglio alla volta è imposto all'interno di ciascun torneo.
+Il risultato finale del totem è l'unico ufficiale; i round sono osservazioni facoltative e non vengono mai dedotti (i tornei a turni creati prima restano leggibili e giocabili fino alla fine). Su più manche si confrontano solo giochi a punti (Hi-Score, Shanghai). Odd & Even è limitato a 2 giocatori in attesa di conferma sul totem. In standalone non esistono sincronizzazione, account o condivisione fra dispositivi: un solo telefono è la fonte dei dati. Il backend shared resta pensato per piccoli tornei locali; HTTPS e proxy sono esterni al processo API. Un bersaglio alla volta è imposto all'interno di ciascun torneo.

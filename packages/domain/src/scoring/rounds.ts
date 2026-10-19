@@ -53,7 +53,13 @@ export function trackingSpec(t: Tournament, m: Match): TrackingSpec {
             label: 'Punti rimasti',
           };
     case 'progress':
-      return { kind: 'progress', rounds: null, max: () => g.maxScore, computed: 'last', label: 'Numero raggiunto' };
+      return {
+        kind: 'progress',
+        rounds: null,
+        max: () => g.maxScore,
+        computed: 'last',
+        label: 'Numero raggiunto',
+      };
     default:
       return {
         kind: 'points',

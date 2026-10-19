@@ -7,8 +7,8 @@ export interface ActiveSession {
   /** Legacy turn entry: who is throwing. */
   current: { player: string; turn: number; turns: number } | null;
   lastScore: { player: string; score: number } | null;
-  /** Players of the next match and how many results it still waits for. */
-  next: { players: string[]; missing: number } | null;
+  /** Players of the next match (or of its heat at the board) and the results still missing. */
+  next: { players: string[]; missing: number; heat: { number: number; of: number } | null } | null;
   /** Players still in the tournament. */
   playersIn: number;
 }
@@ -32,7 +32,14 @@ export async function activeSession(api: GameAdapter): Promise<ActiveSession | n
   const turn = match?.turnState.currentTurn;
   const last = match?.scores.filter((s) => !s.voided).at(-1);
   const excluded = new Set(match?.excludedEntryIds ?? []);
-  const playing = match?.participants.filter((p) => !excluded.has(p.tournamentEntryId)) ?? [];
+  const all = match?.participants.filter((p) => !excluded.has(p.tournamentEntryId)) ?? [];
+  // Several heats: what matters now is the heat at the board, or the next one.
+  const overview = match?.heatOverview;
+  const heat =
+    overview && overview.heats.length > 1
+      ? overview.heats.find((h) => h.heatId === (overview.currentHeatId ?? overview.nextHeatId))
+      : undefined;
+  const playing = heat ? all.filter((p) => heat.entryIds.includes(p.tournamentEntryId)) : all;
   return {
     tournament,
     match,
@@ -42,6 +49,7 @@ export async function activeSession(api: GameAdapter): Promise<ActiveSession | n
           missing: playing.filter(
             (p) => (match.result?.scores[p.tournamentEntryId] ?? null) === null,
           ).length,
+          heat: heat ? { number: heat.number, of: overview!.heats.length } : null,
         }
       : null,
     playersIn: tournament.entries.filter((e) => !['eliminated', 'withdrawn'].includes(e.status))

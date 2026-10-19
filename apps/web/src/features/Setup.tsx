@@ -1,31 +1,89 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChartNoAxesColumnIncreasing, ChevronUp, Info, Plus, X } from 'lucide-react';
 import { api, ApiError, nickname, type Player, type Tournament } from '../services/api';
-import { HI_SCORE_ROUNDS, gameModes, games, sideOf, type GameMode } from '../services/rules';
-import { Avatar, ErrorMessage, Header, Modal } from '../components/ui';
+import {
+  HI_SCORE_ROUNDS,
+  checkComposition,
+  comparableAcrossHeats,
+  freeMatchLimits,
+  gameModes,
+  games,
+  heatSizes,
+  sideOf,
+  syncTeams,
+  trackingHints,
+  trackingLabels,
+  type GameMode,
+  type TeamDraft,
+  type Tracking,
+} from '../services/rules';
+import { Avatar, ErrorMessage, Header, Modal, Segmented } from '../components/ui';
 import { DartIcon } from '../components/BrandIcons';
 import { AddPlayerSheet } from '../components/PlayerSheets';
+import { TeamBuilder } from '../components/TeamBuilder';
 
-/** A free match of any totem game: one result, recorded when the totem shows it. */
+type Unit = { key: string; label: string; playerIds: string[]; name: string | null };
+
+/**
+ * A free match of any totem game. Simple by default (players in throwing order, final result);
+ * teams, heats beyond the seats of the totem and round-by-round tracking appear only when used.
+ */
 export function Setup() {
   const [mode, setMode] = useState<GameMode>('HI_SCORE');
   const [name, setName] = useState('Partita libera');
   const [selected, setSelected] = useState<Player[]>([]);
+  const [teamMode, setTeamMode] = useState(false);
+  const [teams, setTeams] = useState<TeamDraft[]>([]);
+  const [unevenOk, setUnevenOk] = useState(false);
+  const [tracking, setTracking] = useState<Tracking>('FINAL_ONLY');
+  const [x01Entry, setX01Entry] = useState<'REMAINING' | 'SCORED'>('REMAINING');
   const [picker, setPicker] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [draft, setDraft] = useState<Tournament>();
   const navigate = useNavigate();
   const game = games[mode];
-  const { min, max } = game.players;
+  const { min, max, seats } = freeMatchLimits(mode);
+  const byName = (id: string) => selected.find((p) => p.id === id)?.displayName ?? '?';
+  // New players join as singles, removed ones leave their team.
+  useEffect(() => {
+    if (teamMode)
+      setTeams((current) =>
+        syncTeams(
+          current,
+          selected.map((p) => p.id),
+        ),
+      );
+  }, [selected, teamMode]);
+  const units: Unit[] = teamMode
+    ? teams.map((t) => ({
+        key: t.key,
+        playerIds: t.playerIds,
+        name: t.playerIds.length > 1 ? t.name : null,
+        label: (t.playerIds.length > 1 && t.name) || t.playerIds.map(byName).join(' + '),
+      }))
+    : selected.map((p) => ({ key: p.id, playerIds: [p.id], name: null, label: p.displayName }));
+  const check = teamMode
+    ? checkComposition(
+        teams,
+        selected.map((p) => p.id),
+      )
+    : null;
+  const uneven = !!check?.warnings.includes('UNEVEN_TEAMS');
+  const heats = units.length > seats ? heatSizes(units.length, seats) : [];
+  const unitWord = teamMode ? 'squadre' : 'giocatori';
   const reason = !name.trim()
     ? 'Inserisci un nome per la partita.'
-    : selected.length < min
-      ? `Servono almeno ${min} giocatori.`
-      : selected.length > max
-        ? `${game.label} si gioca al massimo in ${max}: togli ${selected.length - max} ${selected.length - max === 1 ? 'giocatore' : 'giocatori'}.`
-        : '';
+    : units.length < min
+      ? `Servono almeno ${min} ${unitWord}.`
+      : units.length > max
+        ? `${game.label} si gioca al massimo in ${max}: togli ${units.length - max} ${teamMode ? 'squadre' : units.length - max === 1 ? 'giocatore' : 'giocatori'}.`
+        : check?.errors.length
+          ? 'Ogni giocatore deve stare in una sola squadra.'
+          : uneven && !unevenOk
+            ? 'Squadre con un numero diverso di giocatori: conferma la composizione.'
+            : '';
   const create = useMutation({
     mutationFn: async () => {
       let t = draft
@@ -34,14 +92,16 @@ export function Setup() {
             name: name.trim(),
             mode: 'SINGLE_MATCH',
             gameMode: mode,
+            tracking,
             scoringConfiguration: { kind: 'HIGH_SCORE', turns: HI_SCORE_ROUNDS },
-            tournamentConfiguration: { playingOrder: 'registration' },
+            tournamentConfiguration: { playingOrder: 'registration', x01Entry },
           });
       setDraft(t);
-      for (const [index, player] of selected.entries()) {
-        if (!t.entries.some((e) => e.playerId === player.id))
-          t = await api.tournamentCommand(t, 'players', { playerId: player.id, seed: index + 1 });
-      }
+      // One command composes every unit: all registered, or none.
+      if (!t.entries.length)
+        t = await api.tournamentCommand(t, 'entries/compose', {
+          entries: units.map((u) => ({ playerIds: u.playerIds, name: u.name })),
+        });
       if (['draft', 'registration', 'ready'].includes(t.status))
         t = await api.tournamentCommand(t, 'start');
       navigate(`/partite/${t.matches[0]!.id}`);
@@ -53,6 +113,8 @@ export function Setup() {
     [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
     setSelected(next);
   };
+  const locked = !!draft || create.isPending;
+  const unlimited = comparableAcrossHeats(mode) || teamMode;
   return (
     <>
       <Header title="Nuova partita" />
@@ -65,7 +127,7 @@ export function Setup() {
               role="radio"
               aria-checked={mode === id}
               className={mode === id ? 'selected' : ''}
-              disabled={!!draft || create.isPending}
+              disabled={locked}
               onClick={() => setMode(id)}
             >
               <span>
@@ -73,25 +135,31 @@ export function Setup() {
                 {games[id].label}
               </span>
               <small>
-                {games[id].players.min === games[id].players.max
-                  ? `${games[id].players.max} giocatori`
-                  : `${games[id].players.min}–${games[id].players.max} giocatori`}
+                {comparableAcrossHeats(id)
+                  ? `${games[id].players.max} per manche`
+                  : games[id].players.min === games[id].players.max
+                    ? `${games[id].players.max} giocatori`
+                    : `${games[id].players.min}–${games[id].players.max} giocatori`}
               </small>
             </button>
           ))}
         </div>
         <p className="note">
           <Info aria-hidden="true" />
-          {game.rules} Il totem calcola i punti: qui si registra solo il risultato finale.
+          {game.rules} Il totem calcola i punti: qui si registra il risultato finale (e, se vuoi, i
+          round).
         </p>
-        <fieldset disabled={!!draft || create.isPending}>
+        <fieldset disabled={locked}>
           <label className="field heading-field">
             Nome partita
             <input maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <section className="form-section" aria-labelledby="players-title">
             <div className="section-head">
-              <h2 id="players-title">Giocatori ({min === max ? max : `${min}–${max}`})</h2>
+              <h2 id="players-title">
+                Giocatori · {selected.length}
+                {!unlimited && ` (${min === max ? max : `${min}–${max}`})`}
+              </h2>
               <span>Ordine = ordine di tiro</span>
             </div>
             <ol className="order-list">
@@ -102,7 +170,11 @@ export function Setup() {
                   <span className="order-name">
                     <span>{p.displayName}</span>
                     <small>
-                      {[i === 0 ? 'Tira per primo' : '', sideOf(mode, i + 1) ?? '', nickname(p)]
+                      {[
+                        i === 0 && !teamMode ? 'Tira per primo' : '',
+                        teamMode ? '' : (sideOf(mode, i + 1) ?? ''),
+                        nickname(p),
+                      ]
                         .filter(Boolean)
                         .join(' · ')}
                     </small>
@@ -126,7 +198,7 @@ export function Setup() {
                   </button>
                 </li>
               ))}
-              {selected.length < max && (
+              {(unlimited || selected.length < max) && (
                 <li className="add-row">
                   <button type="button" onClick={() => setPicker(true)}>
                     <Plus aria-hidden="true" className="accent-icon" />
@@ -136,6 +208,76 @@ export function Setup() {
               )}
             </ol>
           </section>
+          <section className="form-section" aria-labelledby="units-title">
+            <div className="section-head">
+              <h2 id="units-title">Singoli o squadre</h2>
+              <span>{teamMode ? `${units.length} squadre` : 'Ognuno per sé'}</span>
+            </div>
+            <Segmented
+              label="Singoli o squadre"
+              value={teamMode ? 'teams' : 'singles'}
+              change={(v) => {
+                setTeamMode(v === 'teams');
+                setTeams(
+                  v === 'teams'
+                    ? syncTeams(
+                        [],
+                        selected.map((p) => p.id),
+                      )
+                    : [],
+                );
+                setUnevenOk(false);
+              }}
+              options={[
+                { id: 'singles', label: 'Singoli' },
+                { id: 'teams', label: 'Squadre' },
+              ]}
+            />
+            {teamMode && (
+              <>
+                <TeamBuilder
+                  players={selected}
+                  teams={teams}
+                  change={(next) => {
+                    setTeams(next);
+                    setUnevenOk(false);
+                  }}
+                  disabled={locked}
+                />
+                <p className="hint">
+                  Ogni squadra occupa un solo posto sul totem e tira a rotazione.
+                </p>
+                {uneven && (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={unevenOk}
+                      onChange={(e) => setUnevenOk(e.target.checked)}
+                    />
+                    Squadre disomogenee ({check!.sizes.join(' · ')} giocatori): confermo la
+                    composizione
+                  </label>
+                )}
+              </>
+            )}
+          </section>
+          {heats.length > 0 && (
+            <section className="form-section" aria-labelledby="heats-title">
+              <h2 id="heats-title">Manche</h2>
+              <div className="options padded">
+                <div className="settings-row">
+                  <span>
+                    {heats.length} manche da {seats} posti
+                  </span>
+                  <strong>{heats.join(' · ')}</strong>
+                </div>
+              </div>
+              <p className="hint">
+                Più {unitWord} dei posti del totem: si gioca a manche e conta una classifica unica
+                per punteggio. Le manche si possono rivedere dopo l’avvio, prima di giocarle.
+              </p>
+            </section>
+          )}
           <section className="form-section">
             <h2>Regole {game.label}</h2>
             <div className="options">
@@ -162,16 +304,48 @@ export function Setup() {
               <div className="settings-row">
                 <span>Da registrare</span>
                 <strong className="accent-soft">
-                  {game.scoreRequired ? 'Punteggio finale' : 'Vincitore'}
+                  {game.scoreRequired || heats.length ? 'Punteggio finale' : 'Vincitore'}
                 </strong>
               </div>
             </div>
             <p className="hint">
-              {game.scoreRequired
-                ? 'Alla fine si inserisce il totale di ogni giocatore mostrato dal totem.'
+              {game.scoreRequired || heats.length
+                ? 'Alla fine si inserisce il totale di ogni partecipante mostrato dal totem.'
                 : `Alla fine si tocca il vincitore; ${game.scoreLabel.toLowerCase()} facoltativi.`}
             </p>
           </section>
+          <details className="advanced">
+            <summary>Opzioni avanzate · {trackingLabels[tracking]}</summary>
+            <div className="options padded stack">
+              <div className="stack-row">
+                <span>Registrazione</span>
+                <Segmented
+                  label="Registrazione"
+                  value={tracking}
+                  change={setTracking}
+                  options={(Object.keys(trackingLabels) as Tracking[]).map((id) => ({
+                    id,
+                    label: trackingLabels[id],
+                  }))}
+                />
+              </div>
+              <p className="hint">{trackingHints[tracking]}</p>
+              {game.scoring === 'remaining' && tracking !== 'FINAL_ONLY' && (
+                <div className="stack-row">
+                  <span>Valore di ogni turno</span>
+                  <Segmented
+                    label="Valore di ogni turno"
+                    value={x01Entry}
+                    change={setX01Entry}
+                    options={[
+                      { id: 'REMAINING', label: 'Punti rimasti' },
+                      { id: 'SCORED', label: 'Punti fatti' },
+                    ]}
+                  />
+                </div>
+              )}
+            </div>
+          </details>
         </fieldset>
         <ErrorMessage error={create.error} />
         {create.error && draft && (
@@ -201,7 +375,7 @@ export function Setup() {
         {picker && (
           <AddPlayerSheet
             excluded={selected.map((p) => p.id)}
-            remaining={max - selected.length}
+            remaining={unlimited ? 256 - selected.length : max - selected.length}
             add={(p) => setSelected((current) => [...current, p])}
             close={() => setPicker(false)}
           />
@@ -214,18 +388,20 @@ export function Setup() {
           >
             <p>
               {name.trim()} · {game.label}
+              {heats.length > 0 && ` · ${heats.length} manche`}
             </p>
             <ol className="confirm-order">
-              {selected.map((p, i) => (
-                <li key={p.id}>
+              {units.slice(0, 12).map((u, i) => (
+                <li key={u.key}>
                   <span>{i + 1}</span>
-                  {p.displayName}
+                  {u.label}
                 </li>
               ))}
+              {units.length > 12 && <li>… e altri {units.length - 12}</li>}
             </ol>
             <p className="hint">
-              Imposta {game.label} sul totem con lo stesso ordine. Dopo l’avvio i giocatori non si
-              possono più modificare.
+              Imposta {game.label} sul totem con lo stesso ordine. Dopo l’avvio i partecipanti non
+              si possono più modificare.
             </p>
             <button className="primary" disabled={create.isPending} onClick={() => create.mutate()}>
               {create.isPending ? 'Avvio…' : 'CONFERMA E INIZIA'}

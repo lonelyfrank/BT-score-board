@@ -97,7 +97,10 @@ describe('Heats and rounds on the device', () => {
     expect(restored).toEqual(t);
     const live = reopened.read((b) => b.liveMatch(q));
     expect(live.heatOverview.currentHeatId).toBe(heat.id);
-    expect(live.rotationViews[0]).toMatchObject({ entryId: team, current: t.entries[0]!.members[1]!.playerId });
+    expect(live.rotationViews[0]).toMatchObject({
+      entryId: team,
+      current: t.entries[0]!.members[1]!.playerId,
+    });
     expect(roundProgress(restored, matchById(restored, q), team).rounds[0]).toMatchObject({
       value: 81,
       status: 'recorded',
@@ -144,7 +147,10 @@ describe('Heats and rounds on the device', () => {
       ),
     ).toBe('STALE_DATA');
     const reloaded = await open();
-    const rounds = matchById(reloaded.read((b) => b.tournament(t.id)), q).rounds;
+    const rounds = matchById(
+      reloaded.read((b) => b.tournament(t.id)),
+      q,
+    ).rounds;
     expect(rounds.map((r) => r.value)).toEqual([60]);
   });
   it('moves teams, heats and rounds to another device through a backup', async () => {
@@ -193,7 +199,8 @@ describe('Upgrade of data written by the previous version (schema 2)', () => {
     let t = await old.write((b) =>
       b.createTournament({ name: 'Serata 2025', mode: 'SINGLE_MATCH', gameMode: 'HI_SCORE' }),
     );
-    for (const id of ids) t = await old.write((b) => exec(b, t, 'RegisterPlayer', { playerId: id }));
+    for (const id of ids)
+      t = await old.write((b) => exec(b, t, 'RegisterPlayer', { playerId: id }));
     t = await old.write((b) => exec(b, t, 'StartTournament'));
     const m = t.matches[0]!.id;
     t = await old.write((b) =>

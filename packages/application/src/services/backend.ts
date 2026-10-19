@@ -463,8 +463,11 @@ export class Backend {
           d.completeHeat(t, m!, (input as CommandInput<'CompleteHeat'>).heatId, c);
           break;
         case 'RecordRound': {
-          const { expectedVersion: _v, expectedMatchVersion: _m, ...round } =
-            input as CommandInput<'RecordRound'>;
+          const {
+            expectedVersion: _v,
+            expectedMatchVersion: _m,
+            ...round
+          } = input as CommandInput<'RecordRound'>;
           d.recordRound(t, m!, round, c);
           break;
         }

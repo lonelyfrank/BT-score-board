@@ -292,7 +292,11 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
           matchId: id(r),
           idempotencyKey: r.headers['idempotency-key'] as string | undefined,
         }),
-      { body: commandSchemas[name], command: true, score: name === 'RecordScore' },
+      {
+        body: commandSchemas[name],
+        command: true,
+        score: name === 'RecordScore' || name === 'RecordRound',
+      },
     );
   }
   for (const [path, name] of Object.entries(scoreCommandPaths))

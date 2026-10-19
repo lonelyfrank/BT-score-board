@@ -9,6 +9,24 @@ import {
   type GameDefinition,
 } from '../../../../packages/domain/src/games/catalog.js';
 import { resultDependencies } from '../../../../packages/domain/src/tournaments/results.js';
+import {
+  MAX_TEAM_MEMBERS,
+  buildTeams,
+  checkComposition,
+  dissolveTeam,
+  movePlayer,
+  renameTeam,
+  reshuffleTeams,
+  reverseTeam,
+  setTeamLocked,
+  singles,
+  swapPlayers,
+  swapTeams,
+  type TeamDraft,
+  type TeamStrategy,
+} from '../../../../packages/domain/src/competition/teams.js';
+import { planHeats } from '../../../../packages/domain/src/competition/heats.js';
+import { comparableAcrossHeats } from '../../../../packages/domain/src/games/catalog.js';
 import type {
   GameMode,
   Tournament as DomainTournament,
@@ -16,6 +34,22 @@ import type {
 import type { Match, Tournament } from './game';
 
 export {
+  MAX_TEAM_MEMBERS,
+  buildTeams,
+  checkComposition,
+  comparableAcrossHeats,
+  dissolveTeam,
+  movePlayer,
+  planHeats,
+  renameTeam,
+  reshuffleTeams,
+  reverseTeam,
+  setTeamLocked,
+  singles,
+  swapPlayers,
+  swapTeams,
+  type TeamDraft,
+  type TeamStrategy,
   HI_SCORE_ROUNDS,
   evaluateResult,
   gameModes,
@@ -39,3 +73,41 @@ export function dependenciesOf(t: Tournament, m: Pick<Match, 'id'>) {
 /** Short description of the formats, as the organizer reads them. */
 export const formatLabel = (mode: string) =>
   mode === 'GROUPS' ? 'A gironi' : mode === 'SINGLE_MATCH' ? 'Partita singola' : 'Hi-Score rapido';
+
+/** Units a free match accepts: beyond the seats of the totem only games scored in points. */
+export function freeMatchLimits(mode: GameMode) {
+  const g = games[mode];
+  return {
+    min: g.scoreRequired ? 1 : g.players.min,
+    max: comparableAcrossHeats(mode) ? 256 : g.players.max,
+    seats: g.players.max,
+  };
+}
+/** Sizes of the heats a number of units would need on the totem ("4 · 4 · 3"). */
+export const heatSizes = (units: number, seats: number) =>
+  planHeats(
+    Array.from({ length: units }, (_, i) => String(i)),
+    seats,
+    'balanced',
+  ).map((h) => h.length);
+
+export const trackingLabels = {
+  FINAL_ONLY: 'Solo finale',
+  ROUND_BY_ROUND: 'Round per round',
+  FLEXIBLE: 'Flessibile',
+} as const;
+export type Tracking = keyof typeof trackingLabels;
+export const trackingHints: Record<Tracking, string> = {
+  FINAL_ONLY: 'Si inserisce solo il risultato finale mostrato dal totem.',
+  ROUND_BY_ROUND:
+    'Si registra ogni round (o lo si salta esplicitamente) prima del risultato finale.',
+  FLEXIBLE: 'Round facoltativi: si può saltare e chiudere con il risultato finale del totem.',
+};
+/** Keeps a composition in line with the selected players: removed ones leave, new ones join as singles. */
+export function syncTeams(teams: TeamDraft[], playerIds: string[]): TeamDraft[] {
+  const kept = teams
+    .map((t) => ({ ...t, playerIds: t.playerIds.filter((id) => playerIds.includes(id)) }))
+    .filter((t) => t.playerIds.length > 0);
+  const placed = new Set(kept.flatMap((t) => t.playerIds));
+  return [...kept, ...singles(playerIds.filter((id) => !placed.has(id)))];
+}

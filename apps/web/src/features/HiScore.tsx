@@ -46,13 +46,20 @@ function QualificationRanking({
   table,
   cut,
   turns,
+  heats = [],
 }: {
   t: Tournament;
   table: Table;
   cut: number;
   turns: number;
+  /** Physical heats of the qualification: shown, never used to rank. */
+  heats?: TMatch['heats'];
 }) {
   const results = isResultRecording(t);
+  const heatOf = (entry: string) =>
+    heats.length > 1
+      ? heats.find((h) => h.status !== 'cancelled' && h.entryIds.includes(entry))?.number
+      : undefined;
   const max = t.scoringConfiguration.maxTurnScore;
   // The cut line goes under the last qualifying place (after a whole tied group).
   const lineAfter = table.rows.reduce((last, r, i) => (r.placement <= cut ? i : last), -1);
@@ -81,6 +88,8 @@ function QualificationRanking({
                   {tied && <b className="tie-tag">PARI</b>}
                 </span>
                 <small>
+                  {heatOf(r.tournamentEntryId) !== undefined &&
+                    `M${heatOf(r.tournamentEntryId)} · `}
                   {results
                     ? r.recorded
                       ? 'punteggio registrato'
@@ -343,6 +352,8 @@ export function HiScoreDetail() {
                   <h3>Qualifica</h3>
                   <span>
                     {done}/{players.length} prove complete
+                    {qualMatch.heats.length > 1 &&
+                      ` · manche ${qualMatch.heats.filter((h) => h.status === 'completed').length}/${qualMatch.heats.filter((h) => h.status !== 'cancelled').length}`}
                   </span>
                 </div>
                 <div className="progress" aria-hidden="true">
@@ -382,7 +393,13 @@ export function HiScoreDetail() {
             )}
             {qualTiebreak && <TiebreakCard t={t} match={qualTiebreak} />}
             {qualTable ? (
-              <QualificationRanking t={t} table={qualTable} cut={cut} turns={turns} />
+              <QualificationRanking
+                t={t}
+                table={qualTable}
+                cut={cut}
+                turns={turns}
+                heats={qualMatch?.heats}
+              />
             ) : (
               !isDraft(t) && <Loading />
             )}

@@ -194,9 +194,7 @@ export function evaluateResult(
   const g = games[mode];
   if (options.scoresOnly)
     ensure(
-      comparableAcrossHeats(mode) &&
-        input.declaredWinnerEntryId === null &&
-        input.special === null,
+      comparableAcrossHeats(mode) && input.declaredWinnerEntryId === null && input.special === null,
       'INVALID_RESULT',
       'Over several heats the scores rank the players: no winner is declared',
       422,

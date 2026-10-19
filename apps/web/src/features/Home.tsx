@@ -32,11 +32,13 @@ export function Home() {
       `${s.playersIn} in gara`,
       s.current
         ? `${s.current.player} al tiro · turno ${s.current.turn} di ${s.current.turns}`
-        : s.next && s.next.players.length <= 4
-          ? `prossimo: ${s.next.players.join(' vs ')}`
-          : s.next
-            ? `${s.next.missing} punteggi da registrare`
-            : 'conferma la fase per proseguire',
+        : s.next?.heat
+          ? `manche ${s.next.heat.number}/${s.next.heat.of}: ${s.next.players.join(', ')}`
+          : s.next && s.next.players.length <= 4
+            ? `prossimo: ${s.next.players.join(' vs ')}`
+            : s.next
+              ? `${s.next.missing} punteggi da registrare`
+              : 'conferma la fase per proseguire',
     ].join(' · '),
   };
   return (

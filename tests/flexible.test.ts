@@ -116,9 +116,9 @@ describe('Teams and competitive units', () => {
     expect(t.entries[3]!.displayNameAtRegistration).toBe('Player 7');
   });
   it('composes 8 players into four pairs and 11 players into uneven teams', () => {
-    expect(sizes(buildTeams(ids(8), { teamSize: 2, strategy: 'random' }).map((t) => t.playerIds))).toEqual([
-      2, 2, 2, 2,
-    ]);
+    expect(
+      sizes(buildTeams(ids(8), { teamSize: 2, strategy: 'random' }).map((t) => t.playerIds)),
+    ).toEqual([2, 2, 2, 2]);
     const eleven = buildTeams(ids(11), { teamSize: 3, strategy: 'balanced' });
     expect(sizes(eleven.map((t) => t.playerIds))).toEqual([3, 3, 3, 2]);
     expect(checkComposition(eleven, ids(11))).toMatchObject({
@@ -214,14 +214,19 @@ describe('Teams and competitive units', () => {
     const composed = run(backend, t, 'ComposeEntries', {
       entries: [{ playerIds: [p[0], p[1]], name: 'Coppia' }, { playerIds: [p[2]] }],
     });
-    expect(composed.entries[0]).toMatchObject({ name: 'Coppia', displayNameAtRegistration: 'Coppia' });
+    expect(composed.entries[0]).toMatchObject({
+      name: 'Coppia',
+      displayNameAtRegistration: 'Coppia',
+    });
     // A recomposition replaces the previous one: no stale rows block the players.
     const again = run(backend, composed, 'ComposeEntries', {
       entries: [{ playerIds: [p[1], p[0]] }, { playerIds: [p[2]] }],
     });
     expect(again.entries[0]!.playerId).toBe(p[1]);
     expect(
-      store.sqlite.prepare('SELECT count(*) n FROM entry_members WHERE tournament_id = ?').get(t.id),
+      store.sqlite
+        .prepare('SELECT count(*) n FROM entry_members WHERE tournament_id = ?')
+        .get(t.id),
     ).toEqual({ n: 3 });
     expect(() =>
       store.sqlite
@@ -233,9 +238,7 @@ describe('Teams and competitive units', () => {
     // Composition is closed once the tournament starts.
     const started = run(backend, again, 'StartTournament');
     expect(
-      code(() =>
-        run(backend, started, 'ComposeEntries', { entries: [{ playerIds: [p[0]] }] }),
-      ),
+      code(() => run(backend, started, 'ComposeEntries', { entries: [{ playerIds: [p[0]] }] })),
     ).toBe('REGISTRATION_CLOSED');
   });
 });
@@ -267,9 +270,7 @@ describe('Heats', () => {
     expect(matchById(t, m.id).heats.map((h) => h.status)).toEqual(['active', 'pending']);
     // A player of the second heat cannot be recorded while the first is at the board.
     expect(
-      code(() =>
-        run(backend, t, 'RecordResult', { scores: { [entryOf(t, p[5]!)]: 300 } }, m.id),
-      ),
+      code(() => run(backend, t, 'RecordResult', { scores: { [entryOf(t, p[5]!)]: 300 } }, m.id)),
     ).toBe('HEAT_BUSY');
     // Over several heats the scores rank: a declared winner is refused.
     expect(
@@ -296,7 +297,13 @@ describe('Heats', () => {
     const backend = setup().backend;
     const p = players(backend, 5);
     let solo = tournament(backend, [[p[0]!]], { mode: 'SINGLE_MATCH' });
-    solo = run(backend, solo, 'RecordResult', { scores: { [solo.entries[0]!.id]: 420 } }, solo.matches[0]!.id);
+    solo = run(
+      backend,
+      solo,
+      'RecordResult',
+      { scores: { [solo.entries[0]!.id]: 420 } },
+      solo.matches[0]!.id,
+    );
     expect(solo.status).toBe('completed');
     const x01 = tournament(
       backend,
@@ -329,7 +336,10 @@ describe('Heats', () => {
       'ArrangeHeats',
       {
         heats: [
-          { heatId: h1!.id, entryIds: [h2!.entryIds[0], ...h1!.entryIds.slice(1), h3!.entryIds[0]] },
+          {
+            heatId: h1!.id,
+            entryIds: [h2!.entryIds[0], ...h1!.entryIds.slice(1), h3!.entryIds[0]],
+          },
           { heatId: h2!.id, entryIds: [h1!.entryIds[0], ...h2!.entryIds.slice(1)] },
           { heatId: h3!.id, entryIds: h3!.entryIds.slice(1) },
         ],
@@ -339,16 +349,18 @@ describe('Heats', () => {
     expect(sizes(matchById(t, q.id).heats.map((h) => h.entryIds))).toEqual([4, 3, 2]);
     // An entry left out (or placed twice) is refused.
     expect(
-      code(() =>
-        run(backend, t, 'ArrangeHeats', { heats: [{ entryIds: h1!.entryIds }] }, q.id),
-      ),
+      code(() => run(backend, t, 'ArrangeHeats', { heats: [{ entryIds: h1!.entryIds }] }, q.id)),
     ).toBe('INVALID_HEATS');
     // Confirm heat 1: a reshuffle keeps it, the others are planned again.
     t = run(backend, t, 'LockHeat', { heatId: h1!.id, locked: true }, q.id);
     const locked = matchById(t, q.id).heats[0]!;
     t = run(backend, t, 'GenerateHeats', { strategy: 'random', seed: 42 }, q.id);
     const after = matchById(t, q.id);
-    expect(after.heats[0]).toMatchObject({ id: locked.id, entryIds: locked.entryIds, status: 'ready' });
+    expect(after.heats[0]).toMatchObject({
+      id: locked.id,
+      entryIds: locked.entryIds,
+      status: 'ready',
+    });
     expect(after.heats.flatMap((h) => h.entryIds).sort()).toEqual(
       after.participants.map((x) => x.tournamentEntryId).sort(),
     );
@@ -401,15 +413,16 @@ describe('Heats', () => {
     // The organizer frees the board with two results missing: they stay visible as missing.
     t = run(backend, t, 'CompleteHeat', { heatId: first!.id }, q);
     let overview = heatOverview(t, matchById(t, q));
-    expect(overview.heats[0]).toMatchObject({ status: 'completed', missing: first!.entryIds.slice(2) });
+    expect(overview.heats[0]).toMatchObject({
+      status: 'completed',
+      missing: first!.entryIds.slice(2),
+    });
     expect(overview.nextHeatId).toBe(second!.id);
     // Reshuffling keeps the played heat untouched.
     t = run(backend, t, 'GenerateHeats', { strategy: 'random', seed: 1 }, q);
     expect(matchById(t, q).heats[0]).toMatchObject({ id: first!.id, entryIds: first!.entryIds });
     expect(
-      code(() =>
-        run(backend, t, 'ArrangeHeats', { heats: [{ entryIds: first!.entryIds }] }, q),
-      ),
+      code(() => run(backend, t, 'ArrangeHeats', { heats: [{ entryIds: first!.entryIds }] }, q)),
     ).toBe('INVALID_HEATS');
     // Late entry of a missing result goes to the played heat; the qualification waits for all.
     t = run(backend, t, 'RecordResult', { scores: { [first!.entryIds[2]!]: 200 } }, q);
@@ -551,9 +564,9 @@ describe('Progressive scoring', () => {
   it('asks for a reason when the official result differs, and keeps both values', () => {
     let { backend, t, m, e } = hiScore('ROUND_BY_ROUND');
     for (let i = 1; i <= 7; i++) t = round(backend, t, m, e[0]!, i, 50);
-    expect(
-      code(() => run(backend, t, 'RecordResult', { scores: { [e[0]!]: 360 } }, m)),
-    ).toBe('RESULT_DIFFERS_FROM_ROUNDS');
+    expect(code(() => run(backend, t, 'RecordResult', { scores: { [e[0]!]: 360 } }, m))).toBe(
+      'RESULT_DIFFERS_FROM_ROUNDS',
+    );
     // ROUND_BY_ROUND: the other player still has rounds to record or skip.
     expect(code(() => run(backend, t, 'RecordResult', { scores: { [e[1]!]: 200 } }, m))).toBe(
       'ROUNDS_MISSING',
@@ -588,11 +601,19 @@ describe('Progressive scoring', () => {
     const m = t.matches[0]!.id;
     const [a, b] = t.entries.map((x) => x.id);
     // Round 3 left the score unchanged (a bust on the totem): recorded as observed.
-    for (const [i, left] of [441, 341, 341, 200].entries()) t = round(backend, t, m, a!, i + 1, left);
+    for (const [i, left] of [441, 341, 341, 200].entries())
+      t = round(backend, t, m, a!, i + 1, left);
     expect(roundProgress(t, matchById(t, m), a!)).toMatchObject({ computed: 200, complete: true });
     t = round(backend, t, m, a!, 5, 0);
     expect(code(() => round(backend, t, m, a!, 5, 502))).toBe('INVALID_SCORE');
-    t = run(backend, t, 'RecordResult', { scores: { [a!]: 0, [b!]: 120 }, winnerEntryId: a }, m, randomUUID());
+    t = run(
+      backend,
+      t,
+      'RecordResult',
+      { scores: { [a!]: 0, [b!]: 120 }, winnerEntryId: a },
+      m,
+      randomUUID(),
+    );
     expect(t.status).toBe('completed');
     expect(matchById(t, m).result!.reconciliation).toEqual([]);
   });
@@ -602,7 +623,12 @@ describe('Progressive scoring', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
-      { mode: 'SINGLE_MATCH', gameMode: '501', tracking: 'FLEXIBLE', config: { x01Entry: 'SCORED' } },
+      {
+        mode: 'SINGLE_MATCH',
+        gameMode: '501',
+        tracking: 'FLEXIBLE',
+        config: { x01Entry: 'SCORED' },
+      },
     );
     const m = t.matches[0]!.id;
     const [a] = t.entries.map((x) => x.id);
@@ -641,9 +667,9 @@ describe('Progressive scoring', () => {
     expect(code(() => run(backend, t, 'RotateTeam', { entryId: team, action: 'advance' }, m))).toBe(
       'ROTATION_PAUSED',
     );
-    expect(
-      code(() => round(backend, t, m, team, 6, 10, { playerId: p[2] })),
-    ).toBe('INVALID_PLAYER');
+    expect(code(() => round(backend, t, m, team, 6, 10, { playerId: p[2] }))).toBe(
+      'INVALID_PLAYER',
+    );
   });
   it('reopens a finished match for a correction and keeps its rounds', () => {
     let { backend, t, m, e } = hiScore('FLEXIBLE');
@@ -653,13 +679,7 @@ describe('Progressive scoring', () => {
     expect(code(() => run(backend, t, 'RecordResult', { scores: { [e[1]!]: 520 } }, m))).toBe(
       'RESULT_HAS_DEPENDENTS',
     );
-    t = run(
-      backend,
-      t,
-      'RecordResult',
-      { scores: { [e[1]!]: 520 }, confirmInvalidation: true },
-      m,
-    );
+    t = run(backend, t, 'RecordResult', { scores: { [e[1]!]: 520 }, confirmInvalidation: true }, m);
     expect(t.status).toBe('completed');
     expect(t.results.find((r) => r.finalPlacement === 1)!.tournamentEntryId).toBe(e[1]);
     expect(matchById(t, m).rounds).toHaveLength(1);
@@ -684,9 +704,7 @@ describe('Competitions', () => {
     expect(sizes(heats.map((h) => h.entryIds))).toEqual([4, 4, 4, 4, 3]);
     // Totals chosen so that two finalists share heat 2 and one comes from the heat of three.
     const totals = new Map<string, number>();
-    heats.forEach((h, hi) =>
-      h.entryIds.forEach((id, i) => totals.set(id, 300 + hi * 7 + i * 3)),
-    );
+    heats.forEach((h, hi) => h.entryIds.forEach((id, i) => totals.set(id, 300 + hi * 7 + i * 3)));
     const [h2a, h2b] = heats[1]!.entryIds;
     const [h5a] = heats[4]!.entryIds;
     const [h1a] = heats[0]!.entryIds;
@@ -793,9 +811,9 @@ describe('Competitions', () => {
     t = score(backend, t, q, Object.fromEntries(all.map((id, i) => [id, 600 - i * 50])));
     t = run(backend, t, 'FinalizeQualification');
     t = run(backend, t, 'GenerateFinal');
-    expect(
-      code(() => run(backend, t, 'RecordResult', { scores: { [all[5]!]: 900 } }, q)),
-    ).toBe('RESULT_HAS_DEPENDENTS');
+    expect(code(() => run(backend, t, 'RecordResult', { scores: { [all[5]!]: 900 } }, q))).toBe(
+      'RESULT_HAS_DEPENDENTS',
+    );
     t = run(
       backend,
       t,

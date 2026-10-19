@@ -1,10 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChartNoAxesColumnIncreasing, ChevronDown, Minus, Plus, Trophy } from 'lucide-react';
 import { distributeGroups } from '../../../../packages/domain/src/tournaments/schedule.js';
 import { api, ApiError, type Player, type Tournament } from '../services/api';
-import { HI_SCORE_ROUNDS, gameModes, games, type GameMode } from '../services/rules';
+import {
+  HI_SCORE_ROUNDS,
+  checkComposition,
+  gameModes,
+  games,
+  heatSizes,
+  syncTeams,
+  trackingHints,
+  trackingLabels,
+  type GameMode,
+  type TeamDraft,
+  type Tracking,
+} from '../services/rules';
+import { TeamBuilder } from '../components/TeamBuilder';
 import { ErrorMessage, Header, Segmented, Stepper, Switch } from '../components/ui';
 import { TrophyEmblem } from '../components/BrandIcons';
 import { NewPlayerSheet } from '../components/PlayerSheets';
@@ -79,6 +92,22 @@ export function TournamentSetup() {
   const [qualifiers, setQualifiers] = useState(4);
   const [order, setOrder] = useState<'registration' | 'seed'>('registration');
   const [draft, setDraft] = useState<Tournament>();
+  const [teamMode, setTeamMode] = useState(false);
+  const [teams, setTeams] = useState<TeamDraft[]>([]);
+  const [unevenOk, setUnevenOk] = useState(false);
+  const [tracking, setTracking] = useState<Tracking>('FINAL_ONLY');
+  const [heatStrategy, setHeatStrategy] = useState<'balanced' | 'sequential' | 'random'>(
+    'balanced',
+  );
+  useEffect(() => {
+    if (teamMode)
+      setTeams((current) =>
+        syncTeams(
+          current,
+          picked.map((p) => p.id),
+        ),
+      );
+  }, [picked, teamMode]);
 
   const roster = useQuery({
     queryKey: ['players', '', 0, 'active'],
@@ -91,27 +120,48 @@ export function TournamentSetup() {
   const isGroups = format === 'GROUPS';
   // The quick format ranks Hi-Score totals: no other game can be compared that way.
   const game = games[isGroups ? gameMode : 'HI_SCORE'];
-  const n = picked.length;
+  const byName = (id: string) => picked.find((p) => p.id === id)?.displayName ?? '?';
+  // Competitive units: every player alone, or the teams composed below.
+  const units = teamMode
+    ? teams.map((t) => ({
+        key: t.key,
+        playerIds: t.playerIds,
+        name: t.playerIds.length > 1 ? t.name : null,
+        label: (t.playerIds.length > 1 && t.name) || t.playerIds.map(byName).join(' + '),
+      }))
+    : picked.map((p) => ({ key: p.id, playerIds: [p.id], name: null, label: p.displayName }));
+  const n = units.length;
+  const check = teamMode
+    ? checkComposition(
+        teams,
+        picked.map((p) => p.id),
+      )
+    : null;
+  const uneven = !!check?.warnings.includes('UNEVEN_TEAMS');
   // Who is in which group: the snake preview, or the organizer's own choice.
+  const unitKeys = units.map((u) => u.key).join();
   const composition = useMemo(() => {
-    const ids = picked.map((p) => p.id);
+    const ids = unitKeys ? unitKeys.split(',') : [];
     if (!manual) return snake(ids, groups);
     const result = Array.from({ length: groups }, () => [] as string[]);
-    picked.forEach((p, i) =>
-      result[Math.min(assigned[p.id] ?? i % groups, groups - 1)]!.push(p.id),
-    );
+    ids.forEach((id, i) => result[Math.min(assigned[id] ?? i % groups, groups - 1)]!.push(id));
     return result;
-  }, [picked, groups, manual, assigned]);
+  }, [unitKeys, groups, manual, assigned]);
+  const quickHeats = !isGroups && n > game.players.max ? heatSizes(n, game.players.max) : [];
 
   const reason = !name.trim()
     ? 'Inserisci il nome del torneo.'
     : n < 2
       ? 'Servono almeno 2 partecipanti.'
-      : isGroups && (!composition || composition.some((g) => g.length < Math.max(2, perGroup)))
-        ? `Ogni girone deve avere almeno 2 giocatori e almeno ${perGroup} iscritti.`
-        : isGroups && groups * perGroup < 2
-          ? 'Servono almeno 2 qualificati alla fase finale.'
-          : '';
+      : check?.errors.length
+        ? 'Ogni giocatore deve stare in una sola squadra.'
+        : uneven && !unevenOk
+          ? 'Squadre con un numero diverso di giocatori: conferma la composizione.'
+          : isGroups && (!composition || composition.some((g) => g.length < Math.max(2, perGroup)))
+            ? `Ogni girone deve avere almeno 2 giocatori e almeno ${perGroup} iscritti.`
+            : isGroups && groups * perGroup < 2
+              ? 'Servono almeno 2 qualificati alla fase finale.'
+              : '';
 
   const save = useMutation({
     mutationFn: async (start: boolean) => {
@@ -122,6 +172,7 @@ export function TournamentSetup() {
           eventId: eventId || null,
           mode: format,
           gameMode: game.id,
+          tracking,
           scoringConfiguration: { kind: 'HIGH_SCORE', turns: HI_SCORE_ROUNDS },
           tournamentConfiguration: {
             qualifiers: isGroups ? Math.min(64, Math.max(2, groups * perGroup)) : qualifiers,
@@ -132,14 +183,20 @@ export function TournamentSetup() {
             lossPoints: loss,
             allowDraws: game.drawPossible && allowDraws,
             playingOrder: order,
+            heatStrategy,
           },
         }));
       setDraft(t);
-      for (const [index, player] of picked.entries())
-        if (!t.entries.some((e) => e.playerId === player.id))
-          t = await api.tournamentCommand(t, 'players', { playerId: player.id, seed: index + 1 });
+      // One command registers every unit (singles and teams): all of them, or none.
+      if (!t.entries.length && units.length)
+        t = await api.tournamentCommand(t, 'entries/compose', {
+          entries: units.map((u) => ({ playerIds: u.playerIds, name: u.name })),
+        });
       if (isGroups && manual && composition && !t.tournamentConfiguration.groupAssignments) {
-        const entry = (playerId: string) => t.entries.find((e) => e.playerId === playerId)!.id;
+        const entry = (key: string) => {
+          const first = units.find((u) => u.key === key)!.playerIds[0];
+          return t.entries.find((e) => e.playerId === first)!.id;
+        };
         t = await api.tournamentCommand(t, 'configure', {
           tournamentConfiguration: {
             ...t.tournamentConfiguration,
@@ -291,6 +348,61 @@ export function TournamentSetup() {
               <Plus aria-hidden="true" className="accent-icon" /> Nuovo giocatore
             </button>
           </section>
+          <section className="form-section" aria-labelledby="units-title">
+            <div className="section-head">
+              <h2 id="units-title">Singoli o squadre</h2>
+              <span>{teamMode ? `${n} squadre` : 'Ognuno per sé'}</span>
+            </div>
+            <Segmented
+              label="Singoli o squadre"
+              value={teamMode ? 'teams' : 'singles'}
+              change={(v) => {
+                setTeamMode(v === 'teams');
+                setTeams(
+                  v === 'teams'
+                    ? syncTeams(
+                        [],
+                        picked.map((p) => p.id),
+                      )
+                    : [],
+                );
+                setAssigned({});
+                setUnevenOk(false);
+              }}
+              options={[
+                { id: 'singles', label: 'Singoli' },
+                { id: 'teams', label: 'Squadre' },
+              ]}
+            />
+            {teamMode && (
+              <>
+                <TeamBuilder
+                  players={picked}
+                  teams={teams}
+                  change={(next) => {
+                    setTeams(next);
+                    setAssigned({});
+                    setUnevenOk(false);
+                  }}
+                  disabled={locked}
+                />
+                <p className="hint">
+                  Una squadra è un solo partecipante: un posto sul totem, una riga in classifica.
+                </p>
+                {uneven && (
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={unevenOk}
+                      onChange={(e) => setUnevenOk(e.target.checked)}
+                    />
+                    Squadre disomogenee ({check!.sizes.join(' · ')} giocatori): confermo la
+                    composizione
+                  </label>
+                )}
+              </>
+            )}
+          </section>
           {isGroups ? (
             <>
               <section className="form-section">
@@ -341,11 +453,11 @@ export function TournamentSetup() {
                           <div key={g}>
                             <strong>{groupName(g)}</strong>
                             {ids.map((id) => {
-                              const p = picked.find((x) => x.id === id)!;
-                              const seed = picked.indexOf(p) + 1;
+                              const p = units.find((x) => x.key === id)!;
+                              const seed = units.indexOf(p) + 1;
                               return manual ? (
                                 <label key={id} className="assign">
-                                  <span className="visually-hidden">Girone di {p.displayName}</span>
+                                  <span className="visually-hidden">Girone di {p.label}</span>
                                   <select
                                     value={g}
                                     onChange={(e) =>
@@ -358,12 +470,12 @@ export function TournamentSetup() {
                                       </option>
                                     ))}
                                   </select>
-                                  {p.displayName}
+                                  {p.label}
                                 </label>
                               ) : (
                                 <span key={id}>
                                   <small>{seed}</small>
-                                  {p.displayName}
+                                  {p.label}
                                 </span>
                               );
                             })}
@@ -435,8 +547,51 @@ export function TournamentSetup() {
                     : 'Finale unica tra i qualificati, con punteggio azzerato: i punti della qualifica non si sommano.'}
                 </p>
               </div>
+              {quickHeats.length > 0 && (
+                <>
+                  <h2>Manche di qualifica</h2>
+                  <div className="options padded stack">
+                    <div className="settings-row">
+                      <span>{quickHeats.length} manche</span>
+                      <strong>{quickHeats.join(' · ')}</strong>
+                    </div>
+                    <div className="stack-row">
+                      <span>Distribuzione</span>
+                      <Segmented
+                        label="Distribuzione nelle manche"
+                        value={heatStrategy}
+                        change={setHeatStrategy}
+                        options={[
+                          { id: 'sequential', label: 'In ordine' },
+                          { id: 'random', label: 'Casuale' },
+                          { id: 'balanced', label: 'Bilanciata' },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <p className="hint">
+                    Le manche sono solo turni al bersaglio: i migliori {qualifiers} si scelgono su
+                    tutti i punteggi della qualifica, non per manche.
+                  </p>
+                </>
+              )}
             </section>
           )}
+          <details className="advanced">
+            <summary>Registrazione · {trackingLabels[tracking]}</summary>
+            <div className="options padded stack">
+              <Segmented
+                label="Registrazione"
+                value={tracking}
+                change={setTracking}
+                options={(Object.keys(trackingLabels) as Tracking[]).map((id) => ({
+                  id,
+                  label: trackingLabels[id],
+                }))}
+              />
+              <p className="hint">{trackingHints[tracking]}</p>
+            </div>
+          </details>
           <section className="form-section">
             <h2>Parità e ordine</h2>
             <div className="options padded stack">

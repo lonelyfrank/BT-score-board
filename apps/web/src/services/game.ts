@@ -122,7 +122,8 @@ export const messages: Record<string, string> = {
   INVALID_TARGET: 'L’obiettivo Exacta va da 250 a 350.',
   INVALID_RESULT: 'Risultato non valido per i giocatori di questo incontro.',
   INVALID_GAME_MODE: 'Il torneo rapido Hi-Score si gioca solo in modalità Hi-Score.',
-  INVALID_PLAYER_COUNT: 'Numero di giocatori non ammesso per questa modalità del totem.',
+  INVALID_PLAYER_COUNT:
+    'Numero di partecipanti non ammesso: oltre i posti del totem si gioca a manche solo con i giochi a punti.',
   INVALID_RANKING:
     'La differenza punti vale solo per Hi-Score: le altre modalità contano vittorie.',
   RECORDING_MISMATCH: 'Questo torneo registra i punteggi turno per turno.',
@@ -135,7 +136,29 @@ export const messages: Record<string, string> = {
   INCOMPLETE_QUALIFICATION: 'Mancano risultati: registra tutti gli incontri prima di confermare.',
   INCOMPLETE_FINAL: 'Registra il risultato della finale e degli spareggi prima di confermare.',
   REGISTRATION_CLOSED: 'Le iscrizioni sono chiuse: dopo l’avvio un giocatore può solo ritirarsi.',
-  DUPLICATE_ENTRY: 'Giocatore già iscritto.',
+  DUPLICATE_ENTRY: 'Giocatore già iscritto (anche in un’altra squadra).',
+  PLAYER_LIMIT: 'Limite tecnico raggiunto: massimo 256 unità per torneo.',
+  INVALID_TEAMS: 'Ogni squadra deve avere da 1 a 8 giocatori.',
+  TEAM_LOCKED: 'Squadra bloccata: sbloccala prima di modificarla.',
+  TEAM_FULL: 'La squadra ha già 8 giocatori.',
+  HEAT_BUSY: 'C’è già una manche al bersaglio: completala prima di passare alla successiva.',
+  INVALID_HEATS:
+    'Ogni giocatore ancora da giocare deve stare in una sola manche, senza superare i posti del totem.',
+  HEAT_LOCKED: 'Manche confermata: sbloccala prima di modificarla.',
+  INVALID_HEAT_CAPACITY: 'Posti per manche non validi per questo totem.',
+  INCOMPLETE_HEAT: 'Mancano risultati in questa manche.',
+  TRACKING_DISABLED: 'Questa partita registra solo il risultato finale.',
+  INVALID_TRACKING: 'Il tracciamento dei round richiede la registrazione dei risultati finali.',
+  ROUNDS_MISSING:
+    'Modalità round per round: registra o salta ogni round prima del risultato finale.',
+  RESULT_DIFFERS_FROM_ROUNDS:
+    'Il risultato ufficiale è diverso dalla somma dei round: rivedi i round o indica il motivo.',
+  INVALID_ROUND: 'Numero di round non valido per questo gioco.',
+  INVALID_PLAYER: 'Il tiratore indicato non fa parte della squadra.',
+  ROTATION_PAUSED: 'Rotazione in pausa: riprendila per avanzare.',
+  NOTHING_TO_UNDO: 'Nessun avanzamento da annullare.',
+  NOTHING_TO_RESTORE: 'Questo valore non ne sostituiva un altro.',
+  INVALID_ROTATION: 'Il nuovo ordine deve contenere tutti i giocatori una volta sola.',
 };
 
 // Session-scoped drafts: they survive a reload but not a closed tab.

@@ -84,15 +84,25 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   await page.getByRole('link', { name: 'Gioca l’incontro' }).click();
   for (let i = 0; i < 3; i++) await enterScore(page, players[i]!, scores[i]!);
 
-  // Refresh mid-qualification: the next player is still in entry, nothing lost or duplicated.
+  // Eight players on a four-seat totem: two heats, the first one at the board.
+  await expect(page.getByRole('radio', { name: /M1.*al bersaglio/ })).toBeChecked();
+  // Refresh mid-heat: the next player is still in entry, nothing lost or duplicated.
   await page.reload();
   await expect(banner(page)).toHaveText('PUNTEGGIO DI Dario');
-  await expect(page.locator('.result-list li').first()).toContainText('700');
+  await expect(page.getByRole('radio', { name: /^Ada 700/ })).toBeVisible();
   await page.goto('/');
   const resume = page.getByRole('link', { name: /IN CORSO · RIPRENDI/ });
-  await expect(resume).toContainText('Bite the Trouble Open · Hi-Score · 8 in gara · 5 punteggi');
+  await expect(resume).toContainText(
+    'Bite the Trouble Open · Hi-Score · 8 in gara · manche 1/2: Ada, Bruno, Carla, Dario',
+  );
   await resume.click();
-  for (let i = 3; i < 8; i++) await enterScore(page, players[i]!, scores[i]!);
+  await enterScore(page, players[3]!, scores[3]!);
+  // Heat 1 is played and stays on screen; the organizer sends heat 2 to the board.
+  await expect(page.getByRole('radio', { name: /M1.*giocata/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /M2.*prossima/ })).toBeVisible();
+  await page.getByRole('button', { name: 'AVVIA MANCHE 2' }).click();
+  await expect(page.getByRole('radio', { name: /M2.*al bersaglio/ })).toBeChecked();
+  for (let i = 4; i < 8; i++) await enterScore(page, players[i]!, scores[i]!);
   await expect(page.getByRole('heading', { name: 'Risultato registrato' })).toBeVisible();
   await page.getByRole('link', { name: 'VAI AL TORNEO' }).click();
 
@@ -135,9 +145,9 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   await expect(reopened.locator('.place-1')).toContainText('Bruno');
   await expect(reopened.locator('table')).toContainText('Dario');
   await reopened.goto('/');
-  await expect(reopened.getByRole('list').filter({ hasText: 'Bite the Trouble Open' })).toContainText(
-    'Vince Bruno',
-  );
+  await expect(
+    reopened.getByRole('list').filter({ hasText: 'Bite the Trouble Open' }),
+  ).toContainText('Vince Bruno');
   await expect(reopened.getByRole('link', { name: /RIPRENDI/ })).toHaveCount(0);
   expect([...guard.api, ...reopenedGuard.api]).toEqual([]);
   expect([...guard.errors, ...reopenedGuard.errors]).toEqual([]);
@@ -348,4 +358,70 @@ test('a double tap on confirm records one score only', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.score-card strong')).toHaveText(['560', '—']);
+});
+
+test('pairs composed by hand, rounds tracked with rotation, official result from the totem', async ({
+  page,
+}) => {
+  const guard = guardNetwork(page);
+  await page.goto('/partite/nuova');
+  await addPlayers(page, ['Ada', 'Bea', 'Ciro', 'Dino']);
+  await page.getByRole('radio', { name: 'Squadre' }).click();
+  await page.getByRole('radio', { name: 'In ordine' }).click();
+  await page.getByRole('button', { name: 'Genera squadre' }).click();
+  // Two taps swap Bea and Ciro between the pairs.
+  await page.getByRole('button', { name: /^2 Bea$/ }).click();
+  await page.getByRole('button', { name: /^1 Ciro$/ }).click();
+  await expect(page.getByLabel('Componenti squadra 1')).toHaveText(/Ada.*Ciro/);
+  await expect(page.getByLabel('Componenti squadra 2')).toHaveText(/Bea.*Dino/);
+  await page.getByText(/^Opzioni avanzate/).click();
+  await page.getByRole('radio', { name: 'Flessibile' }).click();
+  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Ada + Ciro');
+  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
+  await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
+
+  await page.getByRole('radio', { name: 'Round per round' }).click();
+  const rotation = page.getByLabel('Rotazione della squadra');
+  await expect(rotation).toContainText('Tira Ada · poi Ciro');
+  await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
+  await page.keyboard.type('60');
+  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
+  await expect(page.getByRole('radio', { name: 'R1 60' })).toBeVisible();
+  await expect(rotation).toContainText('Tira Ciro · poi Ada');
+  // A round not seen is skipped, never counted as zero.
+  await page.getByRole('button', { name: 'Salta R2 (non visto)' }).click();
+  await expect(page.getByRole('radio', { name: 'R2 saltato' })).toBeVisible();
+  await expect(page.locator('.round-summary')).toContainText('Totale round 60 (parziale)');
+  await expect(page.locator('.round-summary')).toContainText('saltati R2');
+
+  // The official totals come from the totem.
+  await page.getByRole('radio', { name: 'Risultato finale' }).click();
+  await enterScore(page, 'Ada + Ciro', 300);
+  await enterScore(page, 'Bea + Dino', 250);
+  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+  await expect(page.locator('.final-rows li.first')).toContainText('Ada + Ciro');
+  // After a reload the rounds and the rotation are still there.
+  await page.reload();
+  await expect(page.locator('.final-rows li.first')).toContainText('300');
+  expect(guard.api).toEqual([]);
+  expect(guard.errors).toEqual([]);
+});
+
+test('seven players in a free Hi-Score match play two heats with one ranking', async ({ page }) => {
+  await page.goto('/partite/nuova');
+  await addPlayers(page, ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
+  await expect(page.locator('.settings-row', { hasText: '2 manche da 4 posti' })).toContainText(
+    '4 · 3',
+  );
+  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
+  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
+  await expect(page.getByRole('radio', { name: /M1/ })).toBeChecked();
+  for (const [i, score] of [300, 410, 250, 390].entries())
+    await enterScore(page, `P${i + 1}`, score);
+  await page.getByRole('button', { name: 'AVVIA MANCHE 2' }).click();
+  for (const [i, score] of [505, 120, 380].entries()) await enterScore(page, `P${i + 5}`, score);
+  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+  // The winner played in the second heat: the ranking is one, across the heats.
+  await expect(page.locator('.final-rows li.first')).toContainText('P5');
 });

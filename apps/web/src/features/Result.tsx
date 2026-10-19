@@ -20,8 +20,23 @@ import {
   sideOf,
   type GameMode,
 } from '../services/rules';
-import { Avatar, ErrorMessage, Header, Modal, Switch, statusLabel } from '../components/ui';
+import {
+  Avatar,
+  ErrorMessage,
+  Header,
+  Modal,
+  Segmented,
+  Switch,
+  statusLabel,
+} from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
+import { HeatEditor, HeatTimeline, viewedHeat } from '../components/Heats';
+import {
+  RotationManager,
+  RoundScoreEntry,
+  ScoreReconciliation,
+  progressSummary,
+} from '../components/Rounds';
 import { DecisionSheet, TieAlert, entryName } from './Tournaments';
 
 type Form = {
@@ -67,7 +82,11 @@ export function ResultEntry({
   const client = useQueryClient();
   const navigate = useNavigate();
   const game = gameOf(m);
-  const hiScore = game.scoreRequired;
+  const overview = m.heatOverview;
+  const heated = overview.heats.filter((h) => h.status !== 'cancelled').length > 1;
+  // Hi-Score, or any match over several heats: each competitor's score is the result.
+  const hiScore = game.scoreRequired || heated;
+  const tracked = m.tracking !== 'FINAL_ONLY';
   const draftKey = `bt-result:${m.id}`;
   const [input, setInput] = useState(() => storage.get(`${draftKey}:input`) ?? '');
   const [selected, setSelected] = useState<string | null>(null);
@@ -84,6 +103,15 @@ export function ResultEntry({
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [flash, setFlash] = useState<string | null>(null);
+  const [heatChoice, setHeatChoice] = useState<string | null>(null);
+  const [managing, setManaging] = useState(false);
+  const [entry, setEntry] = useState<'final' | 'rounds'>(() =>
+    m.tracking === 'ROUND_BY_ROUND' ? 'rounds' : 'final',
+  );
+  const [differences, setDifferences] = useState<{
+    change: ResultInput;
+    rows: { entryId: string; computed: number; official: number }[];
+  } | null>(null);
   // One idempotency key per intended result: a repeated tap replays it instead of writing twice.
   const key = useRef(newKey());
   const inFlight = useRef(false);
@@ -102,7 +130,11 @@ export function ResultEntry({
   };
 
   const excluded = new Set(m.excludedEntryIds);
-  const order = [...m.participants].sort((a, b) => a.playingOrder - b.playingOrder);
+  // Over several heats the screen follows one heat: the one at the board by default.
+  const heat = heated ? viewedHeat(overview, heatChoice) : null;
+  const order = heat
+    ? heat.entryIds.map((id) => m.participants.find((p) => p.tournamentEntryId === id)!)
+    : [...m.participants].sort((a, b) => a.playingOrder - b.playingOrder);
   const playing = order.filter((p) => !excluded.has(p.tournamentEntryId));
   const name = (id: string) => (t ? entryName(t, id) : 'Giocatore');
   const recorded = (id: string) => m.result?.scores[id] ?? null;
@@ -119,6 +151,45 @@ export function ResultEntry({
   const paused = t?.status === 'paused';
   const ended = t?.status === 'cancelled';
   const entering = !cancelled && !ended && (!completed || editing);
+  const rounds = tracked && entry === 'rounds' && entering;
+  const unit = (id: string) => t?.entries.find((e) => e.id === id);
+  const memberName = (playerId: string) =>
+    t?.entries.flatMap((e) => e.members).find((x) => x.playerId === playerId)?.displayName ??
+    'Giocatore';
+  // Winner games in round mode: the competitor whose rounds are entered.
+  const roundTarget =
+    selected && playing.some((p) => p.tournamentEntryId === selected)
+      ? selected
+      : (current ?? null);
+  const refreshed = (fresh: Match) => {
+    client.setQueryData(['match', m.id], fresh);
+    void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
+    void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
+    void client.invalidateQueries({ queryKey: ['session'] });
+  };
+  const heatCommand = useMutation({
+    mutationFn: ({
+      action,
+      heatId,
+    }: {
+      action: 'heats/start' | 'heats/complete';
+      heatId: string;
+    }) => api.matchCommand(m, action, { heatId }),
+    onSuccess: (fresh, { action, heatId }) => {
+      refreshed(fresh);
+      setHeatChoice(action === 'heats/start' ? heatId : null);
+      setSelected(null);
+      setFlash(action === 'heats/start' ? 'Manche al bersaglio' : 'Manche completata');
+    },
+  });
+  const nextHeat = overview.heats.find((h) => h.heatId === overview.nextHeatId);
+  const activeHeat = overview.heats.find((h) => h.heatId === overview.currentHeatId);
+  const canManageHeats =
+    heated &&
+    t?.status === 'active' &&
+    !completed &&
+    !cancelled &&
+    overview.heats.some((h) => h.status === 'pending' || h.status === 'ready');
 
   const mutation = useMutation({
     mutationFn: (input: ResultInput) => api.recordResult(m, input, key.current),
@@ -135,6 +206,9 @@ export function ResultEntry({
       } catch {
         /* No haptics. */
       }
+      // The screen stays on the heat just saved: a completed heat is shown with its results
+      // until the organizer starts the next one.
+      if (heat) setHeatChoice(heat.heatId);
       if (hiScore) {
         saveInput('');
         // Move on to the next player still to record, in playing order.
@@ -155,6 +229,16 @@ export function ResultEntry({
       if (fresh.status === 'completed') setEditing(false);
     },
     onError: (error, sent) => {
+      // The totem's value differs from complete rounds: review them or confirm with a reason.
+      if (error instanceof ApiError && error.code === 'RESULT_DIFFERS_FROM_ROUNDS') {
+        const rows = Object.entries(sent.scores ?? {}).flatMap(([entryId, official]) => {
+          const p = m.progress.find((x) => x.tournamentEntryId === entryId);
+          return official !== null && p?.computed != null && p.computed !== official
+            ? [{ entryId, computed: p.computed, official }]
+            : [];
+        });
+        if (rows.length) setDifferences({ change: sent, rows });
+      }
       // A phase confirmed meanwhile (another tab): re-read, then ask before invalidating it.
       if (error instanceof ApiError && error.code === 'RESULT_HAS_DEPENDENTS') {
         void tournament.refetch();
@@ -290,9 +374,10 @@ export function ResultEntry({
     const id = p.tournamentEntryId;
     const out = excluded.has(id);
     const score = recorded(id);
-    const chosen = hiScore
-      ? current === id && entering
-      : (completed && !editing ? winner : (form.winner ?? formResult.derived)) === id;
+    const chosen =
+      hiScore || rounds
+        ? (rounds ? roundTarget : current) === id && entering
+        : (completed && !editing ? winner : (form.winner ?? formResult.derived)) === id;
     const side = sideOf(m.gameMode as GameMode, p.playingOrder);
     const tag = out
       ? 'RITIRATO'
@@ -335,7 +420,7 @@ export function ResultEntry({
         className={`score-card ${chosen ? 'selected' : ''}`}
         disabled={mutation.isPending || paused}
         onClick={() => {
-          if (hiScore) {
+          if (hiScore || rounds) {
             setSelected(id);
             saveInput('');
           } else saveForm({ ...form, winner: form.winner === id ? null : id });
@@ -368,12 +453,78 @@ export function ResultEntry({
         }
       />
       <main className="live-content">
+        {heated && (
+          <section className="heat-panel" aria-label="Manche">
+            <HeatTimeline
+              overview={overview}
+              viewing={heat?.heatId ?? null}
+              select={(id) => {
+                setHeatChoice(id);
+                setSelected(null);
+              }}
+            />
+            <div className="heat-actions">
+              {heat && (
+                <span className="heat-now">
+                  Manche {heat.number} di {overview.heats.length}
+                  {heat.missing.length > 0 && heat.status !== 'pending' && heat.status !== 'ready'
+                    ? ` · ${heat.missing.length} da inserire`
+                    : ''}
+                </span>
+              )}
+              {!activeHeat && nextHeat && t?.status === 'active' && !completed && (
+                <button
+                  className="primary"
+                  disabled={heatCommand.isPending}
+                  onClick={() =>
+                    heatCommand.mutate({ action: 'heats/start', heatId: nextHeat.heatId })
+                  }
+                >
+                  AVVIA MANCHE {nextHeat.number}
+                </button>
+              )}
+              {activeHeat && heat?.heatId === activeHeat.heatId && (
+                <button
+                  disabled={heatCommand.isPending}
+                  onClick={() => {
+                    if (
+                      activeHeat.missing.length &&
+                      !window.confirm(
+                        `Mancano ${activeHeat.missing.length} risultati: completare comunque la manche? Restano da inserire.`,
+                      )
+                    )
+                      return;
+                    heatCommand.mutate({ action: 'heats/complete', heatId: activeHeat.heatId });
+                  }}
+                >
+                  Completa manche
+                </button>
+              )}
+              {canManageHeats && <button onClick={() => setManaging(true)}>Gestisci manche</button>}
+            </div>
+            <ErrorMessage error={heatCommand.error} />
+          </section>
+        )}
+        {tracked && entering && (
+          <Segmented
+            label="Cosa inserisci"
+            value={entry}
+            change={(v) => {
+              setEntry(v);
+              saveInput('');
+            }}
+            options={[
+              { id: 'final', label: 'Risultato finale' },
+              { id: 'rounds', label: 'Round per round' },
+            ]}
+          />
+        )}
         {compact ? (
           <ol className="result-list" role="radiogroup" aria-label="Giocatori">
             {order.map((p) => {
               const id = p.tournamentEntryId;
               const out = excluded.has(id);
-              const chosen = entering && current === id && !out;
+              const chosen = entering && (rounds ? roundTarget : current) === id && !out;
               return (
                 <li key={id}>
                   <button
@@ -390,7 +541,18 @@ export function ResultEntry({
                     <span className="order">{p.playingOrder}</span>
                     <Avatar name={name(id)} />
                     <span className="result-name">{name(id)}</span>
-                    <small>{out ? 'RITIRATO' : recorded(id) === null ? 'da inserire' : ''}</small>
+                    <small>
+                      {out
+                        ? 'RITIRATO'
+                        : rounds
+                          ? progressSummary(
+                              m,
+                              m.progress.find((x) => x.tournamentEntryId === id),
+                            ).replace('Nessun round registrato', 'nessun round')
+                          : recorded(id) === null
+                            ? 'da inserire'
+                            : ''}
+                    </small>
                     <strong>{recorded(id) ?? '—'}</strong>
                   </button>
                 </li>
@@ -412,8 +574,48 @@ export function ResultEntry({
             Torneo in pausa: riprendilo dalla pagina del torneo per registrare risultati.
           </p>
         )}
-        {entering && hiScore && (
+        {rounds && roundTarget && (
           <>
+            <p className="round-target">
+              Round di <strong>{name(roundTarget)}</strong>
+            </p>
+            {(unit(roundTarget)?.members.length ?? 0) > 1 && (
+              <RotationManager
+                m={m}
+                entryId={roundTarget}
+                playerName={memberName}
+                disabled={paused || !entering}
+                saved={refreshed}
+              />
+            )}
+            <RoundScoreEntry
+              key={roundTarget}
+              m={m}
+              entryId={roundTarget}
+              team={(unit(roundTarget)?.members.length ?? 0) > 1}
+              disabled={paused || mutation.isPending}
+              saved={(fresh) => refreshed(fresh)}
+              applyComputed={(value) => {
+                if (hiScore) send({ scores: { [roundTarget]: value } });
+                else {
+                  saveForm({ ...form, scores: { ...form.scores, [roundTarget]: String(value) } });
+                  setEntry('final');
+                }
+              }}
+            />
+          </>
+        )}
+        {entering && hiScore && !rounds && (
+          <>
+            {current && (unit(current)?.members.length ?? 0) > 1 && (
+              <RotationManager
+                m={m}
+                entryId={current}
+                playerName={memberName}
+                disabled={paused}
+                saved={refreshed}
+              />
+            )}
             <div className="score-center single">
               <div className="score-stage">
                 <div className="turn-row">
@@ -460,7 +662,7 @@ export function ResultEntry({
             />
           </>
         )}
-        {entering && !hiScore && (
+        {entering && !hiScore && !rounds && (
           <section className="result-form" aria-label="Dettagli del risultato">
             {game.target && (
               <label className="field">
@@ -630,6 +832,11 @@ export function ResultEntry({
             {m.result?.notes && !m.result.walkover && (
               <p className="hint">Note: {m.result.notes}</p>
             )}
+            {m.result?.reconciliation.map((r) => (
+              <p className="hint" key={r.entryId}>
+                {name(r.entryId)}: ufficiale {r.official}, round {r.computed} — {r.reason}
+              </p>
+            ))}
             {next ? (
               <Link className="primary button" to={`/partite/${next.id}`}>
                 PROSSIMO INCONTRO
@@ -661,6 +868,27 @@ export function ResultEntry({
           proceed={() => {
             inFlight.current = true;
             mutation.mutate({ ...confirm, confirmInvalidation: true });
+          }}
+        />
+      )}
+      {managing && <HeatEditor m={m} name={name} close={() => setManaging(false)} />}
+      {differences && (
+        <ScoreReconciliation
+          differences={differences.rows}
+          name={name}
+          busy={mutation.isPending}
+          error={null}
+          close={() => setDifferences(null)}
+          review={() => {
+            setSelected(differences.rows[0]!.entryId);
+            setEntry('rounds');
+            setDifferences(null);
+          }}
+          confirm={(reasons) => {
+            const change = { ...differences.change, reconciliation: reasons };
+            setDifferences(null);
+            inFlight.current = true;
+            mutation.mutate(change);
           }}
         />
       )}

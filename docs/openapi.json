@@ -65011,7 +65011,7 @@
             },
             "in": "header",
             "name": "idempotency-key",
-            "required": false,
+            "required": true,
             "description": "Required for scores; recommended for every command. Retries must preserve the complete request body."
           }
         ],

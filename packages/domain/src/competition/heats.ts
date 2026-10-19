@@ -58,9 +58,7 @@ export function planHeats(
   if (strategy === 'sequential')
     return chunk(
       entryIds,
-      Array.from({ length: count }, (_, i) =>
-        Math.min(capacity, entryIds.length - i * capacity),
-      ),
+      Array.from({ length: count }, (_, i) => Math.min(capacity, entryIds.length - i * capacity)),
     );
   const ordered = strategy === 'random' ? shuffle(entryIds, random) : entryIds;
   return chunk(ordered, evenSizes(entryIds.length, count));
@@ -165,7 +163,9 @@ export function arrangeHeats(t: Tournament, m: Match, layout: HeatLayout[], c: C
   const capacity = heatCapacity(t);
   const started = m.heats.filter((h) => !editable(h));
   const startedIds = new Set(started.flatMap((h) => h.entryIds));
-  const expected = m.participants.map((p) => p.tournamentEntryId).filter((id) => !startedIds.has(id));
+  const expected = m.participants
+    .map((p) => p.tournamentEntryId)
+    .filter((id) => !startedIds.has(id));
   const given = layout.flatMap((h) => h.entryIds);
   ensure(
     given.length === expected.length &&

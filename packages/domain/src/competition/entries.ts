@@ -1,4 +1,10 @@
-import { ensure, type Context, type Player, type Tournament, type TournamentEntry } from '../model.js';
+import {
+  ensure,
+  type Context,
+  type Player,
+  type Tournament,
+  type TournamentEntry,
+} from '../model.js';
 import { MAX_ENTRIES, MAX_TEAM_MEMBERS } from './teams.js';
 
 /** Player ids of an entry, in throwing order. */
