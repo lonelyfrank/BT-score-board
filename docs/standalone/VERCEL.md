@@ -17,6 +17,8 @@ La build standalone è un sito statico. Non servono processi server, SQLite o va
 
 Non serve duplicare questi valori nel pannello: `vercel.json` ha la precedenza.
 
+Vercel legge `vercel.json` dalla Root Directory. Se il progetto usa invece **Root Directory = `apps/web`**, vale `apps/web/vercel.json`, con le stesse regole relative a quella cartella: install dalla cartella (pnpm installa comunque tutto il workspace), build `npm run build`, output `dist`. Lasciare attiva l'opzione «Include files outside of the Root Directory», necessaria per i pacchetti `packages/*`. Le due configurazioni vanno tenute allineate.
+
 `--ignore-scripts` evita di compilare `better-sqlite3`, che serve solo al backend; la build web non esegue script di installazione. La build esegue anche il typecheck di `apps/web`.
 
 ## Routing e cache
