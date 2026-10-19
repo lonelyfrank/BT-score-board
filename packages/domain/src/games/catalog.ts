@@ -173,16 +173,34 @@ export interface ResultOutcome {
 }
 
 /**
+ * Games whose scores can rank entries that played in different heats: points only. Remaining
+ * points, distances from different targets and progressions are not comparable across heats.
+ */
+export const comparableAcrossHeats = (mode: GameMode) => games[mode].scoring === 'points';
+
+/**
  * Validates a final result against the game and decides its winner. `entries` are the players
- * whose result counts (withdrawn players excluded). Throws a 422 DomainError when invalid.
+ * whose result counts (withdrawn players excluded). With `scoresOnly` (a match played over
+ * several heats) the scores alone rank the entries: no winner or special win is declared,
+ * since each heat has its own on the totem. Throws a 422 DomainError when invalid.
  */
 export function evaluateResult(
   mode: GameMode,
   entries: string[],
   input: ResultInput,
   config?: HighScoreConfiguration,
+  options: { scoresOnly?: boolean } = {},
 ): ResultOutcome {
   const g = games[mode];
+  if (options.scoresOnly)
+    ensure(
+      comparableAcrossHeats(mode) &&
+        input.declaredWinnerEntryId === null &&
+        input.special === null,
+      'INVALID_RESULT',
+      'Over several heats the scores rank the players: no winner is declared',
+      422,
+    );
   const limit = maxScore(mode, config);
   for (const [entry, score] of Object.entries(input.scores)) {
     ensure(entries.includes(entry), 'INVALID_RESULT', 'Score for a player outside the match', 422);
@@ -241,7 +259,7 @@ export function evaluateResult(
       'The declared winner does not match the scores',
       422,
     );
-  if (g.scoreRequired) {
+  if (g.scoreRequired || options.scoresOnly) {
     // Hi-Score: the totals are the result; a tie leaves the match without a winner.
     return {
       complete: scored,
@@ -264,6 +282,7 @@ export function resultCriteria(
   score: number | null,
   winner: boolean,
   targetScore: number | null,
+  scoresOnly = false,
 ): number[] {
   const g = games[mode];
   const recorded = score === null ? 0 : 1;
@@ -279,5 +298,5 @@ export function resultCriteria(
               ? 0
               : -Math.abs(score - targetScore)
             : 0;
-  return g.scoreRequired ? [recorded, value] : [winner ? 1 : 0, recorded, value];
+  return g.scoreRequired || scoresOnly ? [recorded, value] : [winner ? 1 : 0, recorded, value];
 }

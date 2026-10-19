@@ -1,12 +1,13 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { and, count, desc, eq, gt, like, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, like, or, sql } from 'drizzle-orm';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import * as schema from '../schema/index.js';
 import { migration1 } from '../migrations/0001.js';
 import { migration2 } from '../migrations/0002.js';
+import { migration3 } from '../migrations/0003.js';
 import {
   DomainError,
   ensure,
@@ -21,7 +22,7 @@ import {
 import type { ListOptions, Store } from '../../../application/src/ports.js';
 
 /** Applied in order; version N is migrations[N - 1]. Applied ones must keep their checksum. */
-const migrations = [migration1, migration2];
+const migrations = [migration1, migration2, migration3];
 const checksum = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
 export class SqliteStore implements Store {
@@ -190,11 +191,12 @@ export class SqliteStore implements Store {
     };
   }
   tournamentsForPlayer(playerId: string) {
+    // Members include every player of a team, not only the entry's first player.
     return this.db
       .select({ data: schema.tournaments.data })
       .from(schema.tournaments)
-      .innerJoin(schema.entries, eq(schema.entries.tournamentId, schema.tournaments.id))
-      .where(eq(schema.entries.playerId, playerId))
+      .innerJoin(schema.entryMembers, eq(schema.entryMembers.tournamentId, schema.tournaments.id))
+      .where(eq(schema.entryMembers.playerId, playerId))
       .orderBy(...newestTournamentsFirst)
       .all()
       .map((r) => upgradeTournament(r.data));
@@ -237,6 +239,21 @@ export class SqliteStore implements Store {
       if (changed.changes !== 1)
         throw new DomainError('VERSION_CONFLICT', 'Tournament was concurrently updated');
     }
+    // Registrations removed or recomposed before the start leave the aggregate: their rows go
+    // too (members first), so a player can join another unit of the same tournament.
+    this.db.delete(schema.entryMembers).where(eq(schema.entryMembers.tournamentId, t.id)).run();
+    const stale = this.db
+      .select({ id: schema.entries.id, playerId: schema.entries.playerId })
+      .from(schema.entries)
+      .where(eq(schema.entries.tournamentId, t.id))
+      .all()
+      .filter((row) => !t.entries.some((e) => e.id === row.id && e.playerId === row.playerId))
+      .map((row) => row.id);
+    if (stale.length)
+      this.db
+        .delete(schema.entries)
+        .where(and(eq(schema.entries.tournamentId, t.id), inArray(schema.entries.id, stale)))
+        .run();
     for (const e of t.entries) {
       const v = { id: e.id, tournamentId: t.id, playerId: e.playerId, seed: e.seed, data: e };
       this.db
@@ -245,6 +262,18 @@ export class SqliteStore implements Store {
         .onConflictDoUpdate({ target: schema.entries.id, set: v })
         .run();
     }
+    for (const e of t.entries)
+      e.members.forEach((member, i) =>
+        this.db
+          .insert(schema.entryMembers)
+          .values({
+            tournamentId: t.id,
+            entryId: e.id,
+            playerId: member.playerId,
+            position: i + 1,
+          })
+          .run(),
+      );
     for (const s of t.stages) {
       const v = { id: s.id, tournamentId: t.id, ordering: s.ordering, status: s.status, data: s };
       this.db

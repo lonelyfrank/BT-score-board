@@ -21,7 +21,10 @@ import {
   participantScore,
   selectQualifiers,
 } from '../standings/index.js';
-import { games } from '../games/catalog.js';
+import { comparableAcrossHeats, games } from '../games/catalog.js';
+import { heatCapacity, initialHeats, MAX_HEAT_CAPACITY, startHeat } from '../competition/heats.js';
+import { entryForPlayer } from '../competition/entries.js';
+import { MAX_ENTRIES } from '../competition/teams.js';
 import { distributeGroups, roundRobin, seededBracket } from './schedule.js';
 import { transitionMatch, transitionTournament } from '../rules/state-machines.js';
 
@@ -100,7 +103,12 @@ export function newMatch(
     tieTarget: options.tieTarget ?? null,
     winnerEntryId: null,
     result: null,
+    heats: [],
+    rounds: [],
+    rotations: [],
   };
+  // More entries than seats on the totem: the match is played over several heats.
+  initialHeats(t, m, c);
   // Final results need no turns: the totem keeps them.
   if (t.recording === 'turns')
     for (let round = 1; round <= config.turns; round++)
@@ -124,23 +132,22 @@ export function register(t: Tournament, player: Player, seed: number | null, c: 
     'Registration is closed',
   );
   ensure(player.status === 'active', 'INACTIVE_PLAYER', 'Inactive player cannot register');
-  ensure(
-    !t.entries.some((e) => e.playerId === player.id),
-    'DUPLICATE_ENTRY',
-    'Player already registered',
-  );
+  ensure(!entryForPlayer(t, player.id), 'DUPLICATE_ENTRY', 'Player already registered');
   ensure(
     seed === null || !t.entries.some((e) => e.seed === seed),
     'DUPLICATE_SEED',
     'Seed already assigned',
   );
-  ensure(t.entries.length < 256, 'PLAYER_LIMIT', 'Maximum 256 participants');
+  ensure(t.entries.length < MAX_ENTRIES, 'PLAYER_LIMIT', `Maximum ${MAX_ENTRIES} participants`);
   if (t.status === 'draft') t.status = 'registration';
   t.entries.push({
     id: c.id(),
     tournamentId: t.id,
     playerId: player.id,
     displayNameAtRegistration: player.displayName,
+    kind: 'single',
+    name: null,
+    members: [{ playerId: player.id, displayName: player.displayName }],
     seed,
     status: 'registered',
     registeredAt: c.now(),
@@ -172,6 +179,34 @@ export function validateDefinition(t: Tournament) {
     'Score difference ranks only Hi-Score groups: other games rank by points and wins',
     422,
   );
+  ensure(
+    t.tracking === 'FINAL_ONLY' || t.recording === 'result',
+    'INVALID_TRACKING',
+    'Progressive tracking goes with final results',
+    422,
+  );
+  const capacity = t.tournamentConfiguration.heatCapacity;
+  ensure(
+    capacity === null ||
+      (Number.isInteger(capacity) && capacity >= 1 && capacity <= MAX_HEAT_CAPACITY),
+    'INVALID_HEAT_CAPACITY',
+    `Heat capacity between 1 and ${MAX_HEAT_CAPACITY}`,
+    422,
+  );
+}
+/**
+ * Entries a single match accepts. Up to the seats of the totem any game works (Hi-Score also
+ * alone, as a practice); beyond them the match is played over several heats, which only
+ * games scored in points can rank together.
+ */
+export function singleMatchLimits(t: Tournament) {
+  const g = games[t.gameMode];
+  const seats = Math.min(heatCapacity(t), g.players.max);
+  return {
+    min: g.scoreRequired ? 1 : g.players.min,
+    max: comparableAcrossHeats(t.gameMode) ? MAX_ENTRIES : seats,
+    seats,
+  };
 }
 function orderedEntries(t: Tournament) {
   if (t.tournamentConfiguration.playingOrder === 'seed') {
@@ -214,7 +249,7 @@ export function readyTournament(t: Tournament) {
     // With fewer players than finalists the qualification is skipped (see startTournament).
     ensure(ids.length >= 2, 'INSUFFICIENT_PLAYERS', 'Register at least two players', 422);
   else if (t.mode === 'SINGLE_MATCH') {
-    const { min, max } = games[t.gameMode].players;
+    const { min, max } = singleMatchLimits(t);
     ensure(
       ids.length >= min && ids.length <= max,
       'INVALID_PLAYER_COUNT',
@@ -297,6 +332,9 @@ export function startMatch(t: Tournament, m: Match, c: Context) {
   m.status = 'active';
   m.startedAt ??= c.now();
   m.version++;
+  // Several heats: the first one waiting goes to the board with the match.
+  const first = m.heats.find((h) => h.status === 'pending' || h.status === 'ready');
+  if (first && !m.heats.some((h) => h.status === 'active')) startHeat(t, m, first.id, c);
   const turn = currentTurn(m);
   if (turn) {
     turn.status = 'active';
@@ -543,6 +581,14 @@ export function assertTieGroup(t: Tournament, targetId: string, entryIds: string
 }
 export function createTieBreak(t: Tournament, targetId: string, entryIds: string[], c: Context) {
   const { stage, targetMatch, group } = assertTieGroup(t, targetId, entryIds);
+  ensure(
+    t.recording === 'turns' ||
+      entryIds.length <= heatCapacity(t) ||
+      comparableAcrossHeats(t.gameMode),
+    'INVALID_PLAYER_COUNT',
+    'Too many tied players for one game on the totem: decide the tie explicitly',
+    422,
+  );
   return newMatch(t, stage, entryIds, 'tiebreak', c, {
     config: {
       ...(targetMatch?.scoringConfiguration ?? t.scoringConfiguration),

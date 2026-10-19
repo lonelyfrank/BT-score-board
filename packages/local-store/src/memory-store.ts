@@ -285,7 +285,7 @@ export class MemoryStore implements Store {
   }
   tournamentsForPlayer(playerId: string) {
     return this.all(this.overlay?.tournaments, this.tournaments)
-      .filter((t) => t.entries.some((e) => e.playerId === playerId))
+      .filter((t) => t.entries.some((e) => e.members.some((m) => m.playerId === playerId)))
       .sort(newestFirst)
       .map(clone);
   }

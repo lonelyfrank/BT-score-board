@@ -49,7 +49,7 @@ describe('SQLite reliability', () => {
     expect(store.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(store.sqlite.pragma('journal_mode', { simple: true })).toBe('wal');
     expect(store.sqlite.prepare('SELECT count(*) n FROM schema_migrations').get()).toEqual({
-      n: 2,
+      n: 3,
     });
     expect(backend.tournament(t.id)).toEqual(t);
     expect(
@@ -185,7 +185,7 @@ describe('SQLite reliability', () => {
     db.close();
     const { store, backend } = open(path);
     expect(store.sqlite.prepare('SELECT max(version) v FROM schema_migrations').get()).toEqual({
-      v: 2,
+      v: 3,
     });
     expect(backend.tournament(legacy.id as string)).toMatchObject({
       gameMode: 'HI_SCORE',

@@ -51,6 +51,24 @@ export const entries = sqliteTable(
   },
   (t) => [uniqueIndex('entries_player_unique').on(t.tournamentId, t.playerId)],
 );
+/** Members of a competitive unit (migration 0003): one unit per player and tournament. */
+export const entryMembers = sqliteTable(
+  'entry_members',
+  {
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id),
+    entryId: text('entry_id').notNull(),
+    playerId: text('player_id')
+      .notNull()
+      .references(() => players.id),
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.entryId, t.playerId] }),
+    uniqueIndex('entry_members_unique').on(t.tournamentId, t.playerId),
+  ],
+);
 export const stages = sqliteTable('stages', {
   id: text('id').primaryKey(),
   tournamentId: text('tournament_id')

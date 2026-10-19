@@ -1,6 +1,7 @@
 import { ensure, type Match, type Tournament } from '../model.js';
 import { playerPerformance } from '../scoring/high-score.js';
 import { games, resultCriteria } from '../games/catalog.js';
+import { multiHeat } from '../competition/heats.js';
 export interface Standing {
   tournamentEntryId: string;
   placement: number;
@@ -83,6 +84,7 @@ function playoffKey(t: Tournament, playoff: Match, entryId: string): number[] {
     participantScore(t, playoff, entryId),
     playoff.winnerEntryId === entryId,
     playoff.result?.targetScore ?? null,
+    multiHeat(playoff),
   );
 }
 
@@ -194,6 +196,7 @@ export function matchStandings(t: Tournament, match: Match): Standing[] {
               score,
               match.winnerEntryId === id,
               match.result?.targetScore ?? null,
+              multiHeat(match),
             ),
       };
     }),

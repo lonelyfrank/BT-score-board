@@ -37,7 +37,17 @@ export const commandSchemas = {
   ConfigureTournament: s.command.extend({
     tournamentConfiguration: s.tournamentConfiguration.optional(),
     scoringConfiguration: s.scoringConfiguration.optional(),
+    tracking: s.tracking.optional(),
   }),
+  ComposeEntries: s.composeEntries,
+  GenerateHeats: s.generateHeats,
+  ArrangeHeats: s.arrangeHeats,
+  LockHeat: s.lockHeat,
+  StartHeat: s.heatCommand,
+  CompleteHeat: s.heatCommand,
+  RecordRound: s.recordRound,
+  VoidRound: s.voidRound,
+  RotateTeam: s.rotateTeam,
 };
 type CommandInput<K extends CommandName> = z.output<(typeof commandSchemas)[K]>;
 // Command paths shared by the REST routes and the standalone adapter, relative to their resource.
@@ -61,6 +71,7 @@ export const tournamentCommandPaths = {
   'entries/withdraw': 'WithdrawEntry',
   'entries/remove': 'UnregisterPlayer',
   'tiebreaks/decide': 'DecideTie',
+  'entries/compose': 'ComposeEntries',
 } as const satisfies Record<string, CommandName>;
 export const matchCommandPaths = {
   start: 'StartMatch',
@@ -71,6 +82,14 @@ export const matchCommandPaths = {
   complete: 'CompleteMatch',
   result: 'RecordResult',
   cancel: 'CancelMatch',
+  'heats/generate': 'GenerateHeats',
+  'heats/arrange': 'ArrangeHeats',
+  'heats/lock': 'LockHeat',
+  'heats/start': 'StartHeat',
+  'heats/complete': 'CompleteHeat',
+  rounds: 'RecordRound',
+  'rounds/void': 'VoidRound',
+  rotation: 'RotateTeam',
 } as const satisfies Record<string, CommandName>;
 export const scoreCommandPaths = {
   correct: 'CorrectScore',
@@ -236,9 +255,9 @@ export class Backend {
     this.authorize();
     const input = commandSchemas[name].parse(raw) as CommandInput<K>;
     d.ensure(
-      options.idempotencyKey || name !== 'RecordScore',
+      options.idempotencyKey || (name !== 'RecordScore' && name !== 'RecordRound'),
       'IDEMPOTENCY_KEY_REQUIRED',
-      'RecordScore requires an Idempotency-Key',
+      `${name} requires an Idempotency-Key`,
       400,
     );
     if (options.idempotencyKey)
@@ -306,6 +325,7 @@ export class Backend {
           );
           if (i.scoringConfiguration) t.scoringConfiguration = i.scoringConfiguration;
           if (i.tournamentConfiguration) t.tournamentConfiguration = i.tournamentConfiguration;
+          if (i.tracking) t.tracking = i.tracking;
           d.validateDefinition(t);
           if (t.status === 'ready') t.status = 'registration';
           break;
@@ -319,11 +339,12 @@ export class Backend {
           break;
         case 'StartTournament':
           for (const e of t.entries)
-            d.ensure(
-              this.player(e.playerId).status === 'active',
-              'INACTIVE_PLAYER',
-              'Registered player was deactivated',
-            );
+            for (const member of e.members)
+              d.ensure(
+                this.player(member.playerId).status === 'active',
+                'INACTIVE_PLAYER',
+                'Registered player was deactivated',
+              );
           d.startTournament(t, c);
           break;
         case 'PauseTournament':
@@ -413,6 +434,48 @@ export class Backend {
           d.decideTie(t, i.targetId, i.orderedEntryIds, i.reason, c);
           break;
         }
+        case 'ComposeEntries':
+          d.composeEntries(t, input as CommandInput<'ComposeEntries'>, (id) => this.player(id), c);
+          break;
+        case 'GenerateHeats': {
+          const i = input as CommandInput<'GenerateHeats'>;
+          d.generateHeats(
+            t,
+            m!,
+            i,
+            c,
+            i.seed === undefined || i.seed === null ? undefined : d.seededRandom(i.seed),
+          );
+          break;
+        }
+        case 'ArrangeHeats':
+          d.arrangeHeats(t, m!, (input as CommandInput<'ArrangeHeats'>).heats, c);
+          break;
+        case 'LockHeat': {
+          const i = input as CommandInput<'LockHeat'>;
+          d.lockHeat(t, m!, i.heatId, i.locked);
+          break;
+        }
+        case 'StartHeat':
+          d.startHeat(t, m!, (input as CommandInput<'StartHeat'>).heatId, c);
+          break;
+        case 'CompleteHeat':
+          d.completeHeat(t, m!, (input as CommandInput<'CompleteHeat'>).heatId, c);
+          break;
+        case 'RecordRound': {
+          const { expectedVersion: _v, expectedMatchVersion: _m, ...round } =
+            input as CommandInput<'RecordRound'>;
+          d.recordRound(t, m!, round, c);
+          break;
+        }
+        case 'VoidRound':
+          d.voidRound(t, m!, input as CommandInput<'VoidRound'>);
+          break;
+        case 'RotateTeam': {
+          const i = input as CommandInput<'RotateTeam'>;
+          d.rotateTeam(t, m!, i.entryId, i.action, i.order);
+          break;
+        }
         case 'AdvanceKnockout': {
           d.activeTournament(t);
           const stage = d.currentStage(t);
@@ -475,6 +538,10 @@ export class Backend {
         RecordResult: 'ResultRecorded',
         WithdrawEntry: 'EntryWithdrawn',
         DecideTie: 'TieDecided',
+        RecordRound: 'RoundRecorded',
+        VoidRound: 'RoundVoided',
+        StartHeat: 'HeatStarted',
+        CompleteHeat: 'HeatCompleted',
       };
       emit(eventNames[name] ?? name, { matchId: m?.id ?? null });
       for (const match of t.matches) {
@@ -514,6 +581,24 @@ export class Backend {
       recording: t.recording,
       excludedEntryIds: d.stageById(t, m.stageId).excludedEntryIds,
       turnState: d.turnState(m),
+      tracking: t.tracking,
+      trackingSpec: (() => {
+        const spec = d.trackingSpec(t, m);
+        return {
+          kind: spec.kind,
+          rounds: spec.rounds,
+          computed: spec.computed,
+          label: spec.label,
+          max: Array.from({ length: spec.rounds ?? 1 }, (_, i) => spec.max(i + 1)),
+        };
+      })(),
+      heatCapacity: d.heatCapacity(t),
+      heatOverview: d.heatOverview(t, m),
+      progress:
+        t.recording === 'result'
+          ? m.participants.map((p) => d.roundProgress(t, m, p.tournamentEntryId))
+          : [],
+      rotationViews: d.rotationsOf(t, m),
       scoreboard: m.participants.map((p) => ({
         tournamentEntryId: p.tournamentEntryId,
         ...d.playerPerformance(m, p.tournamentEntryId),
@@ -608,7 +693,7 @@ export class Backend {
       return row;
     };
     for (const t of tournaments) {
-      const entry = t.entries.find((e) => e.playerId === id)!;
+      const entry = d.entryForPlayer(t, id)!;
       const result = t.results.find((r) => r.tournamentEntryId === entry.id);
       const own = rowFor(t, t.scoringConfiguration);
       own.tournamentsPlayed++;

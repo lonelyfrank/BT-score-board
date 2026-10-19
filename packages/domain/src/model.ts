@@ -18,6 +18,14 @@ export type TournamentFormat = 'QUICK_HIGH_SCORE' | 'GROUPS' | 'SINGLE_MATCH';
  * `turns`: legacy turn-by-turn Hi-Score entry, kept for data created before results existed.
  */
 export type Recording = 'result' | 'turns';
+/**
+ * Progressive tracking next to the official final result (recording `result` only).
+ * FINAL_ONLY: only the final result shown by the totem. ROUND_BY_ROUND: every round is recorded
+ * (or explicitly skipped) before an entry's final result. FLEXIBLE: rounds are optional.
+ */
+export type Tracking = 'FINAL_ONLY' | 'ROUND_BY_ROUND' | 'FLEXIBLE';
+/** How entries are spread over the physical heats of a match. */
+export type HeatStrategy = 'sequential' | 'random' | 'balanced';
 export interface Player {
   id: string;
   displayName: string;
@@ -68,12 +76,33 @@ export interface TournamentConfiguration {
    * null picks the default of the game.
    */
   groupRanking: 'POINTS_SCORE' | 'POINTS_WINS' | null;
+  /** Seats of one heat on the totem; null uses the game's maximum (see games). */
+  heatCapacity: number | null;
+  heatStrategy: HeatStrategy;
+  /** X01 progressive values: points scored in the turn, or points left after it. */
+  x01Entry: 'SCORED' | 'REMAINING';
 }
+/** A person inside a competitive unit, with the name shown when the unit was composed. */
+export interface EntryMember {
+  playerId: string;
+  displayName: string;
+}
+/**
+ * CompetitionEntry: the competitive unit of a tournament, a single player or a team. Matches,
+ * standings and results only know entries; a team occupies one seat on the totem.
+ */
 export interface TournamentEntry {
   id: string;
   tournamentId: string;
+  /** First member: kept for stored data, the API and the one-entry-per-player constraint. */
   playerId: string;
+  /** Team name, or the player's name for a single. */
   displayNameAtRegistration: string;
+  kind: 'single' | 'team';
+  /** Explicit team name; null for singles and unnamed teams. */
+  name: string | null;
+  /** Members in throwing order (one for a single). */
+  members: EntryMember[];
   seed: number | null;
   status: 'registered' | 'qualified' | 'eliminated' | 'winner' | 'withdrawn';
   registeredAt: string;
@@ -126,6 +155,66 @@ export interface ScoreEntry {
   recordedBy: string;
   voided: boolean;
 }
+export type HeatStatus = 'pending' | 'ready' | 'active' | 'completed' | 'cancelled';
+/**
+ * A physical session on the totem holding some entries of a match. It is only a container:
+ * the match (e.g. a whole qualification) decides the ranking, never the heat.
+ */
+export interface Heat {
+  id: string;
+  matchId: string;
+  /** Position in the evening's order, from 1. */
+  number: number;
+  /** Seats on the totem, in throwing order. */
+  entryIds: string[];
+  /** pending: editable. ready: confirmed, kept by reshuffles. active: at the board. */
+  status: HeatStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+/** What a progressive value means: points of the round, points left (X01), number reached. */
+export type RoundValueKind = 'points' | 'remaining' | 'progress';
+/**
+ * One observation of a round, as entered by the organizer. Never official: the final result
+ * shown by the totem is. `recorded` and `skipped` (explicitly not observed) are effective;
+ * `corrected` was replaced by the record pointing to it, `voided` was annulled.
+ */
+export interface RoundRecord {
+  id: string;
+  matchId: string;
+  tournamentEntryId: string;
+  round: number;
+  /** Team member who threw, when tracked. */
+  playerId: string | null;
+  value: number | null;
+  kind: RoundValueKind;
+  status: 'recorded' | 'skipped' | 'corrected' | 'voided';
+  correctsId: string | null;
+  reason: string | null;
+  source: 'manual';
+  createdAt: string;
+  recordedBy: string;
+}
+/** Optional throwing rotation inside a team. Advancing it never records a score. */
+export interface Rotation {
+  entryId: string;
+  /** Player ids in throwing order. */
+  order: string[];
+  /** Index in `order` of the expected thrower. */
+  position: number;
+  paused: boolean;
+  /** Previous positions, for undo. */
+  history: number[];
+}
+/** An official result that differs from the complete progressive total, kept with its reason. */
+export interface Reconciliation {
+  entryId: string;
+  computed: number;
+  official: number;
+  reason: string;
+  recordedAt: string;
+  recordedBy: string;
+}
 /** Final result of a match as shown by the totem, entered by the organizer. */
 export interface MatchResult {
   /** Final score per tournament entry: Hi-Score total, X01 points left, Exacta total… */
@@ -141,6 +230,8 @@ export interface MatchResult {
   /** Playoff replaced by an explicit organizer decision: tied entries, best first. */
   decision: { order: string[]; reason: string } | null;
   notes: string | null;
+  /** Official values confirmed against different progressive totals. */
+  reconciliation: Reconciliation[];
   recordedAt: string;
   updatedAt: string;
   recordedBy: string;
@@ -165,6 +256,11 @@ export interface Match {
   winnerEntryId: string | null;
   /** Final result (recording `result`); null until the first value is entered. */
   result: MatchResult | null;
+  /** Physical heats; empty when the whole match is played in one session. */
+  heats: Heat[];
+  /** Progressive observations (tracking ROUND_BY_ROUND or FLEXIBLE). */
+  rounds: RoundRecord[];
+  rotations: Rotation[];
 }
 export interface TournamentResult {
   tournamentId: string;
@@ -188,6 +284,7 @@ export interface Tournament {
   mode: TournamentFormat;
   gameMode: GameMode;
   recording: Recording;
+  tracking: Tracking;
   /** Hi-Score parameters: rounds bound the final score; legacy turn entry uses all of them. */
   scoringConfiguration: HighScoreConfiguration;
   tournamentConfiguration: TournamentConfiguration;
@@ -227,6 +324,8 @@ export interface Context {
   now(): string;
   operator: string;
   role: 'organizer' | 'spectator';
+  /** Uniform [0, 1) source for random compositions; Math.random when absent. */
+  random?(): number;
 }
 export class DomainError extends Error {
   constructor(

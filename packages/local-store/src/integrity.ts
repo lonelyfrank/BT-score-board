@@ -16,16 +16,29 @@ export function assertTournamentIntegrity(
   };
   if (!Number.isSafeInteger(t.version) || t.version < 0) fail('tournament version');
   if (!gameModes.includes(t.gameMode) || !['result', 'turns'].includes(t.recording)) fail('game');
+  if (!['FINAL_ONLY', 'ROUND_BY_ROUND', 'FLEXIBLE'].includes(t.tracking)) fail('tracking');
   if (t.eventId !== null && !hasEvent(t.eventId)) fail('event reference');
   const entries = new Set<string>(),
     players = new Set<string>(),
     seeds = new Set<number>();
+  const members = new Map<string, string[]>();
   for (const e of t.entries) {
-    if (e.tournamentId !== t.id || entries.has(e.id) || players.has(e.playerId)) fail('entry');
-    if (!hasPlayer(e.playerId)) fail('player reference');
+    if (e.tournamentId !== t.id || entries.has(e.id)) fail('entry');
+    // A player belongs to one competitive unit; the first member is the entry's player.
+    if (!e.members.length || e.members.length > 8 || e.members[0]!.playerId !== e.playerId)
+      fail('entry members');
+    if ((e.kind === 'team') !== e.members.length > 1) fail('entry kind');
+    for (const m of e.members) {
+      if (players.has(m.playerId)) fail('player in two entries');
+      if (!hasPlayer(m.playerId)) fail('player reference');
+      players.add(m.playerId);
+    }
     if (e.seed !== null && (e.seed <= 0 || seeds.has(e.seed))) fail('seed');
     entries.add(e.id);
-    players.add(e.playerId);
+    members.set(
+      e.id,
+      e.members.map((m) => m.playerId),
+    );
     if (e.seed !== null) seeds.add(e.seed);
   }
   const stages = new Set<string>(),
@@ -70,6 +83,49 @@ export function assertTournamentIntegrity(
         fail('result winner');
       if (r.decision && !r.decision.order.every((id) => participants.has(id)))
         fail('result decision');
+    }
+    // Heats: containers of the match's entries, each entry in at most one live heat.
+    const seated = new Set<string>(),
+      heatIds = new Set<string>();
+    for (const h of m.heats) {
+      if (h.matchId !== m.id || heatIds.has(h.id) || h.number <= 0) fail('heat');
+      if (!['pending', 'ready', 'active', 'completed', 'cancelled'].includes(h.status))
+        fail('heat status');
+      heatIds.add(h.id);
+      for (const id of h.entryIds) {
+        if (!participants.has(id)) fail('heat entry');
+        if (h.status !== 'cancelled' && seated.has(id)) fail('entry in two heats');
+        if (h.status !== 'cancelled') seated.add(id);
+      }
+    }
+    if (m.heats.filter((h) => h.status === 'active').length > 1) fail('two active heats');
+    const roundIds = new Set<string>(),
+      roundSlots = new Set<string>();
+    for (const r of m.rounds) {
+      if (r.matchId !== m.id || roundIds.has(r.id) || !participants.has(r.tournamentEntryId))
+        fail('round');
+      if (!Number.isInteger(r.round) || r.round <= 0) fail('round number');
+      if (r.value !== null && (!Number.isSafeInteger(r.value) || r.value < 0 || r.value > 12000))
+        fail('round value');
+      if (r.playerId !== null && !members.get(r.tournamentEntryId)?.includes(r.playerId))
+        fail('round player');
+      roundIds.add(r.id);
+      if (r.status !== 'recorded' && r.status !== 'skipped') continue;
+      const slot = `${r.tournamentEntryId}:${r.round}`;
+      if (roundSlots.has(slot)) fail('duplicate round');
+      roundSlots.add(slot);
+    }
+    for (const r of m.rotations) {
+      const team = members.get(r.entryId);
+      if (
+        !participants.has(r.entryId) ||
+        !team ||
+        r.order.length !== team.length ||
+        !r.order.every((id) => team.includes(id)) ||
+        r.position < 0 ||
+        r.position >= r.order.length
+      )
+        fail('rotation');
     }
     const turns = new Map<string, string>(),
       turnSlots = new Set<string>();

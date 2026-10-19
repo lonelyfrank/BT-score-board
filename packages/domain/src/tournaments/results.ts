@@ -8,6 +8,8 @@ import {
   type Tournament,
 } from '../model.js';
 import { evaluateResult, games } from '../games/catalog.js';
+import { heatForEntry, multiHeat, syncHeats } from '../competition/heats.js';
+import { roundProgress } from '../scoring/rounds.js';
 import { matchStandings } from '../standings/index.js';
 import {
   activeTournament,
@@ -31,6 +33,11 @@ export interface RecordResultInput {
   notes?: string | null;
   /** Required when the change invalidates confirmed phases or playoffs (see resultDependencies). */
   confirmInvalidation?: boolean;
+  /**
+   * Why an official score differs from the complete progressive total of the same entry. The
+   * official value is kept, the rounds are never adjusted to match.
+   */
+  reconciliation?: Record<string, string>;
 }
 
 export interface ResultDependencies {
@@ -98,6 +105,7 @@ function blankResult(c: Context): MatchResult {
     walkover: false,
     decision: null,
     notes: null,
+    reconciliation: [],
     recordedAt: now,
     updatedAt: now,
     recordedBy: c.operator,
@@ -151,7 +159,12 @@ export function recordResult(t: Tournament, m: Match, input: RecordResultInput, 
     'Tournament must be active',
   );
   ensure(m.status !== 'cancelled', 'MATCH_CANCELLED', 'The match was cancelled');
-  ensure(m.participants.length > 1, 'INVALID_MATCH', 'A bye has no result');
+  // A knockout bye has no result; a single match may be a one-player Hi-Score practice.
+  ensure(
+    m.participants.length > 1 || t.mode === 'SINGLE_MATCH',
+    'INVALID_MATCH',
+    'A bye has no result',
+  );
   ensure(!m.result?.decision, 'DECISION_LOCKED', 'An organizer decision has no scores');
   ensure(!m.result?.walkover, 'WALKOVER_LOCKED', 'A walkover follows a withdrawal');
   const stage = stageById(t, m.stageId);
@@ -187,6 +200,7 @@ export function recordResult(t: Tournament, m: Match, input: RecordResultInput, 
   const previous = m.result ?? blankResult(c);
   const scores = { ...previous.scores, ...input.scores };
   for (const [id, value] of Object.entries(scores)) if (value === null) delete scores[id];
+  const reconciliation = reconcile(t, m, input, previous, c);
   const next: MatchResult = {
     ...previous,
     scores,
@@ -195,20 +209,29 @@ export function recordResult(t: Tournament, m: Match, input: RecordResultInput, 
     targetScore: input.targetScore === undefined ? previous.targetScore : input.targetScore,
     special: input.special === undefined ? previous.special : input.special,
     notes: input.notes === undefined ? previous.notes : input.notes?.trim() || null,
+    reconciliation,
     updatedAt: c.now(),
     recordedBy: c.operator,
   };
-  const outcome = evaluateResult(t.gameMode, entries, next, m.scoringConfiguration);
+  const scoresOnly = multiHeat(m);
+  const outcome = evaluateResult(t.gameMode, entries, next, m.scoringConfiguration, {
+    scoresOnly,
+  });
   ensure(
-    outcome.complete || games[t.gameMode].scoreRequired,
+    outcome.complete || games[t.gameMode].scoreRequired || scoresOnly,
     'WINNER_REQUIRED',
     'Select the winner shown by the totem',
     422,
   );
+  // Values go to the heat at the board (or a played one, as a correction).
+  if (m.status !== 'completed')
+    for (const [id, value] of Object.entries(input.scores ?? {}))
+      if (value !== null) heatForEntry(t, m, id, c);
   m.result = next;
   m.version++;
   if (outcome.complete) {
     complete(t, m, outcome.winnerEntryId, c);
+    syncHeats(t, m, c);
     advanceKnockout(t, c);
     autoComplete(t, c);
     return m;
@@ -223,7 +246,60 @@ export function recordResult(t: Tournament, m: Match, input: RecordResultInput, 
     p.placement = null;
     p.outcome = 'pending';
   }
+  syncHeats(t, m, c);
   return m;
+}
+
+/**
+ * Official values against the progressive rounds of the same entries. The official result
+ * prevails; when it differs from a complete progression the organizer gives the reason, and
+ * both values are kept. ROUND_BY_ROUND asks for every round (recorded or explicitly skipped)
+ * before the final value of games with fixed rounds.
+ */
+function reconcile(
+  t: Tournament,
+  m: Match,
+  input: RecordResultInput,
+  previous: MatchResult,
+  c: Context,
+) {
+  let records = [...(previous.reconciliation ?? [])];
+  if (t.tracking === 'FINAL_ONLY') return records;
+  const differences: { entryId: string; computed: number; official: number }[] = [];
+  for (const [entryId, official] of Object.entries(input.scores ?? {})) {
+    records = records.filter((r) => r.entryId !== entryId);
+    if (official === null) continue;
+    const progress = roundProgress(t, m, entryId);
+    if (t.tracking === 'ROUND_BY_ROUND')
+      ensure(
+        progress.missing.length === 0 || progress.rounds.length === 0,
+        'ROUNDS_MISSING',
+        'Record or skip every round before the final result',
+        422,
+      );
+    if (progress.computed === null || progress.computed === official) continue;
+    const reason = input.reconciliation?.[entryId]?.trim();
+    if (!reason) {
+      differences.push({ entryId, computed: progress.computed, official });
+      continue;
+    }
+    records.push({
+      entryId,
+      computed: progress.computed,
+      official,
+      reason,
+      recordedAt: c.now(),
+      recordedBy: c.operator,
+    });
+  }
+  if (differences.length)
+    throw new DomainError(
+      'RESULT_DIFFERS_FROM_ROUNDS',
+      'The official result differs from the recorded rounds: review them or give a reason',
+      409,
+      { differences },
+    );
+  return records;
 }
 
 /**
@@ -296,6 +372,7 @@ export function withdrawEntry(t: Tournament, entryId: string, c: Context) {
         special: null,
       },
       m.scoringConfiguration,
+      { scoresOnly: multiHeat(m) },
     );
     m.version++;
     if (entries.length === 1) {
@@ -305,9 +382,11 @@ export function withdrawEntry(t: Tournament, entryId: string, c: Context) {
         walkover: true,
       };
       complete(t, m, entries[0]!, c);
-    } else if (outcome.complete && games[t.gameMode].scoreRequired)
+    } else if (outcome.complete && (games[t.gameMode].scoreRequired || multiHeat(m)))
       complete(t, m, outcome.winnerEntryId, c);
   }
+  for (const m of t.matches.filter((m) => m.stageId === stage.id && m.heats.length))
+    syncHeats(t, m, c);
   advanceKnockout(t, c);
   autoComplete(t, c);
 }

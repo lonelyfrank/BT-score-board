@@ -174,13 +174,15 @@ describe('Quick Hi-Score tournament with final results', () => {
     const q = t.matches[0]!.id;
     expect(t.matches[0]!.turns).toEqual([]);
     // Partial entry is durable and ranked; players still to play stay unranked at the bottom.
-    t = cmd(backend, t, 'RecordResult', { scores: { [entry(t, 5)]: 610 } }, q);
+    // Eight players on a four-seat totem: two heats, the first one goes to the board.
+    t = cmd(backend, t, 'RecordResult', { scores: { [entry(t, 2)]: 700 } }, q);
     expect(matchById(t, q).status).toBe('active');
+    expect(matchById(t, q).heats.map((h) => h.status)).toEqual(['active', 'pending']);
     const partial = matchStandings(t, matchById(t, q));
     expect(partial[0]).toMatchObject({
-      tournamentEntryId: entry(t, 5),
+      tournamentEntryId: entry(t, 2),
       recorded: true,
-      total: 610,
+      total: 700,
     });
     expect(partial.filter((r) => !r.recorded)).toHaveLength(7);
     expect(code(() => cmd(backend, t, 'FinalizeQualification'))).toBe('INCOMPLETE_QUALIFICATION');

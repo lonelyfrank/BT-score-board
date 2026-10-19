@@ -14,6 +14,11 @@ export const gameMode = z.enum([
 ]);
 export const tournamentFormat = z.enum(['QUICK_HIGH_SCORE', 'GROUPS', 'SINGLE_MATCH']);
 export const recording = z.enum(['result', 'turns']);
+export const tracking = z.enum(['FINAL_ONLY', 'ROUND_BY_ROUND', 'FLEXIBLE']);
+export const heatStrategy = z.enum(['sequential', 'random', 'balanced']);
+export const x01Entry = z.enum(['SCORED', 'REMAINING']);
+/** Seats of a heat on the totem (verified: four). */
+const heatCapacity = z.number().int().min(1).max(8);
 /** Preset avatars only: no images are stored. */
 export const avatar = z.string().regex(/^[a-z0-9-]{1,32}$/);
 export const scoringConfiguration = z
@@ -41,6 +46,10 @@ export const tournamentConfiguration = z.strictObject({
   groupAssignments: z.array(z.array(id).min(2)).min(1).max(16).nullable().default(null),
   // A union, not .nullable(): OpenAPI 3.0 enums must list null for the request validator.
   groupRanking: z.union([z.enum(['POINTS_SCORE', 'POINTS_WINS']), z.null()]).default(null),
+  // null: the most players of the game on the totem.
+  heatCapacity: z.union([heatCapacity, z.null()]).default(null),
+  heatStrategy: heatStrategy.default('balanced'),
+  x01Entry: x01Entry.default('REMAINING'),
 });
 export const createPlayer = z.strictObject({
   displayName: name,
@@ -65,6 +74,7 @@ export const createTournament = z.strictObject({
   mode: tournamentFormat,
   gameMode: gameMode.default('HI_SCORE'),
   recording: recording.default('result'),
+  tracking: tracking.default('FINAL_ONLY'),
   scoringConfiguration: scoringConfiguration.prefault({}),
   tournamentConfiguration: tournamentConfiguration.prefault({}),
 });
@@ -96,6 +106,57 @@ export const earlyClose = command.extend({
 });
 export const reorderMatches = command.extend({ matchIds: z.array(id).min(1).max(10000) });
 const reason = z.string().trim().min(1).max(1000);
+/** Units in seed order: one player is a single, more players a team. */
+export const composeEntries = command.extend({
+  entries: z
+    .array(
+      z.strictObject({
+        playerIds: z.array(id).min(1).max(8),
+        name: name.nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(256),
+});
+export const generateHeats = matchCommand.extend({
+  strategy: heatStrategy,
+  capacity: heatCapacity.nullable().optional(),
+  /** Seed of the random strategy: the same seed gives the same heats. */
+  seed: z.number().int().nonnegative().max(4294967295).nullable().optional(),
+});
+export const arrangeHeats = matchCommand.extend({
+  heats: z
+    .array(
+      z.strictObject({
+        heatId: id.nullable().optional(),
+        entryIds: z.array(id).min(1).max(8),
+      }),
+    )
+    .min(1)
+    .max(256),
+});
+export const heatCommand = matchCommand.extend({ heatId: id });
+export const lockHeat = heatCommand.extend({ locked: z.boolean() });
+export const recordRound = matchCommand.extend({
+  entryId: id,
+  round: z.number().int().min(1).max(99),
+  /** null: the round was not observed (skipped), which is not zero. */
+  value: z.number().int().nonnegative().max(12000).nullable(),
+  playerId: id.nullable().optional(),
+  reason: z.string().trim().max(1000).nullable().optional(),
+  advanceRotation: z.boolean().default(false),
+});
+export const voidRound = matchCommand.extend({
+  entryId: id,
+  round: z.number().int().min(1).max(99),
+  restorePrevious: z.boolean().default(false),
+  reason,
+});
+export const rotateTeam = matchCommand.extend({
+  entryId: id,
+  action: z.enum(['advance', 'undo', 'pause', 'resume', 'reorder']),
+  order: z.array(id).min(2).max(8).optional(),
+});
 export const recordResult = matchCommand.extend({
   scores: z.record(id, z.number().int().nonnegative().max(12000).nullable()).optional(),
   winnerEntryId: id.nullable().optional(),
@@ -103,6 +164,8 @@ export const recordResult = matchCommand.extend({
   special: z.enum(['SHANGHAI']).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
   confirmInvalidation: z.boolean().default(false),
+  /** Why an official score differs from the complete progressive total of that entry. */
+  reconciliation: z.record(id, reason).optional(),
 });
 export const entryCommand = command.extend({ entryId: id });
 export const withdrawEntry = entryCommand.extend({ reason });
@@ -153,6 +216,9 @@ export const entryResponse = z.object({
   tournamentId: id,
   playerId: id,
   displayNameAtRegistration: z.string(),
+  kind: z.enum(['single', 'team']).default('single'),
+  name: z.string().nullable().default(null),
+  members: z.array(z.object({ playerId: id, displayName: z.string() })).default([]),
   seed: z.number().nullable(),
   status: z.string(),
   registeredAt: z.string(),
@@ -197,6 +263,37 @@ export const turnResponse = z.object({
   startedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
 });
+export const heatResponse = z.object({
+  id,
+  matchId: id,
+  number: z.number(),
+  entryIds: z.array(id),
+  status: z.enum(['pending', 'ready', 'active', 'completed', 'cancelled']),
+  startedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+});
+export const roundResponse = z.object({
+  id,
+  matchId: id,
+  tournamentEntryId: id,
+  round: z.number(),
+  playerId: id.nullable(),
+  value: z.number().nullable(),
+  kind: z.enum(['points', 'remaining', 'progress']),
+  status: z.enum(['recorded', 'skipped', 'corrected', 'voided']),
+  correctsId: id.nullable(),
+  reason: z.string().nullable(),
+  source: z.literal('manual'),
+  createdAt: z.string(),
+  recordedBy: z.string(),
+});
+export const rotationResponse = z.object({
+  entryId: id,
+  order: z.array(id),
+  position: z.number(),
+  paused: z.boolean(),
+  history: z.array(z.number()),
+});
 export const participantResponse = z.object({
   matchId: id,
   tournamentEntryId: id,
@@ -232,12 +329,27 @@ export const matchResponse = z.object({
       walkover: z.boolean(),
       decision: z.object({ order: z.array(id), reason: z.string() }).nullable(),
       notes: z.string().nullable(),
+      reconciliation: z
+        .array(
+          z.object({
+            entryId: id,
+            computed: z.number(),
+            official: z.number(),
+            reason: z.string(),
+            recordedAt: z.string(),
+            recordedBy: z.string(),
+          }),
+        )
+        .default([]),
       recordedAt: z.string(),
       updatedAt: z.string(),
       recordedBy: z.string(),
     })
     .nullable()
     .default(null),
+  heats: z.array(heatResponse).default([]),
+  rounds: z.array(roundResponse).default([]),
+  rotations: z.array(rotationResponse).default([]),
 });
 export const resultResponse = z.object({
   tournamentId: id,
@@ -266,6 +378,9 @@ export const configResponse = z.object({
   playingOrder: z.string(),
   groupAssignments: z.array(z.array(id)).nullable(),
   groupRanking: z.enum(['POINTS_SCORE', 'POINTS_WINS']).nullable().default(null),
+  heatCapacity: z.number().nullable().default(null),
+  heatStrategy: heatStrategy.default('balanced'),
+  x01Entry: x01Entry.default('REMAINING'),
 });
 export const tournamentResponse = z.object({
   id,
@@ -274,6 +389,7 @@ export const tournamentResponse = z.object({
   mode: tournamentFormat,
   gameMode: gameMode.default('HI_SCORE'),
   recording: recording.default('turns'),
+  tracking: tracking.default('FINAL_ONLY'),
   scoringConfiguration: scoringResponse,
   tournamentConfiguration: configResponse,
   status: z.string(),
@@ -344,6 +460,67 @@ export const liveMatchResponse = matchResponse.extend({
   /** Players of the match who withdrew from its phase. */
   excludedEntryIds: z.array(id),
   turnState: turnStateResponse,
+  tracking,
+  /** What a progressive value means for this game, and its bounds per round. */
+  trackingSpec: z.object({
+    kind: z.enum(['points', 'remaining', 'progress']),
+    rounds: z.number().nullable(),
+    computed: z.enum(['sum', 'start-minus-sum', 'last']),
+    label: z.string(),
+    /** Highest value of rounds 1, 2, … (open-ended games: the same for every round). */
+    max: z.array(z.number()),
+  }),
+  /** Heat capacity on the totem for this tournament. */
+  heatCapacity: z.number(),
+  heatOverview: z.object({
+    heats: z.array(
+      z.object({
+        heatId: id,
+        number: z.number(),
+        status: z.string(),
+        entryIds: z.array(id),
+        missing: z.array(id),
+      }),
+    ),
+    currentHeatId: id.nullable(),
+    nextHeatId: id.nullable(),
+    completed: z.number(),
+    waiting: z.array(id),
+  }),
+  progress: z.array(
+    z.object({
+      tournamentEntryId: id,
+      rounds: z.array(
+        z.object({
+          round: z.number(),
+          status: z.enum(['recorded', 'skipped', 'missing']),
+          value: z.number().nullable(),
+          playerId: id.nullable(),
+          corrected: z.boolean(),
+          recordId: id.nullable(),
+        }),
+      ),
+      recorded: z.number(),
+      missing: z.array(z.number()),
+      skipped: z.array(z.number()),
+      complete: z.boolean(),
+      partialValue: z.number().nullable(),
+      computed: z.number().nullable(),
+      best: z.number().nullable(),
+      average: z.number().nullable(),
+      official: z.number().nullable(),
+    }),
+  ),
+  rotationViews: z.array(
+    z.object({
+      entryId: id,
+      order: z.array(id),
+      current: id.nullable(),
+      next: id.nullable(),
+      paused: z.boolean(),
+      canUndo: z.boolean(),
+    }),
+  ),
   scoreboard: z.array(
     z.object({
       tournamentEntryId: id,

@@ -106,6 +106,14 @@ export const migrations: Migration[] = [
     for (let cursor = await players.openCursor(); cursor; cursor = await cursor.continue())
       await cursor.update(upgradePlayer(cursor.value));
   },
+  // 3: competition entries (teams), heats, progressive rounds and rotations. Every entry
+  // becomes a single with its player as only member; matches get empty heats and rounds,
+  // tournaments record final results only. Same transaction: all or nothing.
+  async (_db, transaction) => {
+    const tournaments = transaction.objectStore('tournaments');
+    for (let cursor = await tournaments.openCursor(); cursor; cursor = await cursor.continue())
+      await cursor.update(upgradeTournament(cursor.value));
+  },
 ];
 export const SCHEMA_VERSION = migrations.length;
 
