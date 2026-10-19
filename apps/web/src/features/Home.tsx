@@ -76,7 +76,7 @@ export function Home() {
             <CrossedDarts />
             <span>
               <strong>NUOVA PARTITA</strong>
-              <small>8 giochi del totem · 2–4 giocatori</small>
+              <small>8 giochi · 4 posti per manche</small>
             </span>
             <ChevronRight />
           </Link>

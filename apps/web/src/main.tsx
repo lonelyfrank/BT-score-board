@@ -29,7 +29,8 @@ const client = new QueryClient({
 });
 function App() {
   const { pathname } = useLocation();
-  const hideNav = pathname.startsWith('/partite/');
+  // Match screens stay full-screen; creating a match keeps the bar.
+  const hideNav = pathname.startsWith('/partite/') && pathname !== '/partite/nuova';
   const queries = useQueryClient();
   useEffect(() => {
     window.scrollTo(0, 0);

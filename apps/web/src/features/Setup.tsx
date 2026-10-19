@@ -76,7 +76,9 @@ export function Setup() {
   const reason = !name.trim()
     ? 'Inserisci un nome per la partita.'
     : units.length < min
-      ? `Servono almeno ${min} ${unitWord}.`
+      ? min === 1
+        ? `Aggiungi almeno ${teamMode ? 'una squadra' : 'un giocatore'}.`
+        : `Servono almeno ${min} ${unitWord}.`
       : units.length > max
         ? `${game.label} si gioca al massimo in ${max}: togli ${units.length - max} ${teamMode ? 'squadre' : units.length - max === 1 ? 'giocatore' : 'giocatori'}.`
         : check?.errors.length
@@ -119,6 +121,7 @@ export function Setup() {
     <>
       <Header title="Nuova partita" />
       <main className="content setup-page">
+        <span className="eyebrow">Gioco del totem</span>
         <div className="mode-grid totem" role="radiogroup" aria-label="Modalità di gioco del totem">
           {gameModes.map((id) => (
             <button
@@ -149,6 +152,7 @@ export function Setup() {
           {game.rules} Il totem calcola i punti: qui si registra il risultato finale (e, se vuoi, i
           round).
         </p>
+        <div className="divider" />
         <fieldset disabled={locked}>
           <label className="field heading-field">
             Nome partita

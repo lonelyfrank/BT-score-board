@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Pencil } from 'lucide-react';
+import { AlertTriangle, Info, Pencil } from 'lucide-react';
 import { CrownIcon, DartIcon, PaintSplash } from '../components/BrandIcons';
 import {
   api,
@@ -27,6 +27,7 @@ import {
   Modal,
   Segmented,
   Switch,
+  StatusChip,
   statusLabel,
 } from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
@@ -642,6 +643,10 @@ export function ResultEntry({
                     {mutation.isPending ? 'Salvataggio…' : flash}
                   </p>
                 </div>
+                <p className="totem-note">
+                  <Info aria-hidden="true" />
+                  Il totem conta i punti: qui si registra il totale che mostra.
+                </p>
               </div>
             </div>
             <NumberKeypad
@@ -810,6 +815,12 @@ export function ResultEntry({
                 </p>
               </div>
             </div>
+            {!cancelled && (
+              <div className="official">
+                <StatusChip tone="success">RISULTATO UFFICIALE</StatusChip>
+                <span className="hint">dal totem</span>
+              </div>
+            )}
             {!cancelled && (
               <ol className="final-rows" aria-label="Risultato dell’incontro">
                 {ranked

@@ -73,18 +73,23 @@
   --bt-space-3: 12px;
   --bt-space-4: 16px;
   --bt-space-6: 24px;
-  --bt-gutter: 14px; /* padding laterale schermate (10px nella partita live) */
+  --bt-gutter: 16px; /* padding laterale schermate (10px nella partita live) */
+  --bt-section-gap: 16px; /* ritmo verticale tra sezioni */
 
   /* ---- Raggi ---- */
   --bt-radius-sm: 8px; /* tab, chip, tasti rapidi, select */
   --bt-radius-md: 10px; /* card giocatore, header button, tile */
   --bt-radius-lg: 12px; /* CTA, card azioni, contenitori */
   --bt-radius-sheet: 16px;
+  --bt-radius-nav: 28px;
 
   /* ---- Misure ---- */
   --bt-touch-min: 44px;
   --bt-header-h: 64px; /* 68px nelle schermate con titolo singolo */
-  --bt-nav-h: 72px;
+  --bt-nav-h: 64px; /* barra flottante */
+  --bt-nav-inset: 14px; /* margine laterale e distanza minima dal fondo */
+  --bt-nav-bottom: max(var(--bt-nav-inset), env(safe-area-inset-bottom));
+  --bt-nav-space: calc(var(--bt-nav-h) + var(--bt-nav-bottom)); /* schermo coperto dalla barra */
   --bt-cta-h: 58px; /* 62px in Nuova partita, 88px card Home primaria */
   --bt-key-h: 58px;
 
@@ -96,11 +101,21 @@
   --bt-glow-cta: 0 0 0 1px rgba(255, 59, 157, 0.6), 0 0 22px rgba(255, 35, 139, 0.4);
   --bt-key-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 #050506;
 
+  /* ---- Vetro (navigazione flottante) ---- */
+  --bt-glass-bg: rgba(22, 22, 25, 0.62);
+  --bt-glass-bg-fallback: rgba(16, 16, 19, 0.96);
+  --bt-glass-border: rgba(255, 255, 255, 0.09);
+  --bt-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --bt-glass-blur: 20px;
+  --bt-elev-float: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.45);
+
   /* ---- Movimento ---- */
   --bt-dur-press: 110ms;
   --bt-dur-tab: 180ms;
   --bt-dur-turn: 200ms;
   --bt-ease: ease;
+  --bt-ease-out: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --bt-dur-indicator: 260ms; /* pillola della tab attiva */
   --bt-press-scale: 0.97; /* .95 sui tasti del tastierino */
 }
 
@@ -109,6 +124,7 @@
     --bt-dur-press: 0ms;
     --bt-dur-tab: 0ms;
     --bt-dur-turn: 0ms;
+    --bt-dur-indicator: 0ms;
     --bt-press-scale: 1;
   }
 }

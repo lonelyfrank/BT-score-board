@@ -71,7 +71,12 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
             <Link className="event-card" key={t.id} to={tournamentPath(t)}>
               <TrophyEmblem />
               <div>
-                <h2>{t.name}</h2>
+                <div className="ec-top">
+                  <h2>{t.name}</h2>
+                  <StatusChip tone={tournamentTone(t.status)}>
+                    {statusLabel(t.status).toUpperCase()}
+                  </StatusChip>
+                </div>
                 <p>
                   {new Date(t.createdAt).toLocaleDateString('it-IT', {
                     weekday: 'short',
@@ -81,9 +86,6 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
                   · {gameOf(t).label} · {formatLabel(t.mode)}
                 </p>
               </div>
-              <StatusChip tone={tournamentTone(t.status)}>
-                {statusLabel(t.status).toUpperCase()}
-              </StatusChip>
               <ChevronRight />
             </Link>
           ))}
