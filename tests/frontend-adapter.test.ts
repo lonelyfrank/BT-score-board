@@ -56,6 +56,7 @@ async function setup() {
   let t = await adapter.createTournament({
     name: 'Frontend test',
     mode: 'QUICK_HIGH_SCORE',
+    recording: 'turns',
     scoringConfiguration: { turns: 1 },
     tournamentConfiguration: { qualifiers: 2 },
   });
@@ -111,4 +112,30 @@ it('completes an already recorded open turn after reload without resending its s
   expect(recovered.scores).toHaveLength(1);
   expect(calls.filter((c) => c.path.endsWith('/scores'))).toHaveLength(1);
   expect(recovered.turns[0]!.status).toBe('completed');
+});
+it('records a turn dart by dart, undoes it whole and corrects a dart', async () => {
+  let m = await setup();
+  const first = m.turnState.currentTurn!;
+  m = await adapter.submitTurn(m, [60, 0, 25]);
+  const darts = m.scores.filter((s) => s.turnId === first.id && !s.voided);
+  expect(darts.map((s) => [s.dartIndex, s.score])).toEqual([
+    [1, 60],
+    [2, 0],
+    [3, 25],
+  ]);
+  expect(m.scoreboard.find((p) => p.tournamentEntryId === first.participantId)?.total).toBe(85);
+  m = await adapter.correct(m, [{ scoreId: darts[1]!.id, score: 20 }], 'Freccetta letta male');
+  expect(m.scoreboard.find((p) => p.tournamentEntryId === first.participantId)?.total).toBe(105);
+  m = await adapter.undo(m, 'Giocatore sbagliato');
+  expect(m.scores.filter((s) => s.turnId === first.id && !s.voided)).toHaveLength(0);
+  expect(m.turnState.currentTurn!.id).toBe(first.id);
+});
+it('sends only the darts the server does not hold after a lost response', async () => {
+  const m = await setup();
+  failPath = `/matches/${m.id}/scores`;
+  await expect(adapter.submitTurn(m, [20, 20, 20])).rejects.toMatchObject({ uncertain: true });
+  adapter = new HttpAdapter();
+  const recovered = await adapter.submitTurn(await adapter.match(m.id), [20, 20, 20]);
+  expect(recovered.scores.filter((s) => !s.voided).map((s) => s.dartIndex)).toEqual([1, 2, 3]);
+  expect(recovered.turns.filter((t) => t.status === 'completed')).toHaveLength(1);
 });

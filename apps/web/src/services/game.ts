@@ -24,6 +24,11 @@ export type Pending = { path: string; body: Record<string, unknown>; key: string
 /** A turn total, or one value per dart in throwing order. */
 export type TurnInput = number | number[];
 export type ScoreChange = { scoreId: string; score: number };
+/** A final result (or part of a Hi-Score one), without the version guards. */
+export type ResultInput = Omit<
+  z.input<typeof schemas.recordResult>,
+  'expectedVersion' | 'expectedMatchVersion'
+>;
 
 /**
  * What the screens need from the game, independently of where it runs: in this browser
@@ -32,7 +37,11 @@ export type ScoreChange = { scoreId: string; score: number };
 export interface GameAdapter {
   readonly mode: 'standalone' | 'shared';
   players(search?: string, offset?: number, status?: PlayerStatus): Promise<Page<Player>>;
-  createPlayer(displayName: string, nickname?: string | null): Promise<Player>;
+  createPlayer(
+    displayName: string,
+    nickname?: string | null,
+    avatar?: string | null,
+  ): Promise<Player>;
   updatePlayer(id: string, patch: PlayerPatch): Promise<Player>;
   statistics(id: string): Promise<Statistics>;
   history(id: string): Promise<Page<Summary>>;
@@ -50,7 +59,12 @@ export interface GameAdapter {
     extra?: Record<string, unknown>,
   ): Promise<Tournament>;
   matchCommand(m: Match, action: MatchAction, extra?: Record<string, unknown>): Promise<Match>;
-  /** Records the current turn (total or every dart) and completes the turn. */
+  /**
+   * Records or corrects the final result of a match as shown by the totem. The same `key` for a
+   * repeated confirmation replays it instead of writing twice.
+   */
+  recordResult(m: Match, input: ResultInput, key: string): Promise<Match>;
+  /** Legacy turn entry: records the current turn (total or every dart) and completes it. */
   submitTurn(m: Match, score: TurnInput): Promise<Match>;
   /** Voids every score of the last scored turn, which reopens it. The reason stays in the audit. */
   undo(m: Match, reason?: string): Promise<Match>;
@@ -100,6 +114,28 @@ export const messages: Record<string, string> = {
     'Il backup è danneggiato o modificato: il controllo d’integrità non è riuscito.',
   BACKUP_UNSUPPORTED: 'Il backup è stato creato da una versione più recente dell’app.',
   CONFIRMATION_REQUIRED: 'Conferma la sostituzione dei dati presenti su questo dispositivo.',
+  RESULT_HAS_DEPENDENTS:
+    'Questo risultato è già stato usato per le fasi successive: conferma la correzione per riaprirle.',
+  WINNER_REQUIRED: 'Indica il vincitore mostrato dal totem.',
+  RESULT_INCONSISTENT: 'Il vincitore indicato non corrisponde ai punteggi inseriti.',
+  INVALID_SCORE: 'Punteggio fuori dai limiti di questa modalità.',
+  INVALID_TARGET: 'L’obiettivo Exacta va da 250 a 350.',
+  INVALID_RESULT: 'Risultato non valido per i giocatori di questo incontro.',
+  INVALID_GAME_MODE: 'Il torneo rapido Hi-Score si gioca solo in modalità Hi-Score.',
+  INVALID_PLAYER_COUNT: 'Numero di giocatori non ammesso per questa modalità del totem.',
+  INVALID_RANKING:
+    'La differenza punti vale solo per Hi-Score: le altre modalità contano vittorie.',
+  RECORDING_MISMATCH: 'Questo torneo registra i punteggi turno per turno.',
+  DECISION_LOCKED: 'Lo spareggio è stato deciso dall’organizzatore e non ha punteggi.',
+  WALKOVER_LOCKED: 'Incontro vinto a tavolino per ritiro: non ha punteggi.',
+  MATCH_CANCELLED: 'L’incontro è stato annullato.',
+  INVALID_TIE_GROUP: 'Lo spareggio deve includere esattamente tutti i giocatori a pari merito.',
+  PLAYOFF_PENDING: 'C’è già uno spareggio da giocare per questa parità.',
+  TOURNAMENT_NOT_ACTIVE: 'Il torneo non è in corso (in pausa o concluso).',
+  INCOMPLETE_QUALIFICATION: 'Mancano risultati: registra tutti gli incontri prima di confermare.',
+  INCOMPLETE_FINAL: 'Registra il risultato della finale e degli spareggi prima di confermare.',
+  REGISTRATION_CLOSED: 'Le iscrizioni sono chiuse: dopo l’avvio un giocatore può solo ritirarsi.',
+  DUPLICATE_ENTRY: 'Giocatore già iscritto.',
 };
 
 // Session-scoped drafts: they survive a reload but not a closed tab.

@@ -13,6 +13,7 @@ import {
   storageInfo,
 } from '../services/device';
 import { usePwa } from '../services/pwa';
+import { gameModes, games } from '../services/rules';
 import { Header, ErrorMessage, Modal } from '../components/ui';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -41,9 +42,11 @@ export function Settings() {
         <section className="panel">
           <h2>Modalità disponibili</h2>
           <p>
-            Hi-Score con inserimento a totale o per freccetta, tornei a gironi con eliminazione
-            diretta, Hi-Score Nights con finale unica, spareggi e serate. X01, Cricket e le squadre
-            non sono ancora disponibili.
+            Gli otto giochi del totem Pub Time Darts:{' '}
+            {gameModes.map((id) => games[id].label).join(', ')}. Partite singole, tornei a gironi
+            con eliminazione diretta e Hi-Score Nights (qualifica e finale dei migliori). Il totem
+            calcola i punti: l’app registra solo i risultati finali, senza alcun collegamento alla
+            macchina.
           </p>
         </section>
       </main>
@@ -51,10 +54,11 @@ export function Settings() {
   );
 }
 
-function backupName(at: string) {
+/** bt-darts-backup-YYYY-MM-DD.json, in local time; the device renames same-day copies. */
+export function backupName(at: string) {
   const d = new Date(at);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `bt-darts-backup-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+  return `bt-darts-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
 }
 
 function DeviceData() {
@@ -422,7 +426,11 @@ function OrganizerAccess() {
               aria-hidden="true"
               className={server.data?.reachable ? 'dot ok' : server.data ? 'dot off' : 'dot'}
             />
-            {server.isPending ? 'Verifica…' : server.data?.reachable ? 'Raggiungibile' : 'Non raggiungibile'}
+            {server.isPending
+              ? 'Verifica…'
+              : server.data?.reachable
+                ? 'Raggiungibile'
+                : 'Non raggiungibile'}
           </strong>
         </div>
         <div className="settings-row">

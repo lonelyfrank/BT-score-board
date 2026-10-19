@@ -8,6 +8,8 @@ import {
 import { uuid } from '../../application/src/portable.js';
 import {
   DomainError,
+  upgradePlayer,
+  upgradeTournament,
   type Player,
   type PubEvent,
   type Tournament,
@@ -93,6 +95,16 @@ export const migrations: Migration[] = [
       changesSinceBackup: 0,
       lastImport: null,
     });
+  },
+  // 2: game modes and final results. Existing tournaments become Hi-Score with turn entry,
+  // players get an empty avatar. Runs inside the upgrade transaction: all or nothing.
+  async (_db, transaction) => {
+    const tournaments = transaction.objectStore('tournaments');
+    for (let cursor = await tournaments.openCursor(); cursor; cursor = await cursor.continue())
+      await cursor.update(upgradeTournament(cursor.value));
+    const players = transaction.objectStore('players');
+    for (let cursor = await players.openCursor(); cursor; cursor = await cursor.continue())
+      await cursor.update(upgradePlayer(cursor.value));
   },
 ];
 export const SCHEMA_VERSION = migrations.length;

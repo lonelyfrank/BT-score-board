@@ -16,6 +16,8 @@ export function fixture(
   let tournament = backend.createTournament({
     name: 'Friday at the pub',
     mode,
+    // These scenarios exercise the legacy turn-by-turn entry; results.test.ts covers results.
+    recording: 'turns',
     scoringConfiguration: { turns: 1, ...scoring },
     tournamentConfiguration: config,
   });

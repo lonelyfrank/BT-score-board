@@ -217,7 +217,10 @@ export function Live() {
   const subtitle = live
     ? `${stage} · turno ${turn?.turnNumber ?? '—'} di ${config.turns}`
     : `${stage} · ${m.status === 'completed' ? 'conclusa' : m.status === 'paused' ? 'in pausa' : 'pronta'}`;
-  const back = t ? tournamentPath(t) : '/';
+  // Back to the phase the match belongs to: a Hi-Score final opens the Finale tab.
+  const finalStage =
+    t?.mode === 'QUICK_HIGH_SCORE' && t.stages.find((s) => s.id === m.stageId)?.kind === 'final';
+  const back = t ? `${tournamentPath(t)}${finalStage ? '?tab=final' : ''}` : '/';
   const recent = turns.slice(0, 5);
   const editTurn = turns.find((x) => x.turn.id === editing);
   const fixInvalid =
@@ -225,7 +228,8 @@ export function Live() {
     fix.values.some((v) => v === '') ||
     fix.values.some(
       (v, i) =>
-        Number(v) > (editTurn.scores[i]!.dartIndex === null ? config.maxTurnScore : config.maxDartScore),
+        Number(v) >
+        (editTurn.scores[i]!.dartIndex === null ? config.maxTurnScore : config.maxDartScore),
     ) ||
     fix.values.reduce((n, v) => n + Number(v), 0) > config.maxTurnScore;
 
@@ -292,28 +296,12 @@ export function Live() {
                     <DartIcon />
                     <span>TURNO DI {turn ? name(turn.participantId) : '—'}</span>
                   </div>
-                  <div className="entry-toggle" role="radiogroup" aria-label="Modo di inserimento">
-                    {(['total', 'dart'] as const).map((id) => (
-                      <button
-                        key={id}
-                        role="radio"
-                        aria-checked={(id === 'dart') === dartMode}
-                        aria-label={id === 'total' ? 'Totale turno' : 'Per freccetta'}
-                        disabled={darts.length > 0 || recovering || mutation.isPending}
-                        onClick={() => {
-                          setMode(id);
-                          entryMode.set(id);
-                          change('');
-                        }}
-                      >
-                        {id === 'total' ? 'TOT' : `×${config.dartsPerTurn}`}
-                      </button>
-                    ))}
-                  </div>
                 </div>
                 <div className="paper-area">
                   <PaintSplash className="paper-splash" />
-                  <div className={`score-paper ${dartMode ? 'darts' : ''} ${input ? '' : 'is-empty'}`}>
+                  <div
+                    className={`score-paper ${dartMode ? 'darts' : ''} ${input ? '' : 'is-empty'}`}
+                  >
                     <output
                       aria-live="polite"
                       aria-label={
@@ -367,22 +355,42 @@ export function Live() {
                   )}
                 </div>
               </div>
-              <dl className="stats">
-                <div>
-                  <dt>MEDIA</dt>
-                  <dd>{active?.turns ? active.average.toFixed(1) : '—'}</dd>
+              <div className="side-col">
+                <div className="entry-toggle" role="radiogroup" aria-label="Modo di inserimento">
+                  {(['total', 'dart'] as const).map((id) => (
+                    <button
+                      key={id}
+                      role="radio"
+                      aria-checked={(id === 'dart') === dartMode}
+                      aria-label={id === 'total' ? 'Totale turno' : 'Per freccetta'}
+                      disabled={darts.length > 0 || recovering || mutation.isPending}
+                      onClick={() => {
+                        setMode(id);
+                        entryMode.set(id);
+                        change('');
+                      }}
+                    >
+                      {id === 'total' ? 'TOT' : `×${config.dartsPerTurn}`}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <dt>TURNI</dt>
-                  <dd>
-                    {active?.turns ?? 0}/{config.turns}
-                  </dd>
-                </div>
-                <div>
-                  <dt>MIGLIOR GIRO</dt>
-                  <dd>{active?.turns ? active.bestTurn : '—'}</dd>
-                </div>
-              </dl>
+                <dl className="stats">
+                  <div>
+                    <dt>MEDIA</dt>
+                    <dd>{active?.turns ? active.average.toFixed(1) : '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>TURNI</dt>
+                    <dd>
+                      {active?.turns ?? 0}/{config.turns}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MIGLIOR GIRO</dt>
+                    <dd>{active?.turns ? active.bestTurn : '—'}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
             <NumberKeypad
               value={recovering ? '' : input}
@@ -432,7 +440,8 @@ export function Live() {
               ))}
             </ol>
             <p className="hint">
-              Risultato dell’incontro. Qualificazione e vincitore ufficiale si confermano nel torneo.
+              Risultato dell’incontro. Qualificazione e vincitore ufficiale si confermano nel
+              torneo.
             </p>
             <Link className="primary button" to={back}>
               VAI ALLA CLASSIFICA

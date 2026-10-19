@@ -8,7 +8,7 @@ import { dataMode, localData } from './services/api';
 import { registerPwa } from './services/pwa';
 import { Home } from './features/Home';
 import { Setup } from './features/Setup';
-import { Live } from './features/Live';
+import { MatchScreen } from './features/Match';
 import { Settings } from './features/Settings';
 import { Players } from './features/Players';
 import { TournamentList } from './features/Tournaments';
@@ -56,7 +56,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/partite/nuova" element={<Setup />} />
-          <Route path="/partite/:gameId" element={<Live />} />
+          <Route path="/partite/:gameId" element={<MatchScreen />} />
           <Route path="/tornei" element={<TournamentList />} />
           <Route path="/tornei/nuovo" element={<TournamentSetup />} />
           <Route path="/tornei/:id" element={<TournamentDetail />} />

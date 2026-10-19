@@ -1,4 +1,4 @@
-import { DomainError, type Tournament } from '../../domain/src/index.js';
+import { DomainError, gameModes, type Tournament } from '../../domain/src/index.js';
 
 // Mirrors the SQLite constraints (0001.ts): the domain already enforces these rules, the
 // local store re-checks them so a defect can never be persisted silently on the device.
@@ -15,6 +15,7 @@ export function assertTournamentIntegrity(
     );
   };
   if (!Number.isSafeInteger(t.version) || t.version < 0) fail('tournament version');
+  if (!gameModes.includes(t.gameMode) || !['result', 'turns'].includes(t.recording)) fail('game');
   if (t.eventId !== null && !hasEvent(t.eventId)) fail('event reference');
   const entries = new Set<string>(),
     players = new Set<string>(),
@@ -55,6 +56,20 @@ export function assertTournamentIntegrity(
         fail('participant order');
       participants.add(p.tournamentEntryId);
       orders.add(p.playingOrder);
+    }
+    if (m.winnerEntryId !== null && !participants.has(m.winnerEntryId)) fail('match winner');
+    if (m.result) {
+      const r = m.result;
+      for (const [entry, value] of Object.entries(r.scores))
+        if (
+          !participants.has(entry) ||
+          (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 12000))
+        )
+          fail('result score');
+      if (r.declaredWinnerEntryId !== null && !participants.has(r.declaredWinnerEntryId))
+        fail('result winner');
+      if (r.decision && !r.decision.order.every((id) => participants.has(id)))
+        fail('result decision');
     }
     const turns = new Map<string, string>(),
       turnSlots = new Set<string>();

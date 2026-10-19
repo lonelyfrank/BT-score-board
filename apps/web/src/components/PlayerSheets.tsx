@@ -111,8 +111,7 @@ export function NewPlayerSheet({
     queryFn: () => api.players(name.trim()),
     enabled: !!name.trim(),
   });
-  const homonym =
-    !nick.trim() && !!homonyms.data?.items.some((p) => sameName(p.displayName, name));
+  const homonym = !nick.trim() && !!homonyms.data?.items.some((p) => sameName(p.displayName, name));
   const create = useMutation({
     mutationFn: () => api.createPlayer(name.trim(), nick.trim() || null),
     onSuccess: (player) => {

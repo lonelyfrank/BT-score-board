@@ -29,6 +29,11 @@ export const commandSchemas = {
   CloseQualificationEarly: s.earlyClose,
   ReorderMatches: s.reorderMatches,
   AdvanceKnockout: s.command,
+  RecordResult: s.recordResult,
+  WithdrawEntry: s.withdrawEntry,
+  UnregisterPlayer: s.entryCommand,
+  CancelMatch: s.cancelMatch,
+  DecideTie: s.decideTie,
   ConfigureTournament: s.command.extend({
     tournamentConfiguration: s.tournamentConfiguration.optional(),
     scoringConfiguration: s.scoringConfiguration.optional(),
@@ -53,6 +58,9 @@ export const tournamentCommandPaths = {
   'stages/reopen': 'ReopenStage',
   'matches/reorder': 'ReorderMatches',
   'elimination/advance': 'AdvanceKnockout',
+  'entries/withdraw': 'WithdrawEntry',
+  'entries/remove': 'UnregisterPlayer',
+  'tiebreaks/decide': 'DecideTie',
 } as const satisfies Record<string, CommandName>;
 export const matchCommandPaths = {
   start: 'StartMatch',
@@ -61,6 +69,8 @@ export const matchCommandPaths = {
   scores: 'RecordScore',
   'turns/complete': 'CompleteTurn',
   complete: 'CompleteMatch',
+  result: 'RecordResult',
+  cancel: 'CancelMatch',
 } as const satisfies Record<string, CommandName>;
 export const scoreCommandPaths = {
   correct: 'CorrectScore',
@@ -132,6 +142,7 @@ export class Backend {
         id: this.context.id(),
         ...data,
         nickname: data.nickname ?? null,
+        avatar: data.avatar ?? null,
         status: 'active',
         createdAt: now,
         updatedAt: now,
@@ -210,6 +221,7 @@ export class Backend {
         matches: [],
         results: [],
       };
+      d.validateDefinition(t);
       this.store.saveTournament(t);
       this.audit('TournamentCreated', null, t, { tournamentId: t.id });
       return t;
@@ -294,6 +306,7 @@ export class Backend {
           );
           if (i.scoringConfiguration) t.scoringConfiguration = i.scoringConfiguration;
           if (i.tournamentConfiguration) t.tournamentConfiguration = i.tournamentConfiguration;
+          d.validateDefinition(t);
           if (t.status === 'ready') t.status = 'registration';
           break;
         }
@@ -377,6 +390,29 @@ export class Backend {
         case 'ReorderMatches':
           d.reorder(t, (input as CommandInput<'ReorderMatches'>).matchIds);
           break;
+        case 'RecordResult': {
+          const {
+            expectedVersion: _v,
+            expectedMatchVersion: _m,
+            ...result
+          } = input as CommandInput<'RecordResult'>;
+          d.recordResult(t, m!, result, c);
+          break;
+        }
+        case 'WithdrawEntry':
+          d.withdrawEntry(t, (input as CommandInput<'WithdrawEntry'>).entryId, c);
+          break;
+        case 'UnregisterPlayer':
+          d.unregisterEntry(t, (input as CommandInput<'UnregisterPlayer'>).entryId);
+          break;
+        case 'CancelMatch':
+          d.cancelMatch(t, m!);
+          break;
+        case 'DecideTie': {
+          const i = input as CommandInput<'DecideTie'>;
+          d.decideTie(t, i.targetId, i.orderedEntryIds, i.reason, c);
+          break;
+        }
         case 'AdvanceKnockout': {
           d.activeTournament(t);
           const stage = d.currentStage(t);
@@ -436,6 +472,9 @@ export class Backend {
         ReopenStage: 'StageReopened',
         PauseTournament: 'TournamentPaused',
         ResumeTournament: 'TournamentResumed',
+        RecordResult: 'ResultRecorded',
+        WithdrawEntry: 'EntryWithdrawn',
+        DecideTie: 'TieDecided',
       };
       emit(eventNames[name] ?? name, { matchId: m?.id ?? null });
       for (const match of t.matches) {
@@ -453,6 +492,10 @@ export class Backend {
           'VoidScore',
           'ReopenStage',
           'CloseQualificationEarly',
+          'RecordResult',
+          'WithdrawEntry',
+          'CancelMatch',
+          'DecideTie',
         ].includes(name)
       )
         emit('StandingsUpdated');
@@ -467,10 +510,14 @@ export class Backend {
     return {
       ...m,
       tournamentVersion: t.version,
+      gameMode: t.gameMode,
+      recording: t.recording,
+      excludedEntryIds: d.stageById(t, m.stageId).excludedEntryIds,
       turnState: d.turnState(m),
       scoreboard: m.participants.map((p) => ({
         tournamentEntryId: p.tournamentEntryId,
         ...d.playerPerformance(m, p.tournamentEntryId),
+        total: d.participantScore(t, m, p.tournamentEntryId) ?? 0,
       })),
     };
   }
@@ -515,34 +562,71 @@ export class Backend {
       offset: options.offset,
     };
   }
-  statistics(id: string) {
+  /**
+   * Player statistics computed from the stored results (never stored themselves): a corrected
+   * result changes them at the next read. Games are kept apart; Hi-Score totals only compare
+   * with the same rounds and darts.
+   */
+  statistics(id: string): z.output<typeof s.statisticsResponse> {
     this.player(id);
     const tournaments = this.store
       .tournamentsForPlayer(id)
       .filter((t) => t.startedAt !== null && t.status !== 'cancelled');
-    const configurations = new Map<
-      string,
-      {
-        configuration: d.HighScoreConfiguration;
-        matchesPlayed: number;
-        wins: number;
-        losses: number;
-        draws: number;
-        total: number;
-        turns: number;
-        averagePerTurn: number;
-        bestTurn: number;
-      }
-    >();
+    type Row = z.output<typeof s.statisticsResponse>['byGameMode'][number] & { totals: number[] };
+    const rows = new Map<string, Row>();
+    const tally = { matchesPlayed: 0, wins: 0, draws: 0, losses: 0 };
+    const recent: z.output<typeof s.statisticsResponse>['recentMatches'] = [];
+    const placements: z.output<typeof s.statisticsResponse>['placements'] = [];
     let tournamentsWon = 0,
       finalsReached = 0,
       bestPlacement: number | null = null;
+    const rowFor = (t: d.Tournament, config: d.HighScoreConfiguration | null) => {
+      const hs = t.gameMode === 'HI_SCORE' && config;
+      const key = hs
+        ? `${t.gameMode}:${config.turns}:${config.dartsPerTurn}:${config.maxDartScore}`
+        : t.gameMode;
+      let row = rows.get(key);
+      if (!row) {
+        row = {
+          gameMode: t.gameMode,
+          rounds: hs ? config.turns : null,
+          dartsPerTurn: hs ? config.dartsPerTurn : null,
+          tournamentsPlayed: 0,
+          tournamentsWon: 0,
+          matchesPlayed: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          winRate: null,
+          scoredMatches: 0,
+          bestScore: null,
+          averageScore: null,
+          totals: [],
+        };
+        rows.set(key, row);
+      }
+      return row;
+    };
     for (const t of tournaments) {
       const entry = t.entries.find((e) => e.playerId === id)!;
       const result = t.results.find((r) => r.tournamentEntryId === entry.id);
+      const own = rowFor(t, t.scoringConfiguration);
+      own.tournamentsPlayed++;
       if (result) {
-        if (result.finalPlacement === 1) tournamentsWon++;
+        if (result.finalPlacement === 1) {
+          tournamentsWon++;
+          own.tournamentsWon++;
+        }
         bestPlacement = Math.min(bestPlacement ?? Infinity, result.finalPlacement);
+        placements.push({
+          tournamentId: t.id,
+          name: t.name,
+          gameMode: t.gameMode,
+          format: t.mode,
+          placement: result.finalPlacement,
+          players: t.entries.length,
+          completedAt: t.completedAt,
+        });
       }
       const validMatches = t.matches.filter(
         (m) =>
@@ -556,42 +640,66 @@ export class Backend {
           m.status === 'completed' &&
           m.matchType !== 'tiebreak' &&
           m.participants.length > 1 &&
+          !m.result?.walkover &&
+          !d.stageById(t, m.stageId).excludedEntryIds.includes(entry.id) &&
           m.turns
             .filter((turn) => turn.participantId === entry.id)
             .every((turn) => turn.status === 'completed'),
       )) {
-        const key = JSON.stringify(m.scoringConfiguration);
-        const stats = configurations.get(key) ?? {
-          configuration: m.scoringConfiguration,
-          matchesPlayed: 0,
-          wins: 0,
-          losses: 0,
-          draws: 0,
-          total: 0,
-          turns: 0,
-          averagePerTurn: 0,
-          bestTurn: 0,
-        };
-        const performance = d.playerPerformance(m, entry.id);
         const participant = m.participants.find((p) => p.tournamentEntryId === entry.id)!;
-        stats.matchesPlayed++;
-        stats.total += performance.total;
-        stats.turns += performance.turns;
-        stats.bestTurn = Math.max(stats.bestTurn, performance.bestTurn);
-        stats.averagePerTurn = stats.turns ? stats.total / stats.turns : 0;
-        if (participant.outcome === 'win') stats.wins++;
-        else if (participant.outcome === 'loss') stats.losses++;
-        else if (participant.outcome === 'draw') stats.draws++;
-        configurations.set(key, stats);
+        const row = rowFor(t, m.scoringConfiguration);
+        const score = d.participantScore(t, m, entry.id);
+        for (const target of [row, tally]) {
+          target.matchesPlayed++;
+          if (participant.outcome === 'win') target.wins++;
+          else if (participant.outcome === 'loss') target.losses++;
+          else if (participant.outcome === 'draw') target.draws++;
+        }
+        if (t.gameMode === 'HI_SCORE' && score !== null) row.totals.push(score);
+        recent.push({
+          matchId: m.id,
+          tournamentId: t.id,
+          tournamentName: t.name,
+          gameMode: t.gameMode,
+          matchType: m.matchType,
+          completedAt: m.completedAt,
+          outcome: participant.outcome,
+          score,
+          opponents: m.participants
+            .filter((p) => p.tournamentEntryId !== entry.id)
+            .map(
+              (p) =>
+                t.entries.find((e) => e.id === p.tournamentEntryId)?.displayNameAtRegistration ??
+                '?',
+            ),
+        });
       }
     }
+    const rate = (x: { wins: number; matchesPlayed: number }) =>
+      x.matchesPlayed ? x.wins / x.matchesPlayed : null;
     return {
       playerId: id,
       tournamentsPlayed: tournaments.length,
       tournamentsWon,
       finalsReached,
       bestPlacement,
-      byScoringConfiguration: [...configurations.values()],
+      ...tally,
+      winRate: rate(tally),
+      byGameMode: [...rows.values()]
+        .filter((r) => r.tournamentsPlayed > 0 || r.matchesPlayed > 0)
+        .map(({ totals, ...r }) => ({
+          ...r,
+          winRate: rate(r),
+          scoredMatches: totals.length,
+          bestScore: totals.length ? Math.max(...totals) : null,
+          averageScore: totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : null,
+        })),
+      placements: placements.sort((a, b) =>
+        (b.completedAt ?? '').localeCompare(a.completedAt ?? ''),
+      ),
+      recentMatches: recent
+        .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
+        .slice(0, 20),
     };
   }
 }
@@ -620,6 +728,7 @@ function auditSnapshot(t: d.Tournament) {
       winnerEntryId: m.winnerEntryId,
       participants: m.participants,
       tieTarget: m.tieTarget,
+      result: m.result,
     })),
   };
 }

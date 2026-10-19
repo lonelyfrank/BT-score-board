@@ -18,6 +18,7 @@ import {
   type PlayerPatch,
   type PlayerStatus,
   type PubEvent,
+  type ResultInput,
   type ScoreChange,
   type Standings,
   type Statistics,
@@ -131,8 +132,8 @@ export class HttpAdapter implements GameAdapter {
       `/players?limit=100&offset=${offset}&search=${encodeURIComponent(search)}${status ? `&status=${status}` : ''}`,
     );
   }
-  createPlayer(displayName: string, nickname: string | null = null) {
-    return this.request<Player>('/players', { displayName, nickname });
+  createPlayer(displayName: string, nickname: string | null = null, avatar: string | null = null) {
+    return this.request<Player>('/players', { displayName, nickname, avatar });
   }
   updatePlayer(id: string, patch: PlayerPatch) {
     return this.request<Player>(`/players/${id}`, patch, undefined, 'PATCH');
@@ -184,6 +185,10 @@ export class HttpAdapter implements GameAdapter {
       ...extra,
     });
     return this.match(m.id);
+  }
+  /** An unconfirmed result is replayed with its saved key and body (see command()). */
+  recordResult(m: Match, input: ResultInput) {
+    return this.matchCommand(m, 'result', input);
   }
   async submitTurn(m: Match, input: TurnInput) {
     const completion = this.getPending(`/matches/${m.id}/turns/complete`);

@@ -63,6 +63,7 @@ async function startedMatch(engine: LocalEngine, players = 4) {
     b.createTournament({
       name: 'Venerdì',
       mode: 'QUICK_HIGH_SCORE',
+      recording: 'turns',
       scoringConfiguration: { turns: 2 },
       tournamentConfiguration: { qualifiers: 2 },
     }),
@@ -301,6 +302,7 @@ describe('Backup and restore', () => {
       b.createTournament({
         name: 'Finale',
         mode: 'QUICK_HIGH_SCORE',
+        recording: 'turns',
         scoringConfiguration: { turns: 1 },
         tournamentConfiguration: { qualifiers: 2 },
       }),

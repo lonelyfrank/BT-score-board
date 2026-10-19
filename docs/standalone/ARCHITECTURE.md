@@ -26,21 +26,27 @@ La porta `Store` dell'application è sincrona (`transaction(work)`), come SQLite
 
 I comandi passano da una coda seriale. Le letture vedono sempre e solo stato confermato.
 
-Nella partita live `RecordScore` e `CompleteTurn` restano due comandi del Backend, ma sono confermati nello stesso commit: un punteggio non può esistere senza il passaggio al giocatore successivo. Il doppio tocco è bloccato nell'interfaccia e, in ogni caso, il secondo invio fallisce sul controllo di versione senza scrivere nulla.
+Un risultato (`RecordResult`) è un comando come gli altri: un commit, poi la conferma «Punteggio salvato». La chiave di idempotenza nasce con il risultato che si sta inserendo e cambia solo dopo il successo: un secondo tocco con la stessa chiave è una ripetizione esatta (nessuna scrittura), un tocco su dati ormai cambiati fallisce sul controllo di versione. Per i tornei a turni esistenti `RecordScore` e `CompleteTurn` restano confermati nello stesso commit.
 
-## Schema IndexedDB (versione 1)
+### Perché `idb` e non Dexie
+
+Lo strato IndexedDB esistente usa `idb` (1 kB) ed è già verificato: una transazione `readwrite` con `durability: 'strict'` per comando, controllo di revisione fra schede, migrazioni ordinate, errori di quota tradotti in `STORAGE_FULL`. Dexie aggiungerebbe query reattive e una sintassi di schema, ma qui le letture passano dallo snapshot in memoria e la reattività arriva dagli eventi del motore (`subscribe`, `BroadcastChannel`). Sostituirlo non porterebbe funzionalità e rimetterebbe in gioco codice collaudato; per lo stesso motivo non c'è Zustand (lo stato UI è locale ai componenti e alla cache di TanStack Query, la fonte di verità è IndexedDB) né Tailwind (design system CSS esistente).
+
+## Schema IndexedDB (versione 2)
 
 | Store         | Chiave     | Contenuto                                                                                           |
 | ------------- | ---------- | --------------------------------------------------------------------------------------------------- |
-| `players`     | `id`       | Player                                                                                              |
+| `players`     | `id`       | Player (con `avatar` facoltativo, preset)                                                           |
 | `events`      | `id`       | PubEvent                                                                                            |
-| `tournaments` | `id`       | Aggregato completo: iscrizioni, fasi, gironi, partite, turni, punteggi, risultati                   |
+| `tournaments` | `id`       | Aggregato completo: formato, gioco, iscrizioni, fasi, gironi, incontri con `result`, piazzamenti    |
 | `audit`       | `sequence` | Operation append-only, indice `tournamentId`                                                        |
 | `outbox`      | `sequence` | ApplicationEvent append-only, indice `tournamentId`                                                 |
 | `commands`    | `key`      | Record idempotente compatto: chiave, fingerprint, torneo, versione, data (indice `createdAt`)       |
 | `meta`        | `key`      | `deviceId`, `revision`, ultimo commit, ultimo backup, modifiche dopo il backup, ultima importazione |
 
-L'aggregato Tournament è l'unità di consistenza, come lo snapshot JSON di SQLite: partite e punteggi non hanno store separati perché ogni comando li aggiorna insieme. `MemoryStore` ricontrolla i vincoli che SQLite impone con chiavi e trigger: unicità di iscrizioni, seed, slot punteggio e turni; riferimenti a giocatori ed eventi; modalità di inserimento coerente.
+L'aggregato Tournament è l'unità di consistenza, come lo snapshot JSON di SQLite: incontri e risultati non hanno store separati perché ogni comando li aggiorna insieme (un risultato può far avanzare il tabellone o chiudere la partita singola nella stessa scrittura). `MatchResult` vive dentro `Match.result`: rapporto 1:1, stessa transazione, nessun ID in più. Classifiche e statistiche non sono salvate, si calcolano dai risultati.
+
+La migrazione 2 (`indexeddb.ts`) porta i dati della versione 1 al modello con giochi e risultati: ogni torneo esistente diventa `gameMode: 'HI_SCORE'`, `recording: 'turns'` (prosegue con l'inserimento a turni), `result: null` sugli incontri; i giocatori ricevono `avatar: null`. Gira nella transazione di upgrade: o tutto o niente. La stessa funzione (`upgradeTournament`, nel dominio) aggiorna i backup v1 all'importazione e le letture SQLite. `MemoryStore` ricontrolla i vincoli che SQLite impone con chiavi e trigger: unicità di iscrizioni, seed, slot punteggio e turni; riferimenti a giocatori ed eventi; modalità di inserimento coerente.
 
 Le migrazioni sono una lista ordinata (`migrations` in `indexeddb.ts`): la migrazione N porta da N a N+1 nella transazione `versionchange`. Un database scritto da una versione più recente non viene aperto (`LOCAL_SCHEMA_NEWER`), così nessun dato viene scartato. Se un'altra scheda aggiorna lo schema, questa chiude la connessione e chiede di ricaricare.
 
@@ -62,13 +68,13 @@ Se Safari chiude una connessione inattiva, `LocalDatabase` riapre e riprova, ma 
 
 ## Backup
 
-Formato JSON `bt-darts-scoreboard-backup`, `formatVersion` 1:
+Formato JSON `bt-darts-scoreboard-backup`, `formatVersion` 1, `schemaVersion` 2 (lo schema dei dati). File scaricato come `bt-darts-backup-YYYY-MM-DD.json`:
 
 ```json
 {
   "format": "bt-darts-scoreboard-backup",
   "formatVersion": 1,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "exportedAt": "2026-10-18T22:40:00.000Z",
   "source": { "deviceId": "…", "revision": 214, "app": "0.2.0+abc1234" },
   "counts": {
@@ -96,9 +102,10 @@ L'export legge tutti gli store in una transazione di sola lettura (copia coerent
 1. JSON e formato;
 2. versione non più recente dell'app;
 3. digest SHA-256 di `data`;
-4. schemi Zod dei contratti esistenti;
-5. conteggi;
-6. unicità e riferimenti (giocatori, eventi, tornei, vincoli degli aggregati).
+4. aggiornamento dei backup con `schemaVersion` precedente (stessa migrazione del database);
+5. schemi Zod dei contratti esistenti;
+6. conteggi;
+7. unicità e riferimenti (giocatori, eventi, tornei, vincoli degli aggregati, risultati che citano solo giocatori dell'incontro).
 
 Se esistono dati, la sostituzione richiede una conferma esplicita: l'interfaccia mostra il contenuto del file e propone di scaricare prima i dati attuali. La sostituzione avviene in una sola transazione, con lo stesso CAS dei comandi.
 

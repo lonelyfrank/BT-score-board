@@ -85,6 +85,7 @@ async function create(app: FastifyInstance, mode: Tournament['mode'], count: num
         name: 'Pub Time 1987',
         eventId: event.id,
         mode,
+        recording: 'turns',
         scoringConfiguration: { turns: 1 },
         tournamentConfiguration: { groupCount: 2, qualifiersPerGroup: 2 },
       },

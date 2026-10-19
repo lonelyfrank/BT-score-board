@@ -10,125 +10,122 @@ async function shot(page: Page, name: string) {
 }
 async function login(page: Page) {
   await page.goto('/impostazioni');
-  await page.getByLabel('Token organizzatore').fill(token);
-  await page.getByRole('button', { name: 'Collega applicativo' }).click();
-  await expect(page.getByText('Accesso organizzatore attivo')).toBeVisible();
+  await page.getByLabel('Token', { exact: true }).fill(token);
+  await page.getByRole('button', { name: 'VERIFICA E USA' }).click();
+  await expect(page.getByText('Connesso · comandi abilitati')).toBeVisible();
 }
 async function addPlayer(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click();
-  await page.getByLabel('Nuovo giocatore').fill(name);
-  await page.getByRole('button', { name: 'Crea', exact: true }).click();
-  await expect(page.getByLabel('Nuovo giocatore')).toHaveValue('');
+  await page.getByRole('button', { name: 'Aggiungi giocatore' }).click();
+  await page.getByLabel('Cerca tra i giocatori del locale').fill(name);
+  await page.getByRole('button', { name: `Crea “${name}” e aggiungi` }).click();
+  await expect(page.getByLabel('Cerca tra i giocatori del locale')).toHaveValue('');
   await page.getByRole('button', { name: 'Chiudi', exact: true }).click();
 }
-test('home, real scoring, reload, undo, qualification and final', async ({ page }) => {
+async function addEntrant(page: Page, name: string) {
+  await page.getByRole('button', { name: 'Nuovo giocatore' }).click();
+  await page.getByLabel('Nome', { exact: true }).fill(name);
+  await page.getByRole('button', { name: 'CREA GIOCATORE' }).click();
+  await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('');
+  await page.getByRole('button', { name: 'Chiudi', exact: true }).click();
+}
+const confirmTurn = (page: Page) =>
+  page.getByRole('button', { name: 'Conferma totale e chiudi il turno' });
+async function enterScore(page: Page, player: string, score: number) {
+  await expect(page.locator('.turn-banner')).toHaveText(`PUNTEGGIO DI ${player}`);
+  await page.keyboard.type(String(score));
+  await page.getByRole('button', { name: `Conferma il punteggio di ${player}` }).click();
+  await expect(page.locator('.score-card').filter({ hasText: player })).toContainText(
+    String(score),
+  );
+}
+test('home, result entry, reload, correction, qualification and final', async ({ page }) => {
   mkdirSync(artifacts, { recursive: true });
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Accesso richiesto' })).toBeVisible();
   await shot(page, '01-home');
   expect((await page.request.get('/api/v1/players')).status()).toBe(401);
   expect((await page.request.get('/assets/../../.env')).status()).not.toBe(200);
   await page.getByRole('link', { name: /NUOVA PARTITA/ }).click();
   await expect(page.getByRole('button', { name: 'INIZIA PARTITA' })).toBeDisabled();
   await login(page);
-  await page.goto('/partite/nuova');
-  await addPlayer(page, 'Frank');
-  await addPlayer(page, 'Giulia');
-  await page.getByRole('button', { name: 'Riduci Turni per giocatore' }).click();
-  await page.getByRole('button', { name: 'Riduci Turni per giocatore' }).click();
-  await shot(page, '02-nuova-partita');
-  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
-  await page.getByRole('button', { name: 'Conferma e inizia' }).click();
-  await expect(page.getByText('TURNO DI Frank')).toBeVisible();
-  await page.keyboard.type('181');
-  await expect(page.getByLabel('Punteggio da confermare')).toHaveText('18');
+  // A Hi-Score night with three players: fewer than four, so the final is played directly.
+  await page.goto('/tornei/nuovo');
+  await page.getByRole('radio', { name: 'Hi-Score rapido' }).click();
+  for (const name of ['Frank', 'Giulia', 'Hugo']) await addEntrant(page, name);
+  await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
+  await expect(page.getByRole('tab', { name: 'Finale', selected: true })).toBeVisible();
+  await page.getByRole('link', { name: 'GIOCA LA FINALE' }).click();
+  await page.keyboard.type('1270');
+  // The keypad refuses more than 7 rounds × 180.
+  await expect(page.getByLabel('Punteggio finale da confermare')).toHaveText('127');
   await page.getByRole('button', { name: 'Cancella ultima cifra' }).click();
-  await expect(page.getByLabel('Punteggio da confermare')).toHaveText('1');
-  await page.getByRole('button', { name: 'Azzera input' }).click();
-  await page.getByRole('button', { name: '140', exact: true }).click();
+  await page.getByRole('button', { name: 'Svuota input' }).click();
+  await page.keyboard.type('640');
   await shot(page, '03-partita-live');
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(844);
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect(page.getByRole('button', { name: 'Conferma turno' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(844);
   await shot(page, '06-live-landscape');
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Conferma turno', exact: true }).click();
-  await expect(page.getByText('TURNO DI Giulia')).toBeVisible();
+  await page.getByRole('button', { name: 'Conferma il punteggio di Frank' }).click();
+  await expect(page.locator('.score-card').filter({ hasText: 'Frank' })).toContainText('640');
   await page.reload();
-  await expect(page.getByText('TURNO DI Giulia')).toBeVisible();
-  await page.getByRole('button', { name: 'Annulla ultimo turno' }).click();
-  await page.getByRole('button', { name: 'Conferma annullamento' }).click();
-  await expect(page.getByText('TURNO DI Frank')).toBeVisible();
-  await page.getByRole('button', { name: '140', exact: true }).click();
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
-  await expect(page.getByText('TURNO DI Giulia')).toBeVisible();
-  await page.getByRole('button', { name: '100', exact: true }).click();
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
-  await expect(page.getByRole('heading', { name: 'Incontro terminato' })).toBeVisible();
-  await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
+  await enterScore(page, 'Giulia', 580);
+  // A wrong total is corrected by selecting the player again before the match ends.
+  await page.getByRole('radio', { name: /Giulia/ }).click();
+  await enterScore(page, 'Giulia', 590);
+  await enterScore(page, 'Hugo', 700);
+  await expect(page.getByRole('heading', { name: 'Risultato registrato' })).toBeVisible();
+  await page.getByRole('link', { name: 'VAI AL TORNEO' }).click();
   await shot(page, '05-hiscore-nights');
-  await page.getByRole('button', { name: 'CONFERMA QUALIFICA' }).click();
-  await page.getByRole('button', { name: 'GENERA FINALE' }).click();
-  await page.getByRole('button', { name: /VAI ALLA FINALE/ }).click();
-  await page.getByRole('link', { name: /Gioca l’incontro/ }).click();
-  await page.getByRole('button', { name: 'Inizia incontro' }).click();
-  await expect(page.getByText('TURNO DI Frank')).toBeVisible();
-  await page.getByRole('button', { name: '180', exact: true }).click();
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
-  await expect(page.getByText('TURNO DI Giulia')).toBeVisible();
-  await page.getByRole('button', { name: '120', exact: true }).click();
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
-  await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
-  await page.getByRole('tab', { name: /^Finale/ }).click();
-  await expect(page.getByRole('heading', { name: 'Podio finale' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Risultati' }).click();
+  await expect(page.locator('.place-1')).toContainText('Hugo');
+  await page.goto('/partite/nuova');
+  await addPlayer(page, 'Ivo');
+  await addPlayer(page, 'Lea');
+  await shot(page, '02-nuova-partita');
+  await page.goto('/impostazioni');
+  await expect(page.getByText('Raggiungibile')).toBeVisible();
+  await expect(page.locator('.tag-box')).toHaveText('Disattivate');
   expect(errors).toEqual([]);
 });
 test('group setup and responsive views', async ({ page }) => {
   await login(page);
   await page.goto('/tornei/nuovo');
   await page.getByRole('radio', { name: 'A gironi', exact: true }).click();
-  await addPlayer(page, 'Marco');
-  await addPlayer(page, 'Davide');
-  await addPlayer(page, 'Sara');
-  await addPlayer(page, 'Elena');
-  for (let i = 0; i < 7; i++)
-    await page.getByRole('button', { name: 'Riduci Turni per giocatore' }).click();
+  await page.getByRole('radio', { name: '301 Masters', exact: true }).click();
+  for (const name of ['Marco', 'Davide', 'Sara', 'Elena']) await addEntrant(page, name);
   await shot(page, '04-torneo');
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
-  await page.getByRole('button', { name: 'Conferma e inizia' }).click();
   await page.getByRole('tab', { name: 'Gironi' }).click();
-  await expect(page.getByRole('link', { name: /Gioca l’incontro/ })).toHaveCount(2);
+  await expect(page.locator('a.match-row')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Panoramica' }).click();
   async function playNext() {
-    await page
-      .getByRole('link', { name: /Gioca l’incontro/ })
-      .first()
-      .click();
-    await page.getByRole('button', { name: 'Inizia incontro' }).click();
-    await expect(page.getByRole('button', { name: '180', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: '180', exact: true }).click();
-    const before = await page.locator('.turn-banner').textContent();
-    await page.getByRole('button', { name: 'Conferma turno' }).click();
-    await expect(page.locator('.turn-banner')).not.toHaveText(before!);
-    await page.getByRole('button', { name: '100', exact: true }).click();
-    await page.getByRole('button', { name: 'Conferma turno' }).click();
-    await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
+    await page.getByRole('link', { name: 'Gioca l’incontro' }).click();
+    const first = page.locator('.scoreboard [role="radio"]').first();
+    await first.click();
+    await page.getByRole('button', { name: 'CONFERMA RISULTATO' }).click();
+    await expect(page.getByRole('heading', { name: 'Risultato registrato' })).toBeVisible();
+    await page.getByRole('link', { name: /VAI AL TORNEO|Classifica del torneo/ }).click();
   }
   await playNext();
   await playNext();
   await page.getByRole('button', { name: 'CONFERMA QUALIFICA' }).click();
-  await page.getByRole('button', { name: 'GENERA FINALE' }).click();
+  await page.getByRole('button', { name: 'GENERA TABELLONE' }).click();
+  await page.getByRole('tab', { name: 'Tabellone' }).click();
+  await expect(page.locator('.bracket-match')).toHaveCount(2);
+  await page.getByRole('tab', { name: 'Panoramica' }).click();
   await playNext();
   await playNext();
   await playNext();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
-  await page.getByRole('tab', { name: /^Finale/ }).click();
-  await expect(page.getByRole('heading', { name: 'Podio finale' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Risultato ufficiale' })).toBeVisible();
   for (const width of [360, 430, 1024]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const path of ['/', '/partite/nuova', '/tornei/nuovo', '/giocatori']) {
+    for (const path of ['/', '/partite/nuova', '/tornei/nuovo', '/giocatori', '/serate']) {
       await page.goto(path);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
@@ -137,6 +134,7 @@ test('group setup and responsive views', async ({ page }) => {
   }
 });
 
+// A tournament created before final results existed keeps the turn-by-turn screen.
 test('resolves a tied final with a real playoff', async ({ page, request }) => {
   const headers = { Authorization: `Bearer ${token}` };
   async function post(path: string, data: unknown) {
@@ -152,6 +150,7 @@ test('resolves a tied final with a real playoff', async ({ page, request }) => {
   let t = await post('/tournaments', {
     name: 'Parità finale',
     mode: 'QUICK_HIGH_SCORE',
+    recording: 'turns',
     scoringConfiguration: { turns: 1 },
     tournamentConfiguration: { qualifiers: 2 },
   });
@@ -186,22 +185,22 @@ test('resolves a tied final with a real playoff', async ({ page, request }) => {
   await seedMatch(t.matches.at(-1).id, [100, 100]);
   await login(page);
   await page.goto(`/hiscore/${t.id}?tab=final`);
-  await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
   await expect(page.getByRole('alert')).toContainText('Parità decisiva');
-  await page.getByRole('button', { name: 'Organizza spareggio' }).click();
+  await expect(page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' })).toBeDisabled();
+  await page.getByRole('button', { name: 'ORGANIZZA SPAREGGIO' }).click();
   for (const checkbox of await page.getByRole('checkbox').all()) await checkbox.check();
-  await page.getByRole('button', { name: 'Crea incontro di spareggio' }).click();
-  await page.getByRole('link', { name: /Gioca l’incontro/ }).click();
+  await page.getByRole('button', { name: 'CREA INCONTRO DI SPAREGGIO' }).click();
+  await page.getByRole('link', { name: 'Gioca lo spareggio' }).click();
   await page.getByRole('button', { name: 'Inizia incontro' }).click();
   await expect(page.locator('.turn-banner')).toBeVisible();
   const firstPlayoffTurn = await page.locator('.turn-banner').textContent();
   await page.getByRole('button', { name: '140', exact: true }).click();
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
+  await confirmTurn(page).click();
   await expect(page.locator('.turn-banner')).not.toHaveText(firstPlayoffTurn!);
   await page.getByRole('button', { name: '100', exact: true }).click();
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
+  await confirmTurn(page).click();
   await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
-  await page.getByRole('tab', { name: /^Finale/ }).click();
-  await expect(page.getByRole('heading', { name: 'Podio finale' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Risultati' }).click();
+  await expect(page.getByRole('heading', { name: 'Risultato ufficiale' })).toBeVisible();
 });

@@ -2,10 +2,25 @@ import { z } from 'zod';
 export const id = z.uuid();
 const name = z.string().trim().min(1).max(120);
 export const version = z.number().int().nonnegative();
+export const gameMode = z.enum([
+  '301',
+  '301_DOUBLE_IN_OUT',
+  '501',
+  'HI_SCORE',
+  '301_MASTERS',
+  'EXACTA',
+  'ODD_EVEN',
+  'SHANGHAI',
+]);
+export const tournamentFormat = z.enum(['QUICK_HIGH_SCORE', 'GROUPS', 'SINGLE_MATCH']);
+export const recording = z.enum(['result', 'turns']);
+/** Preset avatars only: no images are stored. */
+export const avatar = z.string().regex(/^[a-z0-9-]{1,32}$/);
 export const scoringConfiguration = z
   .strictObject({
     kind: z.literal('HIGH_SCORE').default('HIGH_SCORE'),
-    turns: z.number().int().min(1).max(100).default(3),
+    // The totem plays Hi-Score over 7 rounds.
+    turns: z.number().int().min(1).max(100).default(7),
     dartsPerTurn: z.number().int().min(1).max(12).default(3),
     maxDartScore: z.number().int().min(1).max(1000).default(60),
     maxTurnScore: z.number().int().min(1).max(12000).optional(),
@@ -24,10 +39,13 @@ export const tournamentConfiguration = z.strictObject({
   finalScoring: scoringConfiguration.nullable().default(null),
   playingOrder: z.enum(['registration', 'seed']).default('registration'),
   groupAssignments: z.array(z.array(id).min(2)).min(1).max(16).nullable().default(null),
+  // A union, not .nullable(): OpenAPI 3.0 enums must list null for the request validator.
+  groupRanking: z.union([z.enum(['POINTS_SCORE', 'POINTS_WINS']), z.null()]).default(null),
 });
 export const createPlayer = z.strictObject({
   displayName: name,
   nickname: name.nullable().optional(),
+  avatar: avatar.nullable().optional(),
 });
 export const updatePlayer = createPlayer
   .partial()
@@ -44,7 +62,9 @@ export const updateEvent = createEvent
 export const createTournament = z.strictObject({
   name,
   eventId: id.nullable().optional(),
-  mode: z.enum(['QUICK_HIGH_SCORE', 'GROUPS']),
+  mode: tournamentFormat,
+  gameMode: gameMode.default('HI_SCORE'),
+  recording: recording.default('result'),
   scoringConfiguration: scoringConfiguration.prefault({}),
   tournamentConfiguration: tournamentConfiguration.prefault({}),
 });
@@ -75,6 +95,23 @@ export const earlyClose = command.extend({
   reason: z.string().trim().min(1).max(1000),
 });
 export const reorderMatches = command.extend({ matchIds: z.array(id).min(1).max(10000) });
+const reason = z.string().trim().min(1).max(1000);
+export const recordResult = matchCommand.extend({
+  scores: z.record(id, z.number().int().nonnegative().max(12000).nullable()).optional(),
+  winnerEntryId: id.nullable().optional(),
+  targetScore: z.number().int().nonnegative().max(1000).nullable().optional(),
+  special: z.enum(['SHANGHAI']).nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+  confirmInvalidation: z.boolean().default(false),
+});
+export const entryCommand = command.extend({ entryId: id });
+export const withdrawEntry = entryCommand.extend({ reason });
+export const cancelMatch = matchCommand.extend({ reason });
+export const decideTie = command.extend({
+  targetId: id,
+  orderedEntryIds: z.array(id).min(2).max(64),
+  reason,
+});
 export const listQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
@@ -90,6 +127,7 @@ export const playerResponse = z.object({
   id,
   displayName: z.string(),
   nickname: z.string().nullable(),
+  avatar: z.string().nullable().default(null),
   status: z.enum(['active', 'inactive']),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -185,6 +223,21 @@ export const matchResponse = z.object({
   scores: z.array(scoreResponse),
   tieTarget: id.nullable(),
   winnerEntryId: id.nullable(),
+  result: z
+    .object({
+      scores: z.record(id, z.number().nullable()),
+      declaredWinnerEntryId: id.nullable(),
+      targetScore: z.number().nullable(),
+      special: z.enum(['SHANGHAI']).nullable(),
+      walkover: z.boolean(),
+      decision: z.object({ order: z.array(id), reason: z.string() }).nullable(),
+      notes: z.string().nullable(),
+      recordedAt: z.string(),
+      updatedAt: z.string(),
+      recordedBy: z.string(),
+    })
+    .nullable()
+    .default(null),
 });
 export const resultResponse = z.object({
   tournamentId: id,
@@ -192,7 +245,7 @@ export const resultResponse = z.object({
   finalPlacement: z.number(),
   points: z.number(),
   statistics: z.object({
-    kind: z.literal('HIGH_SCORE'),
+    kind: z.enum(['HIGH_SCORE', 'RESULT']),
     total: z.number(),
     turns: z.number(),
     bestTurn: z.number(),
@@ -212,12 +265,15 @@ export const configResponse = z.object({
   finalScoring: scoringResponse.nullable(),
   playingOrder: z.string(),
   groupAssignments: z.array(z.array(id)).nullable(),
+  groupRanking: z.enum(['POINTS_SCORE', 'POINTS_WINS']).nullable().default(null),
 });
 export const tournamentResponse = z.object({
   id,
   eventId: id.nullable(),
   name: z.string(),
-  mode: z.string(),
+  mode: tournamentFormat,
+  gameMode: gameMode.default('HI_SCORE'),
+  recording: recording.default('turns'),
   scoringConfiguration: scoringResponse,
   tournamentConfiguration: configResponse,
   status: z.string(),
@@ -258,6 +314,10 @@ export const standingResponse = z.object({
   conceded: z.number(),
   difference: z.number(),
   criteria: z.array(z.number()),
+  recorded: z.boolean(),
+  withdrawn: z.boolean(),
+  bestScore: z.number(),
+  averageScore: z.number(),
 });
 export const standingsResponse = z.array(
   z.object({
@@ -279,6 +339,10 @@ export const turnStateResponse = z.object({
 });
 export const liveMatchResponse = matchResponse.extend({
   tournamentVersion: version,
+  gameMode,
+  recording,
+  /** Players of the match who withdrew from its phase. */
+  excludedEntryIds: z.array(id),
   turnState: turnStateResponse,
   scoreboard: z.array(
     z.object({
@@ -314,23 +378,59 @@ export const notificationResponse = z.object({
   payload: z.record(z.string(), z.unknown()),
   createdAt: z.string(),
 });
+const tally = {
+  matchesPlayed: z.number(),
+  wins: z.number(),
+  draws: z.number(),
+  losses: z.number(),
+  /** Wins / matches played, null before the first match. */
+  winRate: z.number().nullable(),
+};
 export const statisticsResponse = z.object({
   playerId: id,
   tournamentsPlayed: z.number(),
   tournamentsWon: z.number(),
   finalsReached: z.number(),
   bestPlacement: z.number().nullable(),
-  byScoringConfiguration: z.array(
+  ...tally,
+  /** One row per game (Hi-Score also per number of rounds): scores are never mixed. */
+  byGameMode: z.array(
     z.object({
-      configuration: scoringResponse,
-      matchesPlayed: z.number(),
-      wins: z.number(),
-      losses: z.number(),
-      draws: z.number(),
-      total: z.number(),
-      turns: z.number(),
-      averagePerTurn: z.number(),
-      bestTurn: z.number(),
+      gameMode,
+      /** Hi-Score parameters of the totals (legacy data may differ from the totem's 7 × 3). */
+      rounds: z.number().nullable(),
+      dartsPerTurn: z.number().nullable(),
+      tournamentsPlayed: z.number(),
+      tournamentsWon: z.number(),
+      ...tally,
+      /** Hi-Score only: final totals. */
+      scoredMatches: z.number(),
+      bestScore: z.number().nullable(),
+      averageScore: z.number().nullable(),
+    }),
+  ),
+  placements: z.array(
+    z.object({
+      tournamentId: id,
+      name: z.string(),
+      gameMode,
+      format: tournamentFormat,
+      placement: z.number(),
+      players: z.number(),
+      completedAt: z.string().nullable(),
+    }),
+  ),
+  recentMatches: z.array(
+    z.object({
+      matchId: id,
+      tournamentId: id,
+      tournamentName: z.string(),
+      gameMode,
+      matchType: z.string(),
+      completedAt: z.string().nullable(),
+      outcome: z.string(),
+      score: z.number().nullable(),
+      opponents: z.array(z.string()),
     }),
   ),
 });

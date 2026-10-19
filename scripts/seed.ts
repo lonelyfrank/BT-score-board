@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Backend } from '../packages/application/src/index.js';
 import { SqliteStore } from '../packages/database/src/index.js';
-import { currentTurn, matchById, type Tournament } from '../packages/domain/src/index.js';
+import { matchById, type Tournament } from '../packages/domain/src/index.js';
 
 const path = process.env.DATABASE_PATH ?? './data/demo.sqlite';
 const store = new SqliteStore(path);
@@ -23,20 +23,15 @@ function cmd(
     { matchId, idempotencyKey: randomUUID() },
   );
 }
+/** Hi-Score: the final totals read from the totem, one entry per player. */
 function play(t: Tournament, matchId: string, scores: number[]) {
-  t = cmd(t, 'StartMatch', {}, matchId);
-  while (matchById(t, matchId).status === 'active') {
-    const turn = currentTurn(matchById(t, matchId))!;
-    const index = t.entries.findIndex((e) => e.id === turn.participantId);
-    t = cmd(
-      t,
-      'RecordScore',
-      { turnId: turn.id, score: scores[index]! + turn.turnNumber },
-      matchId,
-    );
-    t = cmd(t, 'CompleteTurn', { turnId: turn.id }, matchId);
-  }
-  return t;
+  const totals = Object.fromEntries(
+    matchById(t, matchId).participants.map((p) => [
+      p.tournamentEntryId,
+      scores[t.entries.findIndex((e) => e.id === p.tournamentEntryId)]!,
+    ]),
+  );
+  return cmd(t, 'RecordResult', { scores: totals }, matchId);
 }
 try {
   const summary = store.transaction(() => {
@@ -66,12 +61,12 @@ try {
         nickname: ['Bull', 'Triplo', 'Ace', 'Doc', 'Flash', 'Baffo', 'Dart', 'Rock'][i],
       }),
     );
-    const create = (name: string, mode: Tournament['mode']) => {
+    const create = (name: string, mode: Tournament['mode'], gameMode: Tournament['gameMode']) => {
       let t = backend.createTournament({
         name,
         mode,
+        gameMode,
         eventId: event.id,
-        scoringConfiguration: { turns: 2, dartsPerTurn: 3 },
         tournamentConfiguration: { groupCount: 2, qualifiersPerGroup: 2 },
       });
       players.forEach((p, i) => {
@@ -79,14 +74,24 @@ try {
       });
       return cmd(t, 'StartTournament');
     };
-    let quick = create('Quick High Score — esempio concluso', 'QUICK_HIGH_SCORE');
-    quick = play(quick, quick.matches[0]!.id, [95, 88, 80, 76, 70, 64, 58, 44]);
+    let quick = create('Hi-Score Night — esempio concluso', 'QUICK_HIGH_SCORE', 'HI_SCORE');
+    quick = play(quick, quick.matches[0]!.id, [695, 588, 580, 476, 470, 464, 358, 244]);
     quick = cmd(quick, 'FinalizeQualification');
     quick = cmd(quick, 'GenerateFinal');
-    quick = play(quick, quick.matches.at(-1)!.id, [80, 112, 90, 68, 0, 0, 0, 0]);
+    quick = play(quick, quick.matches.at(-1)!.id, [580, 712, 590, 468, 0, 0, 0, 0]);
     quick = cmd(quick, 'CompleteTournament');
-    let groups = create('Torneo a gironi — in corso', 'GROUPS');
-    groups = play(groups, groups.matches[0]!.id, [110, 100, 90, 80, 70, 60, 50, 40]);
+    let groups = create('Torneo 501 a gironi — in corso', 'GROUPS', '501');
+    const first = groups.matches[0]!;
+    // 501: the totem's winner, with the points left by the loser.
+    groups = cmd(
+      groups,
+      'RecordResult',
+      {
+        winnerEntryId: first.participants[0]!.tournamentEntryId,
+        scores: { [first.participants[1]!.tournamentEntryId]: 64 },
+      },
+      first.id,
+    );
     return {
       database: path,
       eventId: event.id,

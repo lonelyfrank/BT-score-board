@@ -7,6 +7,10 @@ import { Backend } from '../packages/application/src/index.js';
 import { SqliteStore } from '../packages/database/src/index.js';
 import { command, fixture, setup } from './helpers.js';
 import { currentTurn, matchById } from '../packages/domain/src/index.js';
+import Database from 'better-sqlite3';
+import { createHash } from 'node:crypto';
+import { migration1 } from '../packages/database/src/migrations/0001.js';
+import { MemoryStore } from '../packages/local-store/src/index.js';
 const stores: SqliteStore[] = [],
   directories: string[] = [];
 function disk() {
@@ -45,7 +49,7 @@ describe('SQLite reliability', () => {
     expect(store.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(store.sqlite.pragma('journal_mode', { simple: true })).toBe('wal');
     expect(store.sqlite.prepare('SELECT count(*) n FROM schema_migrations').get()).toEqual({
-      n: 1,
+      n: 2,
     });
     expect(backend.tournament(t.id)).toEqual(t);
     expect(
@@ -155,6 +159,45 @@ describe('SQLite reliability', () => {
     const restored = open(backup);
     expect(restored.backend.tournament(t.id)).toEqual(t);
     expect(restored.store.sqlite.pragma('integrity_check', { simple: true })).toBe('ok');
+  });
+  it('upgrades a 0001 database: legacy tournaments read as Hi-Score, single matches allowed', () => {
+    const path = disk();
+    const legacy = new Backend(new MemoryStore()).createTournament({
+      name: 'Old night',
+      mode: 'QUICK_HIGH_SCORE',
+      recording: 'turns',
+    }) as unknown as Record<string, unknown>;
+    delete legacy.gameMode;
+    delete legacy.recording;
+    const db = new Database(path);
+    db.exec(
+      'CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)',
+    );
+    db.exec(migration1);
+    db.prepare('INSERT INTO schema_migrations VALUES (?, ?, ?)').run(
+      1,
+      createHash('sha256').update(migration1).digest('hex'),
+      new Date().toISOString(),
+    );
+    db.prepare(
+      'INSERT INTO tournaments (id, event_id, name, mode, status, version, data) VALUES (?, NULL, ?, ?, ?, 0, ?)',
+    ).run(legacy.id, legacy.name, legacy.mode, legacy.status, JSON.stringify(legacy));
+    db.close();
+    const { store, backend } = open(path);
+    expect(store.sqlite.prepare('SELECT max(version) v FROM schema_migrations').get()).toEqual({
+      v: 2,
+    });
+    expect(backend.tournament(legacy.id as string)).toMatchObject({
+      gameMode: 'HI_SCORE',
+      recording: 'turns',
+    });
+    const single = backend.createTournament({
+      name: 'Free',
+      mode: 'SINGLE_MATCH',
+      gameMode: '501',
+    });
+    expect(backend.tournament(single.id).mode).toBe('SINGLE_MATCH');
+    expect(store.sqlite.pragma('foreign_keys', { simple: true })).toBe(1);
   });
   it('rejects migration checksum drift', () => {
     const path = disk();

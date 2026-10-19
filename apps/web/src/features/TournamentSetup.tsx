@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChartNoAxesColumnIncreasing, ChevronDown, Minus, Plus, Trophy } from 'lucide-react';
 import { distributeGroups } from '../../../../packages/domain/src/tournaments/schedule.js';
 import { api, ApiError, type Player, type Tournament } from '../services/api';
+import { HI_SCORE_ROUNDS, gameModes, games, type GameMode } from '../services/rules';
 import { ErrorMessage, Header, Segmented, Stepper, Switch } from '../components/ui';
 import { TrophyEmblem } from '../components/BrandIcons';
 import { NewPlayerSheet } from '../components/PlayerSheets';
@@ -63,11 +64,10 @@ export function TournamentSetup() {
   const [name, setName] = useState('BiteTrouble Open');
   const [eventId, setEventId] = useState(params.get('serata') ?? '');
   const [format, setFormat] = useState<Format>('GROUPS');
+  const [gameMode, setGameMode] = useState<GameMode>('HI_SCORE');
   const [picked, setPicked] = useState<Player[]>([]);
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
-  const [turns, setTurns] = useState(3);
-  const [darts, setDarts] = useState(3);
   const [groups, setGroups] = useState(2);
   const [perGroup, setPerGroup] = useState(2);
   const [manual, setManual] = useState(false);
@@ -77,9 +77,6 @@ export function TournamentSetup() {
   const [loss, setLoss] = useState(0);
   const [allowDraws, setAllowDraws] = useState(true);
   const [qualifiers, setQualifiers] = useState(4);
-  const [finalTurns, setFinalTurns] = useState(3);
-  const [tiePolicy, setTiePolicy] = useState<'PLAYOFF' | 'BEST_TURN_THEN_PLAYOFF'>('PLAYOFF');
-  const [tieBreakTurns, setTieBreakTurns] = useState(1);
   const [order, setOrder] = useState<'registration' | 'seed'>('registration');
   const [draft, setDraft] = useState<Tournament>();
 
@@ -92,13 +89,17 @@ export function TournamentSetup() {
     ['planned', 'active'].includes(e.status),
   );
   const isGroups = format === 'GROUPS';
+  // The quick format ranks Hi-Score totals: no other game can be compared that way.
+  const game = games[isGroups ? gameMode : 'HI_SCORE'];
   const n = picked.length;
   // Who is in which group: the snake preview, or the organizer's own choice.
   const composition = useMemo(() => {
     const ids = picked.map((p) => p.id);
     if (!manual) return snake(ids, groups);
     const result = Array.from({ length: groups }, () => [] as string[]);
-    picked.forEach((p, i) => result[Math.min(assigned[p.id] ?? i % groups, groups - 1)]!.push(p.id));
+    picked.forEach((p, i) =>
+      result[Math.min(assigned[p.id] ?? i % groups, groups - 1)]!.push(p.id),
+    );
     return result;
   }, [picked, groups, manual, assigned]);
 
@@ -106,14 +107,11 @@ export function TournamentSetup() {
     ? 'Inserisci il nome del torneo.'
     : n < 2
       ? 'Servono almeno 2 partecipanti.'
-      : !isGroups && qualifiers > n
-        ? `I finalisti (${qualifiers}) superano gli iscritti (${n}).`
-        : isGroups &&
-            (!composition || composition.some((g) => g.length < Math.max(2, perGroup)))
-          ? `Ogni girone deve avere almeno 2 giocatori e almeno ${perGroup} iscritti.`
-          : isGroups && groups * perGroup < 2
-            ? 'Servono almeno 2 qualificati alla fase finale.'
-            : '';
+      : isGroups && (!composition || composition.some((g) => g.length < Math.max(2, perGroup)))
+        ? `Ogni girone deve avere almeno 2 giocatori e almeno ${perGroup} iscritti.`
+        : isGroups && groups * perGroup < 2
+          ? 'Servono almeno 2 qualificati alla fase finale.'
+          : '';
 
   const save = useMutation({
     mutationFn: async (start: boolean) => {
@@ -123,7 +121,8 @@ export function TournamentSetup() {
           name: name.trim(),
           eventId: eventId || null,
           mode: format,
-          scoringConfiguration: { kind: 'HIGH_SCORE', turns, dartsPerTurn: darts },
+          gameMode: game.id,
+          scoringConfiguration: { kind: 'HIGH_SCORE', turns: HI_SCORE_ROUNDS },
           tournamentConfiguration: {
             qualifiers: isGroups ? Math.min(64, Math.max(2, groups * perGroup)) : qualifiers,
             groupCount: groups,
@@ -131,14 +130,8 @@ export function TournamentSetup() {
             winPoints: win,
             drawPoints: draw,
             lossPoints: loss,
-            allowDraws,
-            tiePolicy,
-            tieBreakTurns,
+            allowDraws: game.drawPossible && allowDraws,
             playingOrder: order,
-            finalScoring:
-              !isGroups && finalTurns !== turns
-                ? { kind: 'HIGH_SCORE', turns: finalTurns, dartsPerTurn: darts }
-                : null,
           },
         }));
       setDraft(t);
@@ -180,8 +173,8 @@ export function TournamentSetup() {
           <div>
             <h2>{name.trim() || 'Il tuo torneo'}</h2>
             <p>
-              {n} giocatori ·{' '}
-              {isGroups ? `${groups} gironi · eliminazione diretta` : `Hi-Score · Top ${qualifiers}`}
+              {n} giocatori · {game.label} ·{' '}
+              {isGroups ? `${groups} gironi · eliminazione diretta` : `Top ${qualifiers}`}
             </p>
           </div>
         </div>
@@ -224,13 +217,41 @@ export function TournamentSetup() {
                 onClick={() => setFormat('QUICK_HIGH_SCORE')}
               >
                 <ChartNoAxesColumnIncreasing size={17} strokeWidth={3} aria-hidden="true" />
-                Hi-Score
+                Hi-Score rapido
               </button>
             </div>
             <p className="description">
               {isGroups
                 ? 'Tutti contro tutti nei gironi, poi tabellone a eliminazione diretta (semifinali e finale).'
                 : 'Una qualifica unica: i migliori totali giocano una finale unica, ripartendo da zero.'}
+            </p>
+          </section>
+          <section className="form-section">
+            <h2>Gioco sul totem</h2>
+            <div className="mode-grid compact" role="radiogroup" aria-label="Gioco sul totem">
+              {gameModes.map((id) => {
+                const allowed = isGroups || id === 'HI_SCORE';
+                return (
+                  <button
+                    type="button"
+                    key={id}
+                    role="radio"
+                    aria-checked={game.id === id}
+                    className={game.id === id ? 'selected' : ''}
+                    disabled={!allowed}
+                    onClick={() => setGameMode(id)}
+                  >
+                    <span>{games[id].label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="hint">
+              {game.rules}{' '}
+              {game.scoreRequired
+                ? `Si registra il punteggio finale (${HI_SCORE_ROUNDS} round).`
+                : 'Si registra il vincitore indicato dal totem; i punteggi sono facoltativi.'}
+              {!isGroups && ' Il formato rapido confronta i totali: solo Hi-Score.'}
             </p>
           </section>
           <section className="form-section" aria-labelledby="entrants-title">
@@ -269,29 +290,6 @@ export function TournamentSetup() {
             <button type="button" className="dashed" onClick={() => setCreating(true)}>
               <Plus aria-hidden="true" className="accent-icon" /> Nuovo giocatore
             </button>
-          </section>
-          <section className="form-section">
-            <h2>Prova Hi-Score</h2>
-            <div className="options">
-              <Stepper
-                label={isGroups ? 'Turni per incontro' : 'Turni di qualifica'}
-                hint="Per ogni giocatore"
-                value={turns}
-                change={setTurns}
-                max={100}
-              />
-              <Stepper
-                label="Freccette per turno"
-                hint="Massimo 60 a freccetta"
-                value={darts}
-                change={setDarts}
-                max={12}
-              />
-              <div className="settings-row">
-                <span>Massimo per turno</span>
-                <strong className="accent-soft">{darts * 60}</strong>
-              </div>
-            </div>
           </section>
           {isGroups ? (
             <>
@@ -389,18 +387,34 @@ export function TournamentSetup() {
                     <PointStepper label="Pareggio" value={draw} change={setDraw} />
                     <PointStepper label="Sconfitta" value={loss} change={setLoss} />
                   </div>
-                  <div className="switch-row">
-                    <span className="row-label">
-                      <span id="draws-label">Pareggi ammessi</span>
-                      <small>
-                        {allowDraws
-                          ? 'Un pari assegna i punti del pareggio'
-                          : 'Un pari si decide con uno spareggio'}
-                      </small>
-                    </span>
-                    <Switch checked={allowDraws} change={setAllowDraws} labelledBy="draws-label" />
-                  </div>
+                  {game.drawPossible ? (
+                    <div className="switch-row">
+                      <span className="row-label">
+                        <span id="draws-label">Pareggi ammessi</span>
+                        <small>
+                          {allowDraws
+                            ? 'Un pari assegna i punti del pareggio'
+                            : 'Un pari si decide con uno spareggio'}
+                        </small>
+                      </span>
+                      <Switch
+                        checked={allowDraws}
+                        change={setAllowDraws}
+                        labelledBy="draws-label"
+                      />
+                    </div>
+                  ) : (
+                    <p className="hint row-hint">
+                      {game.label}: il totem indica sempre un vincitore, niente pareggi.
+                    </p>
+                  )}
                 </div>
+                <p className="hint">
+                  Classifica:{' '}
+                  {game.id === 'HI_SCORE'
+                    ? 'punti, differenza punteggi, punteggi segnati, scontro diretto (tra 2), poi spareggio.'
+                    : 'punti, vittorie, scontro diretto (tra 2), poi spareggio. I punteggi del totem non contano: giochi diversi non si confrontano.'}
+                </p>
               </section>
             </>
           ) : (
@@ -415,38 +429,22 @@ export function TournamentSetup() {
                   min={2}
                   max={64}
                 />
-                <Stepper
-                  label="Turni della finale"
-                  hint={finalTurns === turns ? 'Come la qualifica' : 'Diversi dalla qualifica'}
-                  value={finalTurns}
-                  change={setFinalTurns}
-                  max={100}
-                />
-                <p className="hint row-hint">Finale unica tra i qualificati, con punteggio azzerato.</p>
+                <p className="hint row-hint">
+                  {n > 0 && n < qualifiers
+                    ? `Con ${n} iscritti (meno di ${qualifiers}) non c’è qualifica: tutti giocano direttamente la finale.`
+                    : 'Finale unica tra i qualificati, con punteggio azzerato: i punti della qualifica non si sommano.'}
+                </p>
               </div>
             </section>
           )}
           <section className="form-section">
             <h2>Parità e ordine</h2>
             <div className="options padded stack">
-              <div className="stack-row">
-                <span>In caso di parità</span>
-                <Segmented
-                  label="Criterio di parità"
-                  value={tiePolicy}
-                  change={setTiePolicy}
-                  options={[
-                    { id: 'PLAYOFF', label: 'Spareggio sul bersaglio' },
-                    { id: 'BEST_TURN_THEN_PLAYOFF', label: 'Miglior turno, poi spareggio' },
-                  ]}
-                />
-              </div>
-              <Stepper
-                label="Turni di spareggio"
-                value={tieBreakTurns}
-                change={setTieBreakTurns}
-                max={20}
-              />
+              <p className="hint">
+                Una parità decisiva (soglia della finale, vincitore, qualificati dei gironi) si
+                risolve con uno spareggio sul totem oppure con una decisione esplicita
+                dell’organizzatore, che resta nello storico. Nessun sorteggio nascosto.
+              </p>
               <div className="stack-row">
                 <span>Ordine di gioco</span>
                 <Segmented

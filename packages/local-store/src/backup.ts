@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import * as s from '../../contracts/src/index.js';
 import { sha256Hex } from '../../application/src/portable.js';
-import { DomainError } from '../../domain/src/index.js';
+import {
+  DomainError,
+  upgradePlayer,
+  upgradeTournament,
+  type Player,
+  type Tournament,
+} from '../../domain/src/index.js';
 import { assertTournamentIntegrity } from './integrity.js';
 import { SCHEMA_VERSION, dataStores, type BackupData } from './indexeddb.js';
 
@@ -41,7 +47,6 @@ const envelope = z.object({
   data: z.unknown(),
 });
 const tournament = s.tournamentResponse.extend({
-  mode: z.enum(['QUICK_HIGH_SCORE', 'GROUPS']),
   status: z.enum(['draft', 'registration', 'ready', 'active', 'paused', 'completed', 'cancelled']),
 });
 const data = z.strictObject({
@@ -106,7 +111,7 @@ export async function readBackup(text: string): Promise<BackupFile> {
   // The digest covers the exact serialization written at export time.
   if ((await digest(JSON.stringify(head.data.data))) !== head.data.integrity.digest)
     throw invalid('BACKUP_INTEGRITY', 'The backup content does not match its checksum');
-  const parsed = data.safeParse(head.data.data);
+  const parsed = data.safeParse(upgradeData(head.data.data, head.data.schemaVersion));
   if (!parsed.success) {
     const issue = parsed.error.issues[0]!;
     throw invalid('BACKUP_INVALID', `Invalid backup data at ${issue.path.join('.')}`);
@@ -117,6 +122,23 @@ export async function readBackup(text: string): Promise<BackupFile> {
     throw invalid('BACKUP_INTEGRITY', 'The backup record counts do not match');
   verifyReferences(content);
   return { ...(head.data as Omit<BackupFile, 'data'>), data: content };
+}
+
+/** Older backups get the same upgrade as the local database (see migrations). */
+function upgradeData(raw: unknown, schemaVersion: number): unknown {
+  if (schemaVersion >= SCHEMA_VERSION) return raw;
+  const d = raw as { players?: unknown; tournaments?: unknown } | null;
+  if (!d || !Array.isArray(d.players) || !Array.isArray(d.tournaments)) return raw;
+  try {
+    return {
+      ...d,
+      players: (d.players as Player[]).map(upgradePlayer),
+      tournaments: (d.tournaments as Tournament[]).map(upgradeTournament),
+    };
+  } catch {
+    // Malformed content: left as is, the schema check below reports it.
+    return raw;
+  }
 }
 
 function verifyReferences(d: BackupData) {

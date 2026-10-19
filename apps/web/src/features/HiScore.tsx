@@ -16,9 +16,11 @@ import {
   type Tone,
 } from '../components/ui';
 import type { Tournament } from '../services/api';
+import { isResultRecording } from '../services/rules';
 import {
   BackupLink,
   BoardCard,
+  DecisionSheet,
   DraftPanel,
   Podium,
   ResultsTable,
@@ -50,6 +52,7 @@ function QualificationRanking({
   cut: number;
   turns: number;
 }) {
+  const results = isResultRecording(t);
   const max = t.scoringConfiguration.maxTurnScore;
   // The cut line goes under the last qualifying place (after a whole tied group).
   const lineAfter = table.rows.reduce((last, r, i) => (r.placement <= cut ? i : last), -1);
@@ -57,11 +60,15 @@ function QualificationRanking({
     <ol className="hs-ranking" aria-label="Classifica di qualifica">
       {table.rows.map((r, i) => {
         const bars = perTurn(r);
-        const top = r.placement <= cut && !r.tied;
+        // Everyone is level at 0 before playing: not a tie worth flagging.
+        const tied = r.tied && (results ? r.recorded : r.turns > 0);
+        const top = r.placement <= cut && !tied;
         return (
           <li key={r.tournamentEntryId}>
-            <div className={`hs-row ${r.tied ? 'tie' : top ? 'top' : ''}`}>
-              <span className={`rank-badge ${r.tied ? 'tie' : `rank-${r.placement}`}`}>
+            <div
+              className={`hs-row ${results ? 'results' : ''} ${tied ? 'tie' : top ? 'top' : ''}`}
+            >
+              <span className={`rank-badge ${tied ? 'tie' : `rank-${r.placement}`}`}>
                 {r.placement}
               </span>
               <Avatar name={entryName(t, r.tournamentEntryId)} />
@@ -71,26 +78,37 @@ function QualificationRanking({
                   {r.placement === 1 && !r.tied && (
                     <CrownIcon role="img" aria-label="Primo" aria-hidden={undefined} />
                   )}
-                  {r.tied && <b className="tie-tag">PARI</b>}
+                  {tied && <b className="tie-tag">PARI</b>}
                 </span>
                 <small>
-                  {r.turns}/{turns} turni · best {r.bestTurn}
-                  {i > 0 && r.gapToLeader > 0 ? ` · −${r.gapToLeader}` : ''}
+                  {results
+                    ? r.recorded
+                      ? 'punteggio registrato'
+                      : 'in attesa del totem'
+                    : `${r.turns}/${turns} turni · best ${r.bestTurn}`}
+                  {i > 0 && r.gapToLeader > 0 && r.recorded ? ` · −${r.gapToLeader}` : ''}
                 </small>
               </span>
-              <span className="bars" aria-label={`Progressione ${bars.join(', ') || 'nessun turno'}`}>
-                {Array.from({ length: Math.min(turns, 6) }, (_, k) => {
-                  const v = bars[k];
-                  return (
-                    <span
-                      key={k}
-                      className={v === undefined ? 'empty' : k === bars.length - 1 ? 'last' : ''}
-                      style={{ height: v === undefined ? 3 : Math.max(3, Math.round((v / max) * 22)) }}
-                    />
-                  );
-                })}
-              </span>
-              <strong>{r.total}</strong>
+              {!results && (
+                <span
+                  className="bars"
+                  aria-label={`Progressione ${bars.join(', ') || 'nessun turno'}`}
+                >
+                  {Array.from({ length: Math.min(turns, 6) }, (_, k) => {
+                    const v = bars[k];
+                    return (
+                      <span
+                        key={k}
+                        className={v === undefined ? 'empty' : k === bars.length - 1 ? 'last' : ''}
+                        style={{
+                          height: v === undefined ? 3 : Math.max(3, Math.round((v / max) * 22)),
+                        }}
+                      />
+                    );
+                  })}
+                </span>
+              )}
+              <strong>{results && !r.recorded ? '—' : r.total}</strong>
             </div>
             {i === lineAfter && i < table.rows.length - 1 && (
               <div className="cut-line" aria-hidden="true">
@@ -112,7 +130,9 @@ function TiebreakCard({ t, match }: { t: Tournament; match: TMatch }) {
     <article className="tiebreak-card">
       <div>
         <h3>
-          Spareggio · {turns} {turns === 1 ? 'turno' : 'turni'}
+          {isResultRecording(t)
+            ? 'Spareggio · nuova partita Hi-Score'
+            : `Spareggio · ${turns} ${turns === 1 ? 'turno' : 'turni'}`}
         </h3>
         <span className="tag">{match.status === 'active' ? 'IN CORSO' : 'PRONTO'}</span>
       </div>
@@ -134,10 +154,18 @@ function TiebreakCard({ t, match }: { t: Tournament; match: TMatch }) {
 export function HiScoreDetail() {
   const { id = '' } = useParams();
   const { query, mutation, tables, command, error, retry } = useTournament(id);
-  const [tab, setTab] = useTab('qualification');
+  const direct =
+    !!query.data &&
+    !query.data.stages.some((s) => s.kind === 'qualification') &&
+    query.data.stages.length > 0;
+  const [tab, setTab] = useTab(direct ? 'final' : 'qualification');
   const [tie, setTie] = useState<{ table: Table; group: Row[]; title: string } | null>(null);
+  const [decision, setDecision] = useState<{ table: Table; group: Row[]; title: string } | null>(
+    null,
+  );
   const [early, setEarly] = useState(false);
   const [earlyReason, setEarlyReason] = useState('');
+  const [leaving, setLeaving] = useState('');
   if (query.isPending) return <Loading />;
   const t = query.data;
   if (!t)
@@ -151,6 +179,7 @@ export function HiScoreDetail() {
     );
   const cut = t.tournamentConfiguration.qualifiers;
   const turns = t.scoringConfiguration.turns;
+  const results = isResultRecording(t);
   const stages = liveStages(t);
   const qual = stages.find((s) => s.kind === 'qualification');
   const finalStage = stages.find((s) => s.kind === 'final');
@@ -176,13 +205,20 @@ export function HiScoreDetail() {
       : undefined;
   const completedTurns = (m: TMatch, entry: string) =>
     m.turns.filter((x) => x.participantId === entry && x.status === 'completed').length;
-  const players = qualMatch?.participants ?? [];
+  // A player is done when the totem's total is recorded (or every turn, legacy entry).
+  const finished = (m: TMatch, entry: string) =>
+    results ? (m.result?.scores[entry] ?? null) !== null : completedTurns(m, entry) >= turns;
+  const excluded = qual?.excludedEntryIds ?? [];
+  const players = (qualMatch?.participants ?? []).filter(
+    (p) => !excluded.includes(p.tournamentEntryId),
+  );
   const done = qualMatch
-    ? players.filter((p) => completedTurns(qualMatch, p.tournamentEntryId) >= turns).length
+    ? players.filter((p) => finished(qualMatch, p.tournamentEntryId)).length
     : 0;
   const incomplete = qualMatch
-    ? players.filter((p) => completedTurns(qualMatch, p.tournamentEntryId) < turns)
+    ? players.filter((p) => !finished(qualMatch, p.tournamentEntryId))
     : [];
+  const stillIn = t.entries.filter((e) => e.status === 'registered' || e.status === 'qualified');
   const canFinalize =
     active &&
     qual?.status === 'open' &&
@@ -200,7 +236,9 @@ export function HiScoreDetail() {
           : qualTiebreak
             ? 'Gioca lo spareggio prima della conferma.'
             : qualMatch?.status !== 'completed'
-              ? `Mancano ${players.length - done} prove: tutti i turni devono essere completati.`
+              ? results
+                ? `Mancano ${players.length - done} punteggi dal totem.`
+                : `Mancano ${players.length - done} prove: tutti i turni devono essere completati.`
               : 'Pronta per la conferma.';
   const needsFinal = qual?.status === 'finalized' && !finalStage;
   const toConfirm = finalMatch?.status === 'completed' && active;
@@ -224,21 +262,22 @@ export function HiScoreDetail() {
     ? [...finalMatch.participants]
         .sort((a, b) => a.playingOrder - b.playingOrder)
         .map((p) => p.tournamentEntryId)
-    : (qualTable?.rows.filter((r) => qual?.qualifiedEntryIds.includes(r.tournamentEntryId)) ?? []).map(
-        (r) => r.tournamentEntryId,
-      );
+    : (
+        qualTable?.rows.filter((r) => qual?.qualifiedEntryIds.includes(r.tournamentEntryId)) ?? []
+      ).map((r) => r.tournamentEntryId);
   const finalScore = (entry: string) =>
     finalTable?.rows.find((r) => r.tournamentEntryId === entry)?.total;
   const leaderFinal = t.status === 'completed' || toConfirm ? finalTable?.rows[0] : undefined;
-  const [finalTag, finalTone] = t.status === 'completed'
-    ? ['CONFERMATA', 'success']
-    : toConfirm
-      ? ['GIOCATA', 'warning']
-      : finalMatch?.status === 'active'
-        ? ['IN CORSO', 'live']
-        : finalMatch
-          ? ['PRONTA', 'live']
-          : ['DA GENERARE', 'live'];
+  const [finalTag, finalTone] =
+    t.status === 'completed'
+      ? ['CONFERMATA', 'success']
+      : toConfirm
+        ? ['GIOCATA', 'warning']
+        : finalMatch?.status === 'active'
+          ? ['IN CORSO', 'live']
+          : finalMatch
+            ? ['PRONTA', 'live']
+            : ['DA GENERARE', 'live'];
   const finalTurns = (t.tournamentConfiguration.finalScoring ?? t.scoringConfiguration).turns;
   const sharedPlaces = new Set(t.results.map((r) => r.finalPlacement)).size < t.results.length;
   return (
@@ -270,8 +309,9 @@ export function HiScoreDetail() {
           <div>
             <h2>{t.name}</h2>
             <p>
-              {t.entries.length} giocatori · {turns} {turns === 1 ? 'turno' : 'turni'} · Top {cut}{' '}
-              in finale
+              {t.entries.length} giocatori ·{' '}
+              {results ? `${turns} round` : `${turns} ${turns === 1 ? 'turno' : 'turni'}`} ·{' '}
+              {direct ? 'finale diretta' : `Top ${cut} in finale`}
             </p>
           </div>
           <StatusChip tone={tone}>{statusText}</StatusChip>
@@ -280,6 +320,23 @@ export function HiScoreDetail() {
         {tab === 'qualification' && (
           <>
             {isDraft(t) && <DraftPanel t={t} busy={mutation.isPending} command={command} />}
+            {isDraft(t) && t.entries.length > 1 && t.entries.length < cut && (
+              <p className="hint">
+                Con meno di {cut} iscritti non c’è qualifica: all’avvio tutti giocano direttamente
+                la finale.
+              </p>
+            )}
+            {direct && (
+              <div className="empty dashed">
+                <p>
+                  Nessuna qualifica: con {t.entries.length} iscritti (meno di {cut}) tutti giocano
+                  direttamente la finale.
+                </p>
+                <button className="primary" onClick={() => setTab('final')}>
+                  VAI ALLA FINALE
+                </button>
+              </div>
+            )}
             {qualMatch && (
               <div className="progress-card">
                 <div>
@@ -289,7 +346,9 @@ export function HiScoreDetail() {
                   </span>
                 </div>
                 <div className="progress" aria-hidden="true">
-                  <span style={{ width: `${players.length ? (done / players.length) * 100 : 0}%` }} />
+                  <span
+                    style={{ width: `${players.length ? (done / players.length) * 100 : 0}%` }}
+                  />
                 </div>
               </div>
             )}
@@ -304,10 +363,21 @@ export function HiScoreDetail() {
                   run: () =>
                     setTie({ table: qualTable, group: qualTie, title: 'Spareggio · Qualifica' }),
                 }}
+                secondary={{
+                  label: 'DECIDE L’ORGANIZZATORE',
+                  disabled: !active || mutation.isPending,
+                  run: () =>
+                    setDecision({
+                      table: qualTable,
+                      group: qualTie,
+                      title: 'Decisione · Qualifica',
+                    }),
+                }}
               >
                 <strong>Parità sulla soglia.</strong> {names(t, qualTie)}{' '}
                 {qualTie.length === 2 ? 'hanno' : 'hanno tutti'} {qualTie[0]!.total} punti per il{' '}
-                {qualTie[0]!.placement}° posto: decide uno spareggio sul bersaglio.
+                {qualTie[0]!.placement}° posto: decide uno spareggio sul bersaglio o
+                l’organizzatore.
               </TieAlert>
             )}
             {qualTiebreak && <TiebreakCard t={t} match={qualTiebreak} />}
@@ -316,7 +386,7 @@ export function HiScoreDetail() {
             ) : (
               !isDraft(t) && <Loading />
             )}
-            {!isDraft(t) && (
+            {!isDraft(t) && !direct && (
               <div className="stage-actions">
                 <button
                   className="primary"
@@ -331,8 +401,11 @@ export function HiScoreDetail() {
                 >
                   {finalizeNote}
                 </p>
-                {qualMatch?.status === 'active' && incomplete.length > 0 && active && (
+                {qualMatch?.status === 'active' && incomplete.length > 0 && active && !results && (
                   <button onClick={() => setEarly(true)}>Chiudi qualifica in anticipo…</button>
+                )}
+                {results && active && stillIn.length > 1 && !isDraft(t) && (
+                  <button onClick={() => setLeaving(stillIn[0]!.id)}>Ritira un giocatore…</button>
                 )}
               </div>
             )}
@@ -353,12 +426,15 @@ export function HiScoreDetail() {
           ) : (
             <article className={`final-card ${finalMatch && playable(finalMatch) ? 'live' : ''}`}>
               <div className="final-head">
-                <h2>Finale unica · Top {cut}</h2>
+                <h2>{direct ? 'Finale diretta' : `Finale unica · Top ${cut}`}</h2>
                 <StatusChip tone={finalTone as Tone}>{finalTag}</StatusChip>
               </div>
               <p>
-                Prova nuova da {finalTurns} {finalTurns === 1 ? 'turno' : 'turni'}: i punti della
-                qualifica non si sommano.
+                {direct
+                  ? 'Unica partita Hi-Score fra tutti gli iscritti.'
+                  : results
+                    ? 'Nuova partita Hi-Score: i punti della qualifica non si sommano.'
+                    : `Prova nuova da ${finalTurns} ${finalTurns === 1 ? 'turno' : 'turni'}: i punti della qualifica non si sommano.`}
               </p>
               <ol className="finalists">
                 {finalists.map((entry, i) => {
@@ -368,7 +444,8 @@ export function HiScoreDetail() {
                       <span>{i + 1}</span>
                       <Avatar name={entryName(t, entry)} />
                       <span>
-                        {entryName(t, entry)} <small>· {seedOf(entry) ?? '—'}° in qualifica</small>
+                        {entryName(t, entry)}{' '}
+                        {!direct && <small>· {seedOf(entry) ?? '—'}° in qualifica</small>}
                       </span>
                       <strong>{finalMatch ? (finalScore(entry) ?? '—') : '—'}</strong>
                     </li>
@@ -383,9 +460,19 @@ export function HiScoreDetail() {
                     run: () =>
                       setTie({ table: finalTable, group: finalTie, title: 'Spareggio · Finale' }),
                   }}
+                  secondary={{
+                    label: 'DECIDE L’ORGANIZZATORE',
+                    disabled: mutation.isPending,
+                    run: () =>
+                      setDecision({
+                        table: finalTable,
+                        group: finalTie,
+                        title: 'Decisione · Finale',
+                      }),
+                  }}
                 >
                   <strong>Parità decisiva.</strong> {names(t, finalTie)} hanno {finalTie[0]!.total}{' '}
-                  punti per il 1° posto: decide uno spareggio sul bersaglio.
+                  punti per il 1° posto: decide uno spareggio sul bersaglio o l’organizzatore.
                 </TieAlert>
               )}
               {finalTiebreak && <TiebreakCard t={t} match={finalTiebreak} />}
@@ -412,6 +499,9 @@ export function HiScoreDetail() {
                   CONFERMA RISULTATO FINALE
                 </button>
               )}
+              {results && active && finalMatch && playable(finalMatch) && stillIn.length > 1 && (
+                <button onClick={() => setLeaving(stillIn[0]!.id)}>Ritira un giocatore…</button>
+              )}
             </article>
           ))}
         {tab === 'results' &&
@@ -421,8 +511,8 @@ export function HiScoreDetail() {
               <ResultsTable t={t} />
               {sharedPlaces && (
                 <p className="hint">
-                  Gli esclusi dalla finale condividono lo stesso piazzamento: il backend non li ordina
-                  tra loro.
+                  Gli esclusi dalla finale condividono lo stesso piazzamento: il backend non li
+                  ordina tra loro.
                 </p>
               )}
               <BackupLink />
@@ -446,6 +536,60 @@ export function HiScoreDetail() {
               setTie(null);
             }}
           />
+        )}
+        {decision && (
+          <DecisionSheet
+            t={t}
+            targetId={decision.table.targetId}
+            entries={decision.group.map((r) => r.tournamentEntryId)}
+            title={decision.title}
+            close={() => setDecision(null)}
+            done={() => {
+              setDecision(null);
+              retry();
+            }}
+          />
+        )}
+        {leaving && (
+          <Modal title="Ritirare un giocatore?" close={() => setLeaving('')}>
+            <p>
+              Il giocatore esce dal torneo: non si qualifica e non viene classificato in questa
+              fase. I punteggi già registrati restano nello storico.
+            </p>
+            <label className="field">
+              Giocatore
+              <span className="select">
+                <select value={leaving} onChange={(e) => setLeaving(e.target.value)}>
+                  {stillIn.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.displayNameAtRegistration}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </label>
+            <label className="field">
+              Motivo (obbligatorio)
+              <input
+                value={earlyReason}
+                placeholder="es. ha lasciato il locale"
+                onChange={(e) => setEarlyReason(e.target.value)}
+              />
+            </label>
+            <ErrorMessage error={mutation.error} />
+            <button
+              className="primary"
+              disabled={!earlyReason.trim() || mutation.isPending}
+              onClick={() => {
+                command('entries/withdraw', { entryId: leaving, reason: earlyReason.trim() });
+                setLeaving('');
+                setEarlyReason('');
+              }}
+            >
+              RITIRA GIOCATORE
+            </button>
+            <button onClick={() => setLeaving('')}>Annulla</button>
+          </Modal>
         )}
         {early && qualMatch && (
           <Modal title="Chiudere la qualifica in anticipo?" close={() => setEarly(false)}>

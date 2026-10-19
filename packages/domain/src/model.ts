@@ -1,10 +1,29 @@
 export type TournamentStatus =
   'draft' | 'registration' | 'ready' | 'active' | 'paused' | 'completed' | 'cancelled';
 export type MatchStatus = 'scheduled' | 'ready' | 'active' | 'paused' | 'completed' | 'cancelled';
+/** The eight games of the Pub Time Darts totem (1987). The totem plays them; the app records. */
+export type GameMode =
+  | '301'
+  | '301_DOUBLE_IN_OUT'
+  | '501'
+  | 'HI_SCORE'
+  | '301_MASTERS'
+  | 'EXACTA'
+  | 'ODD_EVEN'
+  | 'SHANGHAI';
+/** How the tournament is organized, independently of the game played on the totem. */
+export type TournamentFormat = 'QUICK_HIGH_SCORE' | 'GROUPS' | 'SINGLE_MATCH';
+/**
+ * `result`: the organizer records the final result shown by the totem (default).
+ * `turns`: legacy turn-by-turn Hi-Score entry, kept for data created before results existed.
+ */
+export type Recording = 'result' | 'turns';
 export interface Player {
   id: string;
   displayName: string;
   nickname: string | null;
+  /** Preset avatar key chosen by the organizer; null shows the initials. */
+  avatar: string | null;
   status: 'active' | 'inactive';
   createdAt: string;
   updatedAt: string;
@@ -43,6 +62,12 @@ export interface TournamentConfiguration {
   finalScoring: HighScoreConfiguration | null;
   playingOrder: 'registration' | 'seed';
   groupAssignments: string[][] | null;
+  /**
+   * Group ranking chain after points. POINTS_SCORE: difference, scored (Hi-Score only, where
+   * points are comparable). POINTS_WINS: wins. Both end with head-to-head and playoffs.
+   * null picks the default of the game.
+   */
+  groupRanking: 'POINTS_SCORE' | 'POINTS_WINS' | null;
 }
 export interface TournamentEntry {
   id: string;
@@ -50,7 +75,7 @@ export interface TournamentEntry {
   playerId: string;
   displayNameAtRegistration: string;
   seed: number | null;
-  status: 'registered' | 'qualified' | 'eliminated' | 'winner';
+  status: 'registered' | 'qualified' | 'eliminated' | 'winner' | 'withdrawn';
   registeredAt: string;
 }
 export interface Stage {
@@ -101,6 +126,25 @@ export interface ScoreEntry {
   recordedBy: string;
   voided: boolean;
 }
+/** Final result of a match as shown by the totem, entered by the organizer. */
+export interface MatchResult {
+  /** Final score per tournament entry: Hi-Score total, X01 points left, Exacta total… */
+  scores: Record<string, number | null>;
+  /** Winner declared by the organizer; null when the scores decide (or nobody won yet). */
+  declaredWinnerEntryId: string | null;
+  /** Exacta: target drawn by the totem (250–350), when noted. */
+  targetScore: number | null;
+  /** Shanghai: won with single, double and triple of the round number. */
+  special: 'SHANGHAI' | null;
+  /** Awarded because the opponent withdrew. */
+  walkover: boolean;
+  /** Playoff replaced by an explicit organizer decision: tied entries, best first. */
+  decision: { order: string[]; reason: string } | null;
+  notes: string | null;
+  recordedAt: string;
+  updatedAt: string;
+  recordedBy: string;
+}
 export interface Match {
   id: string;
   tournamentId: string;
@@ -119,6 +163,8 @@ export interface Match {
   scores: ScoreEntry[];
   tieTarget: string | null;
   winnerEntryId: string | null;
+  /** Final result (recording `result`); null until the first value is entered. */
+  result: MatchResult | null;
 }
 export interface TournamentResult {
   tournamentId: string;
@@ -126,7 +172,8 @@ export interface TournamentResult {
   finalPlacement: number;
   points: number;
   statistics: {
-    kind: 'HIGH_SCORE';
+    /** HIGH_SCORE: turn statistics (legacy). RESULT: `total` is the last final score. */
+    kind: 'HIGH_SCORE' | 'RESULT';
     total: number;
     turns: number;
     bestTurn: number;
@@ -137,7 +184,11 @@ export interface Tournament {
   id: string;
   eventId: string | null;
   name: string;
-  mode: 'QUICK_HIGH_SCORE' | 'GROUPS';
+  /** The tournament format (field name kept for stored data and the API). */
+  mode: TournamentFormat;
+  gameMode: GameMode;
+  recording: Recording;
+  /** Hi-Score parameters: rounds bound the final score; legacy turn entry uses all of them. */
   scoringConfiguration: HighScoreConfiguration;
   tournamentConfiguration: TournamentConfiguration;
   status: TournamentStatus;

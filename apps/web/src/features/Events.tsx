@@ -80,7 +80,9 @@ function EventCard({ event, tournaments }: { event: PubEvent; tournaments?: Summ
                 <span>{t.name}</span>
                 <small>{t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}</small>
               </span>
-              <StatusChip tone={tournamentTone(t.status)}>{statusLabel(t.status).toUpperCase()}</StatusChip>
+              <StatusChip tone={tournamentTone(t.status)}>
+                {statusLabel(t.status).toUpperCase()}
+              </StatusChip>
               <ChevronRight aria-hidden="true" />
             </Link>
           ))}
@@ -174,9 +176,10 @@ export function Events() {
   const events = useQuery({ queryKey: ['events'], queryFn: () => api.events() });
   const list = (events.data?.items ?? [])
     .filter((e) => (tab === 'up' ? upcoming(e) : !upcoming(e)))
-    .sort((a, b) =>
-      // Upcoming soonest first, past most recent first; undated last.
-      (tab === 'up' ? 1 : -1) * ((a.scheduledAt ?? '~').localeCompare(b.scheduledAt ?? '~')),
+    .sort(
+      (a, b) =>
+        // Upcoming soonest first, past most recent first; undated last.
+        (tab === 'up' ? 1 : -1) * (a.scheduledAt ?? '~').localeCompare(b.scheduledAt ?? '~'),
     );
   const tournaments = useQueries({
     queries: list.map((e) => ({

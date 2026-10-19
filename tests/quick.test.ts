@@ -41,8 +41,12 @@ describe('Quick High Score tournament', () => {
   );
   it('rejects insufficient entrants, duplicate registration and duplicate seeds', () => {
     const { backend } = testSetup();
-    const t = fixture(backend, 3);
+    const t = fixture(backend, 1);
     expect(() => command(backend, t, 'StartTournament')).toThrow('at least');
+    // Fewer players than finalists: no qualification, everyone plays the final directly.
+    const few = command(backend, fixture(backend, 3), 'StartTournament');
+    expect(few.stages.map((s) => s.kind)).toEqual(['final']);
+    expect(few.matches[0]!.participants).toHaveLength(3);
     expect(() =>
       command(backend, t, 'RegisterPlayer', { playerId: t.entries[0]!.playerId }),
     ).toThrow('already');
@@ -153,9 +157,10 @@ describe('Quick High Score tournament', () => {
     t = play(backend, t, t.matches.at(-1)!.id);
     t = command(backend, t, 'CompleteTournament');
     const statistics = backend.statistics(t.entries[0]!.playerId);
-    expect(statistics.byScoringConfiguration).toHaveLength(2);
-    expect(statistics.byScoringConfiguration.map((s) => s.configuration.dartsPerTurn)).toEqual([
-      3, 4,
+    expect(statistics.byGameMode).toHaveLength(2);
+    expect(statistics.byGameMode.map((s) => [s.gameMode, s.rounds, s.dartsPerTurn])).toEqual([
+      ['HI_SCORE', 1, 3],
+      ['HI_SCORE', 2, 4],
     ]);
   });
   it('applies the configured best-turn criterion consistently inside a playoff', () => {

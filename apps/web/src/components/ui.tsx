@@ -93,7 +93,17 @@ export function BottomNavigation() {
     </nav>
   );
 }
-const avatarColors = ['#5B2340', '#23405B', '#5B4A23', '#2F5B23', '#4A235B', '#235B55', '#5B3323'];
+/** Optional player avatars: the same pub palette, chosen instead of derived from the name. */
+export const avatarPresets: Record<string, string> = {
+  rosa: '#5B2340',
+  blu: '#23405B',
+  oro: '#5B4A23',
+  verde: '#2F5B23',
+  viola: '#4A235B',
+  petrolio: '#235B55',
+  ruggine: '#5B3323',
+};
+const avatarColors = Object.values(avatarPresets);
 export function initials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words.map((x) => x[0]).join('') : (words[0] ?? '?'))
@@ -102,10 +112,13 @@ export function initials(name: string) {
 }
 export function Avatar({
   name,
+  avatar,
   active = false,
   className = '',
 }: {
   name: string;
+  /** Preset chosen in the player's profile; otherwise a colour derived from the name. */
+  avatar?: string | null;
   active?: boolean;
   className?: string;
 }) {
@@ -115,7 +128,9 @@ export function Avatar({
     <span
       aria-hidden="true"
       className={`avatar ${active ? 'selected' : ''} ${className}`}
-      style={{ background: avatarColors[hash % avatarColors.length] }}
+      style={{
+        background: (avatar && avatarPresets[avatar]) || avatarColors[hash % avatarColors.length],
+      }}
     >
       {initials(name)}
     </span>

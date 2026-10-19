@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Search } from 'lucide-react';
 import { api, nickname, type Player, type PlayerStatus } from '../services/api';
 import { tournamentPath } from '../services/session';
+import { games, type GameMode } from '../services/rules';
 import {
   AddButton,
   Avatar,
+  avatarPresets,
   Empty,
   ErrorMessage,
   Header,
@@ -18,11 +20,16 @@ import { NewPlayerSheet } from '../components/PlayerSheets';
 
 type Filter = PlayerStatus | 'all';
 const PAGE = 100;
+const percent = (rate: number | null) => (rate === null ? '—' : `${Math.round(rate * 100)}%`);
+const outcomeLabel: Record<string, string> = { win: 'V', draw: 'N', loss: 'P' };
+const shortDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '';
 
 function Profile({ player, close }: { player: Player; close: () => void }) {
   const client = useQueryClient();
   const [name, setName] = useState(player.displayName);
   const [nick, setNick] = useState(player.nickname ?? '');
+  const [avatar, setAvatar] = useState(player.avatar ?? null);
   const stats = useQuery({
     queryKey: ['player-stats', player.id],
     queryFn: () => api.statistics(player.id),
@@ -57,10 +64,12 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
     <Modal
       title={
         <span className="profile-title">
-          <Avatar name={player.displayName} className="ring selected" />
+          <Avatar name={player.displayName} avatar={avatar} className="ring selected" />
           <span>
             {player.displayName}
-            <small>{[nickname(current), active ? 'Attivo' : 'Disattivato'].filter(Boolean).join(' · ')}</small>
+            <small>
+              {[nickname(current), active ? 'Attivo' : 'Disattivato'].filter(Boolean).join(' · ')}
+            </small>
           </span>
         </span>
       }
@@ -72,47 +81,90 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           <div className="stat-tiles">
             <div>
               <small>TORNEI VINTI</small>
-              <strong className="gold">{s.tournamentsWon}</strong>
+              <strong className="gold">
+                {s.tournamentsWon}
+                <small>/{s.tournamentsPlayed}</small>
+              </strong>
             </div>
             <div>
-              <small>FINALI</small>
-              <strong>{s.finalsReached}</strong>
+              <small>PARTITE · VITT.</small>
+              <strong>
+                {s.matchesPlayed} · {percent(s.winRate)}
+              </strong>
             </div>
             <div>
               <small>MIGLIOR POS.</small>
               <strong>{s.bestPlacement ? `${s.bestPlacement}°` : '—'}</strong>
             </div>
           </div>
-          {s.byScoringConfiguration.map((c, i) => (
-            <section className="config-stats" key={i}>
+          {s.byGameMode.map((r) => (
+            <section className="config-stats" key={`${r.gameMode}-${r.rounds}-${r.dartsPerTurn}`}>
               <h3>
-                Hi-Score · {c.configuration.turns} turni · {c.configuration.dartsPerTurn} freccette ·
-                max {c.configuration.maxDartScore}
+                {games[r.gameMode as GameMode].label}
+                {r.rounds !== null && ` · ${r.rounds} round`}
+                {r.dartsPerTurn !== null &&
+                  r.dartsPerTurn !== 3 &&
+                  ` · ${r.dartsPerTurn} freccette`}
+                {` · ${r.tournamentsPlayed} ${r.tournamentsPlayed === 1 ? 'torneo' : 'tornei'}`}
               </h3>
               <div>
                 <span>
-                  <strong>{c.matchesPlayed}</strong>
-                  <small>incontri</small>
+                  <strong>{r.matchesPlayed}</strong>
+                  <small>partite</small>
                 </span>
                 <span>
                   <strong>
-                    {c.wins}/{c.draws}/{c.losses}
+                    {r.wins}/{r.draws}/{r.losses}
                   </strong>
                   <small>V/N/P</small>
                 </span>
-                <span>
-                  <strong>{c.averagePerTurn.toFixed(1)}</strong>
-                  <small>media</small>
-                </span>
-                <span>
-                  <strong>{c.bestTurn}</strong>
-                  <small>best</small>
-                </span>
+                {r.bestScore !== null ? (
+                  <>
+                    <span>
+                      <strong>{r.bestScore}</strong>
+                      <small>record</small>
+                    </span>
+                    <span>
+                      <strong>{r.averageScore!.toFixed(0)}</strong>
+                      <small>media</small>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      <strong>{percent(r.winRate)}</strong>
+                      <small>vittorie</small>
+                    </span>
+                    <span>
+                      <strong>{r.tournamentsWon}</strong>
+                      <small>tornei vinti</small>
+                    </span>
+                  </>
+                )}
               </div>
             </section>
           ))}
-          {s.byScoringConfiguration.length > 0 && (
-            <p className="hint">Statistiche separate per configurazione: spareggi e bye esclusi.</p>
+          {s.byGameMode.length > 0 && (
+            <p className="hint">
+              Statistiche separate per modalità: punteggi di giochi diversi non si confrontano.
+              Spareggi e vittorie a tavolino esclusi.
+            </p>
+          )}
+          {s.recentMatches.length > 0 && (
+            <section className="player-history" aria-labelledby="matches-title">
+              <h3 id="matches-title">Ultime partite</h3>
+              {s.recentMatches.slice(0, 8).map((x) => (
+                <Link key={x.matchId} to={`/partite/${x.matchId}`}>
+                  <span>
+                    {games[x.gameMode as GameMode].label} · vs {x.opponents.join(', ')}{' '}
+                    <small>· {shortDate(x.completedAt)}</small>
+                  </span>
+                  <strong className={x.outcome === 'win' ? 'place-1' : ''}>
+                    {x.score ?? ''} {outcomeLabel[x.outcome] ?? ''}
+                  </strong>
+                </Link>
+              ))}
+            </section>
           )}
         </>
       )}
@@ -125,7 +177,11 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
               <span>
                 {summary.name}{' '}
                 <small>
-                  · {new Date(summary.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                  ·{' '}
+                  {new Date(summary.createdAt).toLocaleDateString('it-IT', {
+                    day: 'numeric',
+                    month: 'short',
+                  })}
                 </small>
               </span>
               <strong className={place ? `place-${Math.min(place, 4)}` : ''}>
@@ -139,7 +195,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
         className="sheet-form"
         onSubmit={(e) => {
           e.preventDefault();
-          update.mutate({ displayName: name.trim(), nickname: nick.trim() || null });
+          update.mutate({ displayName: name.trim(), nickname: nick.trim() || null, avatar });
         }}
       >
         <label className="field">
@@ -150,6 +206,32 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           Soprannome
           <input value={nick} maxLength={120} onChange={(e) => setNick(e.target.value)} />
         </label>
+        <fieldset className="avatar-picker">
+          <legend>Avatar (facoltativo)</legend>
+          <div role="radiogroup" aria-label="Colore avatar">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={avatar === null}
+              aria-label="Automatico"
+              className="avatar-auto"
+              onClick={() => setAvatar(null)}
+            >
+              A
+            </button>
+            {Object.entries(avatarPresets).map(([id, color]) => (
+              <button
+                type="button"
+                role="radio"
+                key={id}
+                aria-checked={avatar === id}
+                aria-label={id}
+                style={{ background: color }}
+                onClick={() => setAvatar(id)}
+              />
+            ))}
+          </div>
+        </fieldset>
         <div className="pair">
           <button
             type="button"
@@ -184,7 +266,10 @@ export function Players() {
   const page = query.data;
   return (
     <>
-      <Header title="Giocatori" action={<AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />} />
+      <Header
+        title="Giocatori"
+        action={<AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />}
+      />
       <main className="content">
         <div className="search-field">
           <Search aria-hidden="true" />
@@ -217,8 +302,11 @@ export function Players() {
         <ul className="player-rows">
           {page?.items.map((p) => (
             <li key={p.id}>
-              <button className={p.status === 'inactive' ? 'inactive' : ''} onClick={() => setOpen(p)}>
-                <Avatar name={p.displayName} />
+              <button
+                className={p.status === 'inactive' ? 'inactive' : ''}
+                onClick={() => setOpen(p)}
+              >
+                <Avatar name={p.displayName} avatar={p.avatar} />
                 <span>
                   <span>{p.displayName}</span>
                   <small>{nickname(p) || 'Nessun soprannome'}</small>

@@ -15,7 +15,13 @@ import {
   turnTotal,
   validateScore,
 } from '../scoring/high-score.js';
-import { groupStandings, highScoreStandings, selectQualifiers } from '../standings/index.js';
+import {
+  groupStandings,
+  matchStandings,
+  participantScore,
+  selectQualifiers,
+} from '../standings/index.js';
+import { games } from '../games/catalog.js';
 import { distributeGroups, roundRobin, seededBracket } from './schedule.js';
 import { transitionMatch, transitionTournament } from '../rules/state-machines.js';
 
@@ -53,7 +59,7 @@ function newStage(t: Tournament, kind: string, c: Context): Stage {
   t.currentPhase = kind;
   return s;
 }
-function newMatch(
+export function newMatch(
   t: Tournament,
   stage: Stage,
   ids: string[],
@@ -93,18 +99,21 @@ function newMatch(
     scores: [],
     tieTarget: options.tieTarget ?? null,
     winnerEntryId: null,
+    result: null,
   };
-  for (let round = 1; round <= config.turns; round++)
-    for (const participant of m.participants)
-      m.turns.push({
-        id: c.id(),
-        matchId: id,
-        participantId: participant.tournamentEntryId,
-        turnNumber: round,
-        status: 'pending',
-        startedAt: null,
-        completedAt: null,
-      });
+  // Final results need no turns: the totem keeps them.
+  if (t.recording === 'turns')
+    for (let round = 1; round <= config.turns; round++)
+      for (const participant of m.participants)
+        m.turns.push({
+          id: c.id(),
+          matchId: id,
+          participantId: participant.tournamentEntryId,
+          turnNumber: round,
+          status: 'pending',
+          startedAt: null,
+          completedAt: null,
+        });
   t.matches.push(m);
   return m;
 }
@@ -136,6 +145,33 @@ export function register(t: Tournament, player: Player, seed: number | null, c: 
     status: 'registered',
     registeredAt: c.now(),
   });
+}
+/** Format, game and recording that can be played together. */
+export function validateDefinition(t: Tournament) {
+  ensure(
+    t.mode !== 'QUICK_HIGH_SCORE' || t.gameMode === 'HI_SCORE',
+    'INVALID_GAME_MODE',
+    'The quick format ranks Hi-Score totals: choose Hi-Score',
+    422,
+  );
+  ensure(
+    t.recording === 'result' || t.gameMode === 'HI_SCORE',
+    'INVALID_GAME_MODE',
+    'Turn-by-turn entry exists only for Hi-Score',
+    422,
+  );
+  ensure(
+    t.mode !== 'SINGLE_MATCH' || t.recording === 'result',
+    'INVALID_GAME_MODE',
+    'A single match records its final result',
+    422,
+  );
+  ensure(
+    t.tournamentConfiguration.groupRanking !== 'POINTS_SCORE' || t.gameMode === 'HI_SCORE',
+    'INVALID_RANKING',
+    'Score difference ranks only Hi-Score groups: other games rank by points and wins',
+    422,
+  );
 }
 function orderedEntries(t: Tournament) {
   if (t.tournamentConfiguration.playingOrder === 'seed') {
@@ -172,24 +208,37 @@ function groupsFor(t: Tournament, ids: string[]) {
 }
 export function readyTournament(t: Tournament) {
   transitionTournament(t.status, 'ready');
+  validateDefinition(t);
   const ids = orderedEntries(t);
   if (t.mode === 'QUICK_HIGH_SCORE')
+    // With fewer players than finalists the qualification is skipped (see startTournament).
+    ensure(ids.length >= 2, 'INSUFFICIENT_PLAYERS', 'Register at least two players', 422);
+  else if (t.mode === 'SINGLE_MATCH') {
+    const { min, max } = games[t.gameMode].players;
     ensure(
-      ids.length >= t.tournamentConfiguration.qualifiers,
-      'INSUFFICIENT_PLAYERS',
-      'Register at least the configured number of qualifiers',
+      ids.length >= min && ids.length <= max,
+      'INVALID_PLAYER_COUNT',
+      `${games[t.gameMode].label} is played by ${min === max ? min : `${min} to ${max}`} players`,
       422,
     );
-  else groupsFor(t, ids);
+  } else groupsFor(t, ids);
   t.status = 'ready';
 }
+/** Quick format: fewer players than finalists means everyone plays the final directly. */
+export const directFinal = (t: Tournament) =>
+  t.mode === 'QUICK_HIGH_SCORE' && t.entries.length < t.tournamentConfiguration.qualifiers;
 export function startTournament(t: Tournament, c: Context) {
   if (t.status === 'registration') readyTournament(t);
   transitionTournament(t.status, 'active');
   t.status = 'active';
   t.startedAt = c.now();
   const ids = orderedEntries(t);
-  if (t.mode === 'QUICK_HIGH_SCORE') {
+  if (t.mode === 'SINGLE_MATCH' || directFinal(t)) {
+    const s = newStage(t, 'final', c);
+    newMatch(t, s, ids, 'final', c, {
+      config: t.tournamentConfiguration.finalScoring ?? t.scoringConfiguration,
+    });
+  } else if (t.mode === 'QUICK_HIGH_SCORE') {
     const s = newStage(t, 'qualification', c);
     newMatch(t, s, ids, 'qualification', c);
   } else {
@@ -309,12 +358,13 @@ export function recordScore(
   m.version++;
   return score;
 }
-function updateOutcome(t: Tournament, m: Match) {
-  const rows = highScoreStandings(t, m);
+/** Winner, placements and final scores of a completed match, playoffs included. */
+export function updateOutcome(t: Tournament, m: Match) {
+  const rows = matchStandings(t, m);
   m.winnerEntryId = rows[0] && !rows[0].tied ? rows[0].tournamentEntryId : null;
   for (const p of m.participants) {
     const row = rows.find((r) => r.tournamentEntryId === p.tournamentEntryId);
-    p.finalScore = row?.total ?? playerPerformance(m, p.tournamentEntryId).total;
+    p.finalScore = participantScore(t, m, p.tournamentEntryId);
     p.placement = row?.placement ?? null;
     p.outcome = row?.placement === 1 ? (row.tied ? 'draw' : 'win') : 'loss';
   }
@@ -441,7 +491,8 @@ export function correctScore(t: Tournament, scoreId: string, value: number | nul
   m.version++;
   return score;
 }
-export function createTieBreak(t: Tournament, targetId: string, entryIds: string[], c: Context) {
+/** The exact unresolved tied group of a match or group; returns where its playoff belongs. */
+export function assertTieGroup(t: Tournament, targetId: string, entryIds: string[]) {
   activeTournament(t);
   ensure(
     new Set(entryIds).size === entryIds.length,
@@ -478,7 +529,7 @@ export function createTieBreak(t: Tournament, targetId: string, entryIds: string
     'PLAYOFF_PENDING',
     'Complete the pending playoff first',
   );
-  const rows = targetMatch ? highScoreStandings(t, targetMatch) : groupStandings(t, group!.id);
+  const rows = targetMatch ? matchStandings(t, targetMatch) : groupStandings(t, group!.id);
   const first = rows.find((r) => r.tournamentEntryId === entryIds[0]);
   const tied = rows.filter((r) => r.placement === first?.placement);
   ensure(
@@ -488,6 +539,10 @@ export function createTieBreak(t: Tournament, targetId: string, entryIds: string
     'INVALID_TIE_GROUP',
     'Playoff must include exactly one unresolved tied group',
   );
+  return { stage, targetMatch, group };
+}
+export function createTieBreak(t: Tournament, targetId: string, entryIds: string[], c: Context) {
+  const { stage, targetMatch, group } = assertTieGroup(t, targetId, entryIds);
   return newMatch(t, stage, entryIds, 'tiebreak', c, {
     config: {
       ...(targetMatch?.scoringConfiguration ?? t.scoringConfiguration),
@@ -514,7 +569,7 @@ export function finalizeQualification(t: Tournament, c: Context) {
   let ids: string[];
   if (s.kind === 'qualification') {
     const m = matches.find((m) => m.matchType === 'qualification')!;
-    ids = selectQualifiers(highScoreStandings(t, m), t.tournamentConfiguration.qualifiers);
+    ids = selectQualifiers(matchStandings(t, m), t.tournamentConfiguration.qualifiers);
   } else {
     ensure(
       t.tournamentConfiguration.allowDraws ||
@@ -528,8 +583,9 @@ export function finalizeQualification(t: Tournament, c: Context) {
     const qualified = groups.map((g) => {
       const rows = groupStandings(t, g.id);
       const ids = selectQualifiers(rows, t.tournamentConfiguration.qualifiersPerGroup);
+      const places = rows.filter((r) => ids.includes(r.tournamentEntryId)).map((r) => r.placement);
       ensure(
-        rows.slice(0, ids.length).every((r) => !r.tied),
+        new Set(places).size === places.length,
         'TIE_REQUIRES_PLAYOFF',
         'Resolve tied qualifying positions for explicit knockout seeding',
       );
@@ -543,7 +599,8 @@ export function finalizeQualification(t: Tournament, c: Context) {
   s.qualifiedEntryIds = ids;
   s.status = 'finalized';
   s.finalizedAt = c.now();
-  for (const e of t.entries) e.status = ids.includes(e.id) ? 'qualified' : 'eliminated';
+  for (const e of t.entries)
+    if (e.status !== 'withdrawn') e.status = ids.includes(e.id) ? 'qualified' : 'eliminated';
 }
 export function generateFinal(t: Tournament, c: Context) {
   activeTournament(t);
@@ -609,8 +666,10 @@ export function advanceKnockout(t: Tournament, c: Context) {
   s.qualifiedEntryIds = matches.map((m) => m.winnerEntryId!);
   for (const m of matches)
     for (const p of m.participants)
-      if (p.tournamentEntryId !== m.winnerEntryId)
-        t.entries.find((e) => e.id === p.tournamentEntryId)!.status = 'eliminated';
+      if (p.tournamentEntryId !== m.winnerEntryId) {
+        const e = t.entries.find((e) => e.id === p.tournamentEntryId)!;
+        if (e.status !== 'withdrawn') e.status = 'eliminated';
+      }
   const winners = s.qualifiedEntryIds;
   generateKnockoutStage(
     t,
@@ -631,7 +690,7 @@ export function completeTournament(t: Tournament, c: Context) {
     'INCOMPLETE_FINAL',
     'Complete final and all playoffs',
   );
-  const rows = highScoreStandings(t, final);
+  const rows = matchStandings(t, final);
   ensure(
     rows[0] && !rows[0].tied,
     'TIE_REQUIRES_PLAYOFF',
@@ -642,13 +701,16 @@ export function completeTournament(t: Tournament, c: Context) {
   s.finalizedAt = c.now();
   s.qualifiedEntryIds = [final.winnerEntryId];
   const placements = new Map(rows.map((r) => [r.tournamentEntryId, r.placement]));
+  // Finalists who withdrew rank after those who finished the final.
+  for (const p of final.participants)
+    if (!placements.has(p.tournamentEntryId)) placements.set(p.tournamentEntryId, rows.length + 1);
   const validStages = t.stages.filter((s) => s.status !== 'invalidated').reverse();
   for (const stage of validStages) {
     if (stage.kind === 'qualification') {
       const match = t.matches.find(
         (m) => m.stageId === stage.id && m.matchType === 'qualification',
       )!;
-      for (const r of highScoreStandings(t, match))
+      for (const r of matchStandings(t, match))
         if (!placements.has(r.tournamentEntryId))
           placements.set(
             r.tournamentEntryId,
@@ -681,17 +743,20 @@ export function completeTournament(t: Tournament, c: Context) {
               m.participants.some((p) => p.tournamentEntryId === e.id) &&
               stageById(t, m.stageId).status !== 'invalidated',
           );
-    const stats = last
-      ? playerPerformance(last, e.id)
-      : { total: 0, turns: 0, bestTurn: 0, average: 0 };
-    e.status = e.id === final.winnerEntryId ? 'winner' : 'eliminated';
+    const legacy = t.recording === 'turns' && !last?.result;
+    const stats = !last
+      ? { total: 0, turns: 0, bestTurn: 0, average: 0 }
+      : legacy
+        ? playerPerformance(last, e.id)
+        : { total: participantScore(t, last, e.id) ?? 0, turns: 0, bestTurn: 0, average: 0 };
+    if (e.status !== 'withdrawn') e.status = e.id === final.winnerEntryId ? 'winner' : 'eliminated';
     return {
       tournamentId: t.id,
       tournamentEntryId: e.id,
       finalPlacement: placements.get(e.id) ?? t.entries.length,
       points: stats.total,
       statistics: {
-        kind: 'HIGH_SCORE' as const,
+        kind: legacy ? ('HIGH_SCORE' as const) : ('RESULT' as const),
         total: stats.total,
         turns: stats.turns,
         bestTurn: stats.bestTurn,
@@ -749,13 +814,16 @@ export function reopenStage(t: Tournament, stageId: string, c: Context) {
     .filter((x) => x.ordering < s.ordering && x.status === 'finalized')
     .at(-1);
   for (const e of t.entries)
-    e.status = s.excludedEntryIds.includes(e.id)
-      ? 'eliminated'
-      : !previous
-        ? 'registered'
-        : previous.qualifiedEntryIds.includes(e.id)
-          ? 'qualified'
-          : 'eliminated';
+    e.status =
+      e.status === 'withdrawn'
+        ? 'withdrawn'
+        : s.excludedEntryIds.includes(e.id)
+          ? 'eliminated'
+          : !previous
+            ? 'registered'
+            : previous.qualifiedEntryIds.includes(e.id)
+              ? 'qualified'
+              : 'eliminated';
 }
 export function closeQualificationEarly(t: Tournament, excluded: string[], c: Context) {
   activeTournament(t);

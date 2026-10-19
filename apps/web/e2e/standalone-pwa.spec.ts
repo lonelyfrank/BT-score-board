@@ -5,28 +5,30 @@ const banner = (page: Page) => page.locator('.turn-banner');
 async function controlled(page: Page) {
   await page.waitForFunction(() => navigator.serviceWorker?.controller !== null);
 }
-/** A two-player Hi-Score with one turn each, left with the first turn saved. */
+/** A two-player Hi-Score match, left with the first player's total saved. */
 async function matchInProgress(page: Page, names: [string, string]) {
   await page.goto('/partite/nuova');
-  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click();
+  await page.getByRole('button', { name: 'Aggiungi giocatore' }).click();
+  const field = page.getByLabel('Cerca tra i giocatori del locale');
   for (const name of names) {
-    await page.getByLabel('Nuovo giocatore').fill(name);
-    await page.getByLabel('Nuovo giocatore').press('Enter');
-    await expect(page.getByLabel('Nuovo giocatore')).toHaveValue('');
+    await field.fill(name);
+    await field.press('Enter');
+    await expect(field).toHaveValue('');
   }
   await page.getByRole('button', { name: 'Chiudi', exact: true }).click();
-  for (let i = 0; i < 2; i++)
-    await page.getByRole('button', { name: 'Riduci Turni per giocatore' }).click();
   await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
-  await page.getByRole('button', { name: 'Conferma e inizia' }).click();
-  await score(page, 120);
-  await expect(banner(page)).toHaveText(`TURNO DI ${names[1]}`);
+  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
+  await score(page, names[0], 620);
+  await expect(banner(page)).toHaveText(`PUNTEGGIO DI ${names[1]}`);
   return page.url();
 }
-async function score(page: Page, value: number) {
+async function score(page: Page, player: string, value: number) {
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type(String(value));
-  await page.getByRole('button', { name: 'Conferma turno' }).click();
+  await page.getByRole('button', { name: `Conferma il punteggio di ${player}` }).click();
+  await expect(page.locator('.score-card').filter({ hasText: player })).toContainText(
+    String(value),
+  );
 }
 
 test('starts, navigates and saves scores offline after the first visit', async ({
@@ -48,14 +50,14 @@ test('starts, navigates and saves scores offline after the first visit', async (
   await expect(page.getByRole('heading', { name: 'Impostazioni' })).toBeVisible();
   // Deep link to the live match, served by the service worker's SPA fallback.
   await page.goto(matchUrl);
-  await expect(banner(page)).toHaveText('TURNO DI Vera');
-  await score(page, 80);
-  await expect(page.getByRole('heading', { name: 'Incontro terminato' })).toBeVisible();
+  await expect(banner(page)).toHaveText('PUNTEGGIO DI Vera');
+  await score(page, 'Vera', 580);
+  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Incontro terminato' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+  await expect(page.locator('.final-rows li.first')).toContainText('Ugo');
   // In-app navigation and further deep links, still offline.
-  await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
-  await expect(page.locator('.ranking-row').first()).toContainText('Ugo');
+  await page.getByRole('link', { name: 'Indietro' }).click();
   await page.getByRole('link', { name: 'Giocatori' }).click();
   await expect(page.getByRole('button', { name: /Vera/ })).toBeVisible();
   await page.goto('/tornei');
@@ -90,18 +92,19 @@ test('a new version waits for a safe moment and keeps the data', async ({ page }
         page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting),
       )
       .toBe(true);
-    // Live scoring is never interrupted nor covered by the notice.
+    // Result entry is never interrupted nor covered by the notice.
     await page.waitForTimeout(500);
     await expect(page.getByText('Nuova versione disponibile')).toHaveCount(0);
-    await score(page, 60);
-    await expect(page.getByRole('heading', { name: 'Incontro terminato' })).toBeVisible();
-    await page.getByRole('link', { name: 'VAI ALLA CLASSIFICA' }).click();
+    await score(page, 'Alba', 600);
+    await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+    await page.goto('/tornei');
     const notice = page.getByRole('status').filter({ hasText: 'Nuova versione disponibile' });
     await expect(notice).toBeVisible();
     const reloaded = page.waitForEvent('load');
     await notice.getByRole('button', { name: 'Aggiorna' }).click();
     await reloaded;
-    await expect(page.locator('.ranking-row').first()).toContainText('Zeno');
+    await expect(page.getByRole('link', { name: /Partita libera/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Partita libera/ })).toContainText('CONCLUSO');
     await expect(page.getByText('Nuova versione disponibile')).toHaveCount(0);
     expect(
       await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting),

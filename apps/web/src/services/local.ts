@@ -30,6 +30,7 @@ import {
   type MatchAction,
   type PlayerPatch,
   type PlayerStatus,
+  type ResultInput,
   type ScoreChange,
   type Tournament,
   type TournamentAction,
@@ -101,8 +102,8 @@ export class LocalGameAdapter implements GameAdapter {
       store.listPlayers({ ...all, offset, search, ...(status ? { status } : {}) }),
     );
   }
-  createPlayer(displayName: string, nickname: string | null = null) {
-    return this.write((b) => b.createPlayer({ displayName, nickname }));
+  createPlayer(displayName: string, nickname: string | null = null, avatar: string | null = null) {
+    return this.write((b) => b.createPlayer({ displayName, nickname, avatar }));
   }
   updatePlayer(id: string, patch: PlayerPatch) {
     return this.write((b) => b.updatePlayer(id, patch));
@@ -158,6 +159,17 @@ export class LocalGameAdapter implements GameAdapter {
         m.tournamentId,
         { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version, ...extra },
         { matchId: m.id, idempotencyKey: uuid() },
+      );
+      return b.liveMatch(m.id);
+    });
+  }
+  recordResult(m: Match, input: ResultInput, key: string) {
+    return this.write((b) => {
+      b.execute(
+        'RecordResult',
+        m.tournamentId,
+        { expectedVersion: m.tournamentVersion, expectedMatchVersion: m.version, ...input },
+        { matchId: m.id, idempotencyKey: key },
       );
       return b.liveMatch(m.id);
     });

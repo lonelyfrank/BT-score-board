@@ -3,5 +3,8 @@ export * from './rules/state-machines.js';
 export * from './scoring/high-score.js';
 export * from './matches/turn-manager.js';
 export * from './tournaments/schedule.js';
+export * from './games/catalog.js';
+export * from './upgrade.js';
 export * from './standings/index.js';
 export * from './tournaments/engine.js';
+export * from './tournaments/results.js';

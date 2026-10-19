@@ -1,6 +1,6 @@
 # BT Darts Score Board
 
-Webapp mobile-first per gestire partite e tornei di freccette al Bite Trouble: giocatori, Quick High Score, gironi round-robin ed eliminazione diretta, punteggi manuali, spareggi, classifiche e storico. Nessun collegamento elettronico al bersaglio.
+Webapp mobile-first, companion del totem **Pub Time Darts (1987)** del Bite Trouble: giocatori, partite singole, Hi-Score Nights (qualifica + finale dei migliori 4), gironi round-robin ed eliminazione diretta, spareggi o decisioni dell'organizzatore, classifiche, statistiche e storico. Il totem gioca e calcola; l'app registra solo i **risultati finali** degli otto giochi della macchina (301, 301 Double In/Out, 501, Hi-Score, 301 Masters, Exacta, Odd & Even, Shanghai). Nessun collegamento con il totem.
 
 L'app funziona in due modalità che condividono schermate, dominio e servizi applicativi:
 
@@ -15,7 +15,7 @@ Si apre l'indirizzo pubblicato dal telefono e si installa l'app («Aggiungi a sc
 
 I dati restano **solo su quel dispositivo**. Esportare un backup da **Impostazioni → Backup** prima e dopo ogni serata, e conservarlo fuori dal telefono. Cancellare i dati del sito, disinstallare il browser o perdere il telefono elimina l'archivio. Il browser può negare l'archiviazione persistente: l'app lo segnala, ma non può garantirla. Lo stesso backup si importa su un nuovo dispositivo.
 
-Dettagli: [architettura standalone](docs/standalone/ARCHITECTURE.md), [checklist smartphone](docs/standalone/MOBILE_CHECKLIST.md), [audit iniziale](docs/standalone/AUDIT.md).
+Dettagli: [architettura standalone](docs/standalone/ARCHITECTURE.md), [checklist smartphone](docs/standalone/MOBILE_CHECKLIST.md), [audit iniziale](docs/standalone/AUDIT.md), [report local-first e giochi del totem](docs/local-first/REPORT.md).
 
 ## Sviluppo locale
 
@@ -84,13 +84,13 @@ Documenti: [architettura](docs/architecture.md), [modello di dominio](docs/domai
 ## Test
 
 ```sh
-pnpm test                                        # 101 test Vitest
+pnpm test                                        # 122 test Vitest
 pnpm --filter @bt/web exec playwright install chromium
-pnpm test:e2e                                    # 9 flussi: 3 shared + 6 standalone/PWA
+pnpm test:e2e                                    # 11 flussi: 3 shared + 8 standalone/PWA
 ```
 
 Playwright costruisce entrambe le versioni da sé. Fastify gira sulla porta 3107 con SQLite in memoria; la build statica è servita sulla 3108. Per usare un Chromium già installato, impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
 ## Limiti intenzionali
 
-HIGH_SCORE è completo; X01 è un contratto di estensione. In standalone non esistono sincronizzazione, account o condivisione fra dispositivi: un solo telefono è la fonte dei dati. Il backend shared resta pensato per piccoli tornei locali; HTTPS e proxy sono esterni al processo API. Un bersaglio alla volta è imposto all'interno di ciascun torneo.
+Gli otto giochi si registrano come risultato finale; l'app non conta dardi né turni (i tornei a turni creati prima restano leggibili e giocabili fino alla fine). Odd & Even è limitato a 2 giocatori in attesa di conferma sul totem. In standalone non esistono sincronizzazione, account o condivisione fra dispositivi: un solo telefono è la fonte dei dati. Il backend shared resta pensato per piccoli tornei locali; HTTPS e proxy sono esterni al processo API. Un bersaglio alla volta è imposto all'interno di ciascun torneo.

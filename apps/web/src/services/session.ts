@@ -4,8 +4,13 @@ export interface ActiveSession {
   tournament: Tournament;
   /** The match on the board, or the next one to play in the open stage. */
   match: Match | null;
+  /** Legacy turn entry: who is throwing. */
   current: { player: string; turn: number; turns: number } | null;
   lastScore: { player: string; score: number } | null;
+  /** Players of the next match and how many results it still waits for. */
+  next: { players: string[]; missing: number } | null;
+  /** Players still in the tournament. */
+  playersIn: number;
 }
 
 const entryName = (t: Tournament, id: string) =>
@@ -26,9 +31,21 @@ export async function activeSession(api: GameAdapter): Promise<ActiveSession | n
   const match = target ? await api.match(target.id) : null;
   const turn = match?.turnState.currentTurn;
   const last = match?.scores.filter((s) => !s.voided).at(-1);
+  const excluded = new Set(match?.excludedEntryIds ?? []);
+  const playing = match?.participants.filter((p) => !excluded.has(p.tournamentEntryId)) ?? [];
   return {
     tournament,
     match,
+    next: match
+      ? {
+          players: playing.map((p) => entryName(tournament, p.tournamentEntryId)),
+          missing: playing.filter(
+            (p) => (match.result?.scores[p.tournamentEntryId] ?? null) === null,
+          ).length,
+        }
+      : null,
+    playersIn: tournament.entries.filter((e) => !['eliminated', 'withdrawn'].includes(e.status))
+      .length,
     current:
       match?.status === 'active' && turn
         ? {

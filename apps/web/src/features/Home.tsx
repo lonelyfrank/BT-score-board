@@ -11,6 +11,7 @@ import {
 import { CheersIcon, CrossedDarts, CrowdIcon } from '../components/BrandIcons';
 import { api, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
+import { gameOf } from '../services/rules';
 
 export function Home() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
@@ -27,11 +28,15 @@ export function Home() {
     to: s.match ? `/partite/${s.match.id}` : tournamentPath(s.tournament),
     detail: [
       s.tournament.name,
+      gameOf(s.tournament).label,
+      `${s.playersIn} in gara`,
       s.current
         ? `${s.current.player} al tiro · turno ${s.current.turn} di ${s.current.turns}`
-        : s.match
-          ? 'prossimo incontro pronto'
-          : 'conferma la fase per proseguire',
+        : s.next && s.next.players.length <= 4
+          ? `prossimo: ${s.next.players.join(' vs ')}`
+          : s.next
+            ? `${s.next.missing} punteggi da registrare`
+            : 'conferma la fase per proseguire',
     ].join(' · '),
   };
   return (
@@ -69,7 +74,7 @@ export function Home() {
             <CrossedDarts />
             <span>
               <strong>NUOVA PARTITA</strong>
-              <small>Hi-Score · 2–4 giocatori</small>
+              <small>8 giochi del totem · 2–4 giocatori</small>
             </span>
             <ChevronRight />
           </Link>
@@ -85,7 +90,7 @@ export function Home() {
             <CrowdIcon />
             <span>
               <strong>HI-SCORE NIGHTS</strong>
-              <small>Qualifica + finale unica</small>
+              <small>Qualifica + finale dei migliori 4</small>
             </span>
             <ChevronRight />
           </Link>

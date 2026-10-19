@@ -6,9 +6,12 @@ import { dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import * as schema from '../schema/index.js';
 import { migration1 } from '../migrations/0001.js';
+import { migration2 } from '../migrations/0002.js';
 import {
   DomainError,
   ensure,
+  upgradePlayer,
+  upgradeTournament,
   type ApplicationEvent,
   type Operation,
   type Player,
@@ -16,6 +19,10 @@ import {
   type Tournament,
 } from '../../../domain/src/index.js';
 import type { ListOptions, Store } from '../../../application/src/ports.js';
+
+/** Applied in order; version N is migrations[N - 1]. Applied ones must keep their checksum. */
+const migrations = [migration1, migration2];
+const checksum = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
 export class SqliteStore implements Store {
   readonly sqlite: Database.Database;
@@ -39,26 +46,39 @@ export class SqliteStore implements Store {
     this.sqlite.exec(
       'CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)',
     );
-    this.sqlite
-      .transaction(() => {
-        const hash = createHash('sha256').update(migration1).digest('hex');
-        const rows = this.sqlite
-          .prepare('SELECT version, checksum FROM schema_migrations ORDER BY version')
-          .all() as { version: number; checksum: string }[];
-        ensure(
-          rows.every((r) => r.version === 1 && r.checksum === hash),
-          'MIGRATION_MISMATCH',
-          'Database migration version/checksum differs from this build',
-          500,
-        );
-        if (!rows.length) {
-          this.sqlite.exec(migration1);
-          this.sqlite
-            .prepare('INSERT INTO schema_migrations VALUES (?, ?, ?)')
-            .run(1, hash, new Date().toISOString());
-        }
-      })
-      .immediate();
+    // Rebuilding a referenced table requires foreign keys off, outside the transaction; the
+    // check below verifies every reference before the migration commits.
+    this.sqlite.pragma('foreign_keys = OFF');
+    try {
+      this.sqlite
+        .transaction(() => {
+          const rows = this.sqlite
+            .prepare('SELECT version, checksum FROM schema_migrations ORDER BY version')
+            .all() as { version: number; checksum: string }[];
+          ensure(
+            rows.length <= migrations.length &&
+              rows.every((r, i) => r.version === i + 1 && r.checksum === checksum(migrations[i]!)),
+            'MIGRATION_MISMATCH',
+            'Database migration version/checksum differs from this build',
+            500,
+          );
+          for (let i = rows.length; i < migrations.length; i++) {
+            this.sqlite.exec(migrations[i]!);
+            this.sqlite
+              .prepare('INSERT INTO schema_migrations VALUES (?, ?, ?)')
+              .run(i + 1, checksum(migrations[i]!), new Date().toISOString());
+          }
+          ensure(
+            !(this.sqlite.pragma('foreign_key_check') as unknown[]).length,
+            'MIGRATION_FAILED',
+            'A migration left broken references',
+            500,
+          );
+        })
+        .immediate();
+    } finally {
+      this.sqlite.pragma('foreign_keys = ON');
+    }
   }
   transaction<T>(work: () => T): T {
     return this.sqlite.transaction(work).immediate();
@@ -67,7 +87,8 @@ export class SqliteStore implements Store {
     this.sqlite.close();
   }
   getPlayer(id: string) {
-    return this.db.select().from(schema.players).where(eq(schema.players.id, id)).get()?.data;
+    const data = this.db.select().from(schema.players).where(eq(schema.players.id, id)).get()?.data;
+    return data && upgradePlayer(data);
   }
   savePlayer(p: Player) {
     const values = {
@@ -102,7 +123,7 @@ export class SqliteStore implements Store {
         .limit(o.limit)
         .offset(o.offset)
         .all()
-        .map((r) => r.data),
+        .map((r) => upgradePlayer(r.data)),
       total: this.db.select({ n: count() }).from(schema.players).where(where).get()!.n,
       limit: o.limit,
       offset: o.offset,
@@ -140,8 +161,12 @@ export class SqliteStore implements Store {
     };
   }
   getTournament(id: string) {
-    return this.db.select().from(schema.tournaments).where(eq(schema.tournaments.id, id)).get()
-      ?.data;
+    const data = this.db
+      .select()
+      .from(schema.tournaments)
+      .where(eq(schema.tournaments.id, id))
+      .get()?.data;
+    return data && upgradeTournament(data);
   }
   listTournaments(o: ListOptions) {
     const where = and(
@@ -158,7 +183,7 @@ export class SqliteStore implements Store {
         .limit(o.limit)
         .offset(o.offset)
         .all()
-        .map((r) => r.data),
+        .map((r) => upgradeTournament(r.data)),
       total: this.db.select({ n: count() }).from(schema.tournaments).where(where).get()!.n,
       limit: o.limit,
       offset: o.offset,
@@ -172,7 +197,7 @@ export class SqliteStore implements Store {
       .where(eq(schema.entries.playerId, playerId))
       .orderBy(...newestTournamentsFirst)
       .all()
-      .map((r) => r.data);
+      .map((r) => upgradeTournament(r.data));
   }
   tournamentForMatch(id: string) {
     const row = this.db

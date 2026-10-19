@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Trophy, ChevronRight, AlertTriangle, Plus } from 'lucide-react';
+import { Trophy, ChevronRight, ChevronUp, AlertTriangle, Plus, X } from 'lucide-react';
 import { CrownIcon, TrophyEmblem } from '../components/BrandIcons';
 import {
   api,
@@ -13,6 +13,7 @@ import {
   type TournamentAction,
 } from '../services/api';
 import { tournamentPath } from '../services/session';
+import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
   Avatar,
   Empty,
@@ -20,6 +21,7 @@ import {
   Header,
   Loading,
   Modal,
+  Segmented,
   StatusChip,
   statusLabel,
   tournamentTone,
@@ -30,13 +32,21 @@ export type Table = Standings[number];
 export type Row = Table['rows'][number];
 export type TMatch = Tournament['matches'][number];
 
+type Archive = 'all' | 'open' | 'done';
+const isOpen = (status: string) => !['completed', 'cancelled'].includes(status);
+
 export function TournamentList({ highscore = false }: { highscore?: boolean }) {
   const [offset, setOffset] = useState(0);
+  const [archive, setArchive] = useState<Archive>('all');
   const query = useQuery({
     queryKey: ['tournaments', offset],
     queryFn: () => api.tournaments(offset),
   });
-  const items = query.data?.items.filter((t) => !highscore || t.mode === 'QUICK_HIGH_SCORE');
+  const items = query.data?.items.filter(
+    (t) =>
+      (!highscore || t.mode === 'QUICK_HIGH_SCORE') &&
+      (archive === 'all' || (archive === 'open') === isOpen(t.status)),
+  );
   return (
     <>
       <Header title={highscore ? 'Hi-Score Nights' : 'Tornei'} />
@@ -44,6 +54,16 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
         <Link className="primary button cta" to="/tornei/nuovo">
           <Trophy className="cta-icon" fill="currentColor" /> NUOVO TORNEO
         </Link>
+        <Segmented
+          label="Archivio"
+          value={archive}
+          change={setArchive}
+          options={[
+            { id: 'all', label: 'Tutti' },
+            { id: 'open', label: 'In corso' },
+            { id: 'done', label: 'Archivio' },
+          ]}
+        />
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
         <div className="tournament-list">
@@ -58,7 +78,7 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
                     day: 'numeric',
                     month: 'short',
                   })}{' '}
-                  · {t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}
+                  · {gameOf(t).label} · {formatLabel(t.mode)}
                 </p>
               </div>
               <StatusChip tone={tournamentTone(t.status)}>
@@ -96,6 +116,11 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
 
 export const entryName = (t: Tournament, id: string) =>
   t.entries.find((e) => e.id === id)?.displayNameAtRegistration ?? '?';
+/** The domain stores "Group 1", "Group 2"…: shown as Girone A, Girone B. */
+export const groupLabel = (name: string | null | undefined) => {
+  const n = /^Group (\d+)$/.exec(name ?? '');
+  return n ? `Girone ${String.fromCharCode(64 + Number(n[1]))}` : (name ?? '');
+};
 export const isDraft = (t: Tournament) => ['draft', 'registration', 'ready'].includes(t.status);
 export const liveStages = (t: Tournament) => t.stages.filter((s) => s.status !== 'invalidated');
 export const playable = (m: TMatch) => !['completed', 'cancelled'].includes(m.status);
@@ -179,7 +204,7 @@ export function Podium({ t }: { t: Tournament }) {
                 {r.finalPlacement === 1 && <CrownIcon className="podium-crown" />}
                 <Avatar name={entryName(t, r.tournamentEntryId)} />
                 <span>{entryName(t, r.tournamentEntryId)}</span>
-                <small>{r.points} pt</small>
+                {t.gameMode === 'HI_SCORE' && <small>{r.points} pt</small>}
                 <span className="podium-step" aria-label={`${r.finalPlacement}° posto`}>
                   {r.finalPlacement}
                 </span>
@@ -194,6 +219,41 @@ export function Podium({ t }: { t: Tournament }) {
 /** Official placements with the statistics of each player's last match. */
 export function ResultsTable({ t }: { t: Tournament }) {
   const placed = [...t.results].sort((a, b) => a.finalPlacement - b.finalPlacement);
+  if (isResultRecording(t))
+    return (
+      <div className="table-scroll">
+        <table>
+          <caption>
+            Piazzamenti finali{t.gameMode === 'HI_SCORE' ? ' · punteggio dell’ultima partita' : ''}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Pos</th>
+              <th scope="col">Giocatore</th>
+              {t.gameMode === 'HI_SCORE' && (
+                <th scope="col" className="num">
+                  Punti
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {placed.map((r) => (
+              <tr key={r.tournamentEntryId} className={`rank-${r.finalPlacement}`}>
+                <td className="pos">{r.finalPlacement}</td>
+                <td>
+                  {entryName(t, r.tournamentEntryId)}
+                  {t.entries.find((e) => e.id === r.tournamentEntryId)?.status === 'withdrawn' && (
+                    <small className="tie-tag">RITIRATO</small>
+                  )}
+                </td>
+                {t.gameMode === 'HI_SCORE' && <td className="num strong">{r.points}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   return (
     <div className="table-scroll">
       <table>
@@ -251,11 +311,17 @@ export function DraftPanel({
   const [picker, setPicker] = useState(false);
   const client = useQueryClient();
   const register = useMutation({
-    mutationFn: async (player: Player) =>
-      api.tournamentCommand(await api.tournament(t.id), 'players', {
-        playerId: player.id,
-        seed: t.entries.length + 1,
-      }),
+    mutationFn: async (player: Player) => {
+      const fresh = await api.tournament(t.id);
+      // The next free seed: removals leave gaps that must not be reused twice.
+      const seed = Math.max(0, ...fresh.entries.map((e) => e.seed ?? 0)) + 1;
+      return api.tournamentCommand(fresh, 'players', { playerId: player.id, seed });
+    },
+    onSuccess: (fresh) => client.setQueryData(['tournament', t.id], fresh),
+  });
+  const remove = useMutation({
+    mutationFn: async (entryId: string) =>
+      api.tournamentCommand(await api.tournament(t.id), 'entries/remove', { entryId }),
     onSuccess: (fresh) => client.setQueryData(['tournament', t.id], fresh),
   });
   return (
@@ -266,6 +332,15 @@ export function DraftPanel({
           <li key={e.id}>
             <span className="seed">{e.seed ?? i + 1}</span>
             {e.displayNameAtRegistration}
+            <button
+              type="button"
+              className="mini"
+              aria-label={`Togli ${e.displayNameAtRegistration} dagli iscritti`}
+              disabled={remove.isPending || busy}
+              onClick={() => remove.mutate(e.id)}
+            >
+              <X size={16} className="accent-soft" />
+            </button>
           </li>
         ))}
       </ol>
@@ -273,7 +348,7 @@ export function DraftPanel({
       <button className="dashed" disabled={register.isPending} onClick={() => setPicker(true)}>
         <Plus aria-hidden="true" className="accent-icon" /> Iscrivi giocatore
       </button>
-      <ErrorMessage error={register.error} />
+      <ErrorMessage error={register.error ?? remove.error} />
       <button
         className="primary cta"
         disabled={busy || register.isPending || t.entries.length < 2}
@@ -297,9 +372,12 @@ export function DraftPanel({
 export function TieAlert({
   children,
   action,
+  secondary,
 }: {
   children: ReactNode;
   action?: { label: string; run: () => void; disabled?: boolean };
+  /** The alternative to a playoff: an explicit organizer decision. */
+  secondary?: { label: string; run: () => void; disabled?: boolean };
 }) {
   return (
     <div className="tie-alert" role="alert">
@@ -312,7 +390,93 @@ export function TieAlert({
           {action.label}
         </button>
       )}
+      {secondary && (
+        <button className="tie-secondary" disabled={secondary.disabled} onClick={secondary.run}>
+          {secondary.label}
+        </button>
+      )}
     </div>
+  );
+}
+
+/**
+ * Settles a tie without playing: the organizer puts the tied players in order and states why.
+ * Recorded as a decided playoff; nothing is drawn at random.
+ */
+export function DecisionSheet({
+  t,
+  targetId,
+  entries,
+  title,
+  close,
+  done,
+}: {
+  t: Tournament;
+  targetId: string;
+  entries: string[];
+  title: string;
+  close: () => void;
+  done: (fresh: Tournament) => void;
+}) {
+  const [order, setOrder] = useState(entries);
+  const [reason, setReason] = useState('');
+  const decide = useMutation({
+    mutationFn: async () =>
+      api.tournamentCommand(await api.tournament(t.id), 'tiebreaks/decide', {
+        targetId,
+        orderedEntryIds: order,
+        reason: reason.trim(),
+      }),
+    onSuccess: done,
+  });
+  const move = (i: number) => {
+    const next = [...order];
+    [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
+    setOrder(next);
+  };
+  return (
+    <Modal title={title} close={close} tone="warning">
+      <p>
+        Metti in ordine i giocatori a pari merito, dal migliore. La decisione resta nello storico.
+      </p>
+      <ol className="order-list">
+        {order.map((id, i) => (
+          <li key={id}>
+            <span className={`order ${i === 0 ? 'first' : ''}`}>{i + 1}</span>
+            <span className="order-name">
+              <span>{entryName(t, id)}</span>
+            </span>
+            <button
+              type="button"
+              className="mini"
+              aria-label={`Anticipa ${entryName(t, id)}`}
+              disabled={i === 0 || decide.isPending}
+              onClick={() => move(i)}
+            >
+              <ChevronUp size={18} />
+            </button>
+          </li>
+        ))}
+      </ol>
+      <label className="field">
+        Motivo (obbligatorio)
+        <input
+          value={reason}
+          maxLength={1000}
+          placeholder="es. spareggio rinunciato, chiusura del locale"
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </label>
+      <ErrorMessage error={decide.error} />
+      <button
+        className="primary"
+        disabled={!reason.trim() || decide.isPending}
+        onClick={() => decide.mutate()}
+      >
+        CONFERMA DECISIONE
+      </button>
+      <button onClick={close}>Annulla</button>
+    </Modal>
   );
 }
 export const names = (t: Tournament, rows: { tournamentEntryId: string }[]) => {

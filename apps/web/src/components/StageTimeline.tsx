@@ -67,7 +67,9 @@ export function groupSteps(t: Tournament): Step[] {
     const pairs = plannedPairs(t);
     for (let size = pairs.length * 2; size >= 2; size /= 2)
       steps.push({
-        title: knockoutTitle(size === 2 ? 'final' : size === 4 ? 'semifinal' : `elimination_${size}`),
+        title: knockoutTitle(
+          size === 2 ? 'final' : size === 4 ? 'semifinal' : `elimination_${size}`,
+        ),
         sub:
           size === pairs.length * 2
             ? pairs.map((p) => p.map((x) => x ?? 'bye').join(' – ')).join(' · ')

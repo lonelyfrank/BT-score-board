@@ -3,7 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUp, ArrowUpDown } from 'lucide-react';
 import { CrownIcon, TrophyEmblem } from '../components/BrandIcons';
-import { StageTimeline, groupSteps, knockoutTitle, plannedPairs } from '../components/StageTimeline';
+import {
+  StageTimeline,
+  groupSteps,
+  knockoutTitle,
+  plannedPairs,
+} from '../components/StageTimeline';
 import {
   Empty,
   ErrorMessage,
@@ -18,9 +23,11 @@ import {
   useTab,
 } from '../components/ui';
 import { api, type Tournament } from '../services/api';
+import { gameOf, isResultRecording } from '../services/rules';
 import {
   BackupLink,
   BoardCard,
+  DecisionSheet,
   DraftPanel,
   Podium,
   ResultsTable,
@@ -28,6 +35,7 @@ import {
   TieSheet,
   blockingTies,
   entryName,
+  groupLabel,
   isDraft,
   liveStages,
   names,
@@ -40,15 +48,7 @@ import {
 
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
 
-function MatchRow({
-  t,
-  m,
-  reorder,
-}: {
-  t: Tournament;
-  m: TMatch;
-  reorder?: (() => void) | null;
-}) {
+function MatchRow({ t, m, reorder }: { t: Tournament; m: TMatch; reorder?: (() => void) | null }) {
   const [a, b] = m.participants;
   const live = m.status === 'active' || m.status === 'paused';
   const done = m.status === 'completed';
@@ -65,18 +65,33 @@ function MatchRow({
     !p
       ? 'bye'
       : `${done && m.winnerEntryId === p.tournamentEntryId ? 'win' : ''} ${done && m.winnerEntryId && m.winnerEntryId !== p.tournamentEntryId ? 'lose' : ''}`;
+  const results = isResultRecording(t);
   const score = (p?: TMatch['participants'][number]) =>
     p
       ? (p.finalScore ??
-        m.scores
-          .filter((s) => !s.voided && s.tournamentEntryId === p.tournamentEntryId)
-          .reduce((n, s) => n + s.score, 0))
+        (results
+          ? null
+          : m.scores
+              .filter((s) => !s.voided && s.tournamentEntryId === p.tournamentEntryId)
+              .reduce((n, s) => n + s.score, 0)))
       : 0;
+  // Winner-only games may have no scores: the winner's side is highlighted instead.
+  const middle = m.result?.walkover
+    ? 'a tav.'
+    : score(a) === null && score(b) === null
+      ? done
+        ? m.winnerEntryId === a?.tournamentEntryId
+          ? '1–0'
+          : m.winnerEntryId
+            ? '0–1'
+            : '='
+        : 'vs'
+      : `${score(a) ?? '—'}–${score(b) ?? '—'}`;
   const content = (
     <>
       <span className="seq">#{m.sequence}</span>
       <span className={side(a)}>{a ? entryName(t, a.tournamentEntryId) : '—'}</span>
-      <span className="score">{done || live ? `${score(a)}–${score(b)}` : 'vs'}</span>
+      <span className="score">{done || live ? middle : 'vs'}</span>
       <span className={`right ${side(b)}`}>{b ? entryName(t, b.tournamentEntryId) : 'bye'}</span>
       <span className={`tag ${live ? 'live' : done && !m.winnerEntryId ? 'tie' : ''}`}>{tag}</span>
     </>
@@ -86,7 +101,11 @@ function MatchRow({
       <div className="match-row">
         {content}
         {reorder && (
-          <button className="mini" aria-label={`Anticipa incontro #${m.sequence}`} onClick={reorder}>
+          <button
+            className="mini"
+            aria-label={`Anticipa incontro #${m.sequence}`}
+            onClick={reorder}
+          >
             <ArrowUp size={16} />
           </button>
         )}
@@ -99,18 +118,33 @@ function MatchRow({
   );
 }
 
-function GroupTable({ t, table, cut, qualified }: { t: Tournament; table: Table; cut: number; qualified: string[] }) {
+function GroupTable({
+  t,
+  table,
+  cut,
+  qualified,
+}: {
+  t: Tournament;
+  table: Table;
+  cut: number;
+  qualified: string[];
+}) {
   const c = t.tournamentConfiguration;
+  // Score difference only where scores are comparable points (Hi-Score).
+  const byScore =
+    (c.groupRanking ?? (t.gameMode === 'HI_SCORE' ? 'POINTS_SCORE' : 'POINTS_WINS')) ===
+    'POINTS_SCORE';
+  const columns = byScore ? ['G', 'V', 'N', 'P', 'Diff', 'Pti'] : ['G', 'V', 'N', 'P', 'Pti'];
   return (
     <div className="panel table-panel">
       <div className="table-scroll">
         <table>
-          <caption>Classifica {table.groupName}</caption>
+          <caption>Classifica {groupLabel(table.groupName)}</caption>
           <thead>
             <tr>
               <th scope="col">#</th>
               <th scope="col">Giocatore</th>
-              {['G', 'V', 'N', 'P', 'Diff', 'Pti'].map((h) => (
+              {columns.map((h) => (
                 <th scope="col" className="num" key={h}>
                   {h}
                 </th>
@@ -123,14 +157,15 @@ function GroupTable({ t, table, cut, qualified }: { t: Tournament; table: Table;
                 <td className="pos">{r.placement}</td>
                 <td>
                   {entryName(t, r.tournamentEntryId)}
-                  {r.tied && <small className="tie-tag">PARI</small>}
+                  {r.tied && r.played > 0 && <small className="tie-tag">PARI</small>}
+                  {r.withdrawn && <small className="tie-tag">RITIRATO</small>}
                   {qualified.includes(r.tournamentEntryId) && <small className="q-tag">Q</small>}
                 </td>
                 <td className="num muted">{r.played}</td>
                 <td className="num muted">{r.wins}</td>
                 <td className="num muted">{r.draws}</td>
                 <td className="num muted">{r.losses}</td>
-                <td className="num muted">{signed(r.difference)}</td>
+                {byScore && <td className="num muted">{signed(r.difference)}</td>}
                 <td className="num strong">{r.points}</td>
               </tr>
             ))}
@@ -138,8 +173,11 @@ function GroupTable({ t, table, cut, qualified }: { t: Tournament; table: Table;
         </table>
       </div>
       <p className="hint">
-        Ordine: punti, differenza, punti segnati, scontro diretto (solo tra 2), poi spareggio. V{' '}
-        {c.winPoints} · N {c.drawPoints} · P {c.lossPoints}.
+        Ordine:{' '}
+        {byScore
+          ? 'punti, differenza, punti segnati, scontro diretto (solo tra 2), poi spareggio o decisione.'
+          : 'punti, vittorie, scontro diretto (solo tra 2), poi spareggio o decisione.'}{' '}
+        V {c.winPoints} · N {c.drawPoints} · P {c.lossPoints}.
       </p>
     </div>
   );
@@ -153,6 +191,9 @@ export function GroupsDetail() {
   const [reordering, setReordering] = useState(false);
   const [cancel, setCancel] = useState(false);
   const [tie, setTie] = useState<{ table: Table; group: Row[] } | null>(null);
+  const [decision, setDecision] = useState<{ table: Table; group: Row[] } | null>(null);
+  const [leaving, setLeaving] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
   const t = query.data;
   const event = useQuery({
     queryKey: ['events'],
@@ -191,7 +232,10 @@ export function GroupsDetail() {
     groupStage?.status === 'open' && groupsDone && !openTiebreak
       ? tables
           .filter((r) => r.stageKind === 'group')
-          .map((table) => ({ table, group: blockingTies(table.rows, c.qualifiersPerGroup, true)[0] }))
+          .map((table) => ({
+            table,
+            group: blockingTies(table.rows, c.qualifiersPerGroup, true)[0],
+          }))
           .find((x) => x.group)
       : undefined;
   // A knockout match tied on points has no winner until its playoff.
@@ -214,10 +258,13 @@ export function GroupsDetail() {
   const finalStage = knockout.find((s) => s.kind === 'final');
   const finalMatch = stageMatches(finalStage?.id).find((m) => m.matchType === 'final');
   const canFinalize = active && groupsDone && !groupTie && !openTiebreak;
-  const knockoutOpen = current && current.kind !== 'group' && current.kind !== 'final' && current.status === 'open';
+  const knockoutOpen =
+    current && current.kind !== 'group' && current.kind !== 'final' && current.status === 'open';
   const knockoutDone =
     knockoutOpen &&
-    stageMatches(current.id).every((m) => m.status === 'completed' && (m.winnerEntryId || m.matchType === 'tiebreak'));
+    stageMatches(current.id).every(
+      (m) => m.status === 'completed' && (m.winnerEntryId || m.matchType === 'tiebreak'),
+    );
   const note = paused
     ? 'Torneo in pausa: nessun punteggio può essere registrato.'
     : t.status === 'completed'
@@ -233,14 +280,18 @@ export function GroupsDetail() {
             : !knockout.length
               ? `Qualificati: ${names(
                   t,
-                  (groupStage?.qualifiedEntryIds ?? []).map((tournamentEntryId) => ({ tournamentEntryId })),
+                  (groupStage?.qualifiedEntryIds ?? []).map((tournamentEntryId) => ({
+                    tournamentEntryId,
+                  })),
                 )}.`
               : finalMatch?.status === 'completed'
                 ? 'Finale giocata: conferma il risultato.'
                 : `${knockoutTitle(current!.kind)} in corso.`;
   const eventName = event.data?.items.find((e) => e.id === t.eventId)?.name;
   const ready = t.matches
-    .filter((m) => m.status === 'ready' && stages.some((s) => s.id === m.stageId && s.status === 'open'))
+    .filter(
+      (m) => m.status === 'ready' && stages.some((s) => s.id === m.stageId && s.status === 'open'),
+    )
     .sort((a, b) => a.sequence - b.sequence);
   const moveUp = (m: TMatch) => {
     const ids = ready.map((x) => x.id);
@@ -250,7 +301,9 @@ export function GroupsDetail() {
   };
   const selectedTable = tables.find((r) => r.targetId === selected?.id);
   const selectedMatches = t.matches
-    .filter((m) => m.groupId === selected?.id && m.matchType !== 'tiebreak' && m.status !== 'cancelled')
+    .filter(
+      (m) => m.groupId === selected?.id && m.matchType !== 'tiebreak' && m.status !== 'cancelled',
+    )
     .sort((a, b) => a.sequence - b.sequence);
   const rounds = [...new Set(selectedMatches.map((m) => m.scheduleRound))].sort((a, b) => a - b);
   const seeds = groupStage?.qualifiedEntryIds ?? [];
@@ -285,12 +338,19 @@ export function GroupsDetail() {
           <div>
             <h2>{t.name}</h2>
             <p>
-              {[`${t.entries.length} giocatori`, `${c.groupCount} gironi`, eventName]
+              {[
+                gameOf(t).label,
+                `${t.entries.length} giocatori`,
+                `${c.groupCount} gironi`,
+                eventName,
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
           </div>
-          <StatusChip tone={tournamentTone(t.status)}>{statusLabel(t.status).toUpperCase()}</StatusChip>
+          <StatusChip tone={tournamentTone(t.status)}>
+            {statusLabel(t.status).toUpperCase()}
+          </StatusChip>
         </div>
         <ErrorMessage error={error} retry={retry} />
         {tab === 'overview' && (
@@ -310,10 +370,19 @@ export function GroupsDetail() {
                   disabled: !active || mutation.isPending,
                   run: () => setTie({ table: tieToShow.table!, group: tieToShow.group! }),
                 }}
+                secondary={{
+                  label: 'DECIDE L’ORGANIZZATORE',
+                  disabled: !active || mutation.isPending,
+                  run: () => setDecision({ table: tieToShow.table!, group: tieToShow.group! }),
+                }}
               >
-                <strong>Parità{tieToShow.table.groupName ? ` nel ${tieToShow.table.groupName}` : ''}.</strong>{' '}
-                {names(t, tieToShow.group)} sono pari al {tieToShow.group[0]!.placement}° posto: decide uno
-                spareggio sul bersaglio.
+                <strong>
+                  Parità
+                  {tieToShow.table.groupName ? ` nel ${groupLabel(tieToShow.table.groupName)}` : ''}
+                  .
+                </strong>{' '}
+                {names(t, tieToShow.group)} sono pari al {tieToShow.group[0]!.placement}° posto:
+                decide uno spareggio sul bersaglio o l’organizzatore.
               </TieAlert>
             )}
             {onBoard && !ended && (
@@ -322,7 +391,7 @@ export function GroupsDetail() {
                 match={onBoard}
                 title={
                   onBoard.groupId
-                    ? `${groups.find((g) => g.id === onBoard.groupId)?.name} · round ${onBoard.scheduleRound}`
+                    ? `${groupLabel(groups.find((g) => g.id === onBoard.groupId)?.name)} · round ${onBoard.scheduleRound}`
                     : statusLabel(onBoard.matchType)
                 }
               />
@@ -393,6 +462,19 @@ export function GroupsDetail() {
                 </button>
               </div>
             )}
+            {active && isResultRecording(t) && (
+              <button
+                className="small"
+                onClick={() =>
+                  setLeaving(
+                    t.entries.find((e) => e.status === 'registered' || e.status === 'qualified')
+                      ?.id ?? '',
+                  )
+                }
+              >
+                Ritira un giocatore…
+              </button>
+            )}
           </>
         )}
         {tab === 'groups' &&
@@ -407,7 +489,7 @@ export function GroupsDetail() {
                     aria-checked={g.id === selected?.id}
                     onClick={() => setGroup(i)}
                   >
-                    {g.name}
+                    {groupLabel(g.name)}
                   </button>
                 ))}
               </div>
@@ -454,7 +536,12 @@ export function GroupsDetail() {
                 </section>
               ))}
               {t.matches
-                .filter((m) => m.matchType === 'tiebreak' && m.tieTarget === selected?.id && m.status !== 'cancelled')
+                .filter(
+                  (m) =>
+                    m.matchType === 'tiebreak' &&
+                    m.tieTarget === selected?.id &&
+                    m.status !== 'cancelled',
+                )
                 .map((m) => (
                   <section key={m.id} className="round">
                     <h3>SPAREGGIO</h3>
@@ -476,7 +563,9 @@ export function GroupsDetail() {
             </p>
             <div
               className="bracket"
-              style={{ gridTemplateColumns: `repeat(${Math.max(knockout.length, 2)}, minmax(150px, 1fr))` }}
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(knockout.length, 2)}, minmax(150px, 1fr))`,
+              }}
             >
               {knockout.length
                 ? knockout.map((s) => (
@@ -499,10 +588,15 @@ export function GroupsDetail() {
                             >
                               <small>S{seedOf(p.tournamentEntryId)}</small>{' '}
                               {entryName(t, p.tournamentEntryId)}
-                              {m.status === 'completed' && <b>{p.finalScore ?? 0}</b>}
-                              {s.kind === 'final' && m.winnerEntryId === p.tournamentEntryId && t.status === 'completed' && (
-                                <CrownIcon className="inline-crown" />
+                              {m.status === 'completed' && (
+                                <b>
+                                  {p.finalScore ??
+                                    (m.winnerEntryId === p.tournamentEntryId ? 'V' : '')}
+                                </b>
                               )}
+                              {s.kind === 'final' &&
+                                m.winnerEntryId === p.tournamentEntryId &&
+                                t.status === 'completed' && <CrownIcon className="inline-crown" />}
                             </span>
                           ))}
                           {m.participants.length === 1 && <span className="muted">bye</span>}
@@ -538,9 +632,9 @@ export function GroupsDetail() {
                   ]}
             </div>
             <p className="hint">
-              Seed: tutti i primi, poi tutti i secondi. Accoppiamenti standard (1–8, 4–5, 2–7, 3–6); i
-              bye vanno ai seed migliori e il turno successivo si genera da solo quando tutti hanno un
-              vincitore.
+              Seed: tutti i primi, poi tutti i secondi. Accoppiamenti standard (1–8, 4–5, 2–7, 3–6);
+              i bye vanno ai seed migliori e il turno successivo si genera da solo quando tutti
+              hanno un vincitore.
             </p>
           </>
         )}
@@ -548,12 +642,12 @@ export function GroupsDetail() {
           <>
             {t.results.length > 0 && <ResultsTable t={t} />}
             {tables
-              .filter((r) => r.stageKind === 'group')
+              .filter((r) => r.stageKind === 'group' && t.gameMode === 'HI_SCORE')
               .map((table) => (
                 <div className="panel table-panel" key={table.targetId}>
                   <div className="table-scroll">
                     <table>
-                      <caption>{table.groupName} · statistiche</caption>
+                      <caption>{groupLabel(table.groupName)} · statistiche</caption>
                       <thead>
                         <tr>
                           <th scope="col">Giocatore</th>
@@ -564,7 +658,7 @@ export function GroupsDetail() {
                             Media
                           </th>
                           <th scope="col" className="num">
-                            Best
+                            {isResultRecording(t) ? 'Record' : 'Best'}
                           </th>
                         </tr>
                       </thead>
@@ -573,8 +667,12 @@ export function GroupsDetail() {
                           <tr key={r.tournamentEntryId}>
                             <td>{entryName(t, r.tournamentEntryId)}</td>
                             <td className="num">{r.scored}</td>
-                            <td className="num muted">{r.average.toFixed(1)}</td>
-                            <td className="num muted">{r.bestTurn}</td>
+                            <td className="num muted">
+                              {(isResultRecording(t) ? r.averageScore : r.average).toFixed(1)}
+                            </td>
+                            <td className="num muted">
+                              {isResultRecording(t) ? r.bestScore : r.bestTurn}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -594,7 +692,7 @@ export function GroupsDetail() {
             t={t}
             table={tie.table}
             group={tie.group}
-            title={`Spareggio · ${tie.table.groupName ?? knockoutTitle(tie.table.stageKind)}`}
+            title={`Spareggio · ${tie.table.groupName ? groupLabel(tie.table.groupName) : knockoutTitle(tie.table.stageKind)}`}
             busy={mutation.isPending}
             error={mutation.error}
             close={() => setTie(null)}
@@ -604,8 +702,70 @@ export function GroupsDetail() {
             }}
           />
         )}
+        {decision && (
+          <DecisionSheet
+            t={t}
+            targetId={decision.table.targetId}
+            entries={decision.group.map((r) => r.tournamentEntryId)}
+            title="Decisione dell’organizzatore"
+            close={() => setDecision(null)}
+            done={() => {
+              setDecision(null);
+              retry();
+            }}
+          />
+        )}
+        {leaving && (
+          <Modal title="Ritirare un giocatore?" close={() => setLeaving('')}>
+            <p>
+              Gli incontri che non ha ancora giocato vanno all’avversario a tavolino; quelli giocati
+              restano validi. Un giocatore ritirato non si qualifica.
+            </p>
+            <label className="field">
+              Giocatore
+              <span className="select">
+                <select value={leaving} onChange={(e) => setLeaving(e.target.value)}>
+                  {t.entries
+                    .filter((e) => e.status === 'registered' || e.status === 'qualified')
+                    .map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.displayNameAtRegistration}
+                      </option>
+                    ))}
+                </select>
+              </span>
+            </label>
+            <label className="field">
+              Motivo (obbligatorio)
+              <input
+                value={leaveReason}
+                placeholder="es. infortunio"
+                onChange={(e) => setLeaveReason(e.target.value)}
+              />
+            </label>
+            <ErrorMessage error={mutation.error} />
+            <button
+              className="primary"
+              disabled={!leaveReason.trim() || mutation.isPending}
+              onClick={() => {
+                command('entries/withdraw', { entryId: leaving, reason: leaveReason.trim() });
+                setLeaving('');
+                setLeaveReason('');
+              }}
+            >
+              RITIRA GIOCATORE
+            </button>
+            <button onClick={() => setLeaving('')}>Annulla</button>
+          </Modal>
+        )}
         {cancel && (
-          <Modal variant="dialog" tone="danger" alert title="Annullare il torneo?" close={() => setCancel(false)}>
+          <Modal
+            variant="dialog"
+            tone="danger"
+            alert
+            title="Annullare il torneo?"
+            close={() => setCancel(false)}
+          >
             <p>
               Il torneo diventa “annullato”: resta nello storico ma esce dalle statistiche dei
               giocatori. Non si può riattivare.
