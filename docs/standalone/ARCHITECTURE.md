@@ -32,7 +32,7 @@ Un risultato (`RecordResult`) è un comando come gli altri: un commit, poi la co
 
 Lo strato IndexedDB esistente usa `idb` (1 kB) ed è già verificato: una transazione `readwrite` con `durability: 'strict'` per comando, controllo di revisione fra schede, migrazioni ordinate, errori di quota tradotti in `STORAGE_FULL`. Dexie aggiungerebbe query reattive e una sintassi di schema, ma qui le letture passano dallo snapshot in memoria e la reattività arriva dagli eventi del motore (`subscribe`, `BroadcastChannel`). Sostituirlo non porterebbe funzionalità e rimetterebbe in gioco codice collaudato; per lo stesso motivo non c'è Zustand (lo stato UI è locale ai componenti e alla cache di TanStack Query, la fonte di verità è IndexedDB) né Tailwind (design system CSS esistente).
 
-## Schema IndexedDB (versione 2)
+## Schema IndexedDB (versione 3)
 
 | Store         | Chiave     | Contenuto                                                                                           |
 | ------------- | ---------- | --------------------------------------------------------------------------------------------------- |
@@ -48,6 +48,8 @@ L'aggregato Tournament è l'unità di consistenza, come lo snapshot JSON di SQLi
 
 La migrazione 2 (`indexeddb.ts`) porta i dati della versione 1 al modello con giochi e risultati: ogni torneo esistente diventa `gameMode: 'HI_SCORE'`, `recording: 'turns'` (prosegue con l'inserimento a turni), `result: null` sugli incontri; i giocatori ricevono `avatar: null`. Gira nella transazione di upgrade: o tutto o niente. La stessa funzione (`upgradeTournament`, nel dominio) aggiorna i backup v1 all'importazione e le letture SQLite. `MemoryStore` ricontrolla i vincoli che SQLite impone con chiavi e trigger: unicità di iscrizioni, seed, slot punteggio e turni; riferimenti a giocatori ed eventi; modalità di inserimento coerente.
 
+La migrazione 3 aggiunge squadre, manche, round e rotazioni (vedi [architettura competizioni](../competition/ARCHITECTURE.md#persistenza-e-migrazioni)). La V1.2 non cambia lo schema: resta alla versione 3.
+
 Le migrazioni sono una lista ordinata (`migrations` in `indexeddb.ts`): la migrazione N porta da N a N+1 nella transazione `versionchange`. Un database scritto da una versione più recente non viene aperto (`LOCAL_SCHEMA_NEWER`), così nessun dato viene scartato. Se un'altra scheda aggiorna lo schema, questa chiude la connessione e chiede di ricaricare.
 
 ## Differenze rispetto a SQLite
@@ -62,7 +64,7 @@ I test `tests/standalone-equivalence.test.ts` eseguono gli stessi scenari Quick 
 
 Ogni commit confronta la revisione in `meta` con quella caricata dalla scheda (CAS nella stessa transazione). Una scheda obsoleta riceve `STALE_DATA`, ricarica lo snapshot e l'utente ripete l'azione: nessuna sovrascrittura silenziosa. Dopo ogni commit un `BroadcastChannel` avvisa le altre schede, che si aggiornano da sole.
 
-Dopo refresh o riavvio l'app ricarica lo snapshot. La Home mostra la partita da riprendere (giocatore al tiro, turno, ultimo punteggio confermato). Non esistono operazioni «a metà»: un commit interrotto non lascia nulla. Il valore digitato e non ancora confermato resta nella sessione della scheda ed è legato al turno, quindi non viene attribuito al giocatore successivo.
+Dopo refresh o riavvio l'app ricarica lo snapshot. La Home mostra la partita da riprendere (giocatore al tiro, turno, ultimo punteggio confermato). Non esistono operazioni «a metà»: un commit interrotto non lascia nulla. Il valore digitato e non ancora confermato resta nella sessione della scheda ed è legato al turno (tornei a turni) o al partecipante per cui è stato digitato (risultati finali, V1.2), quindi non viene mai attribuito a un altro giocatore dopo un reload. Le bozze delle versioni precedenti, prive del partecipante, vengono scartate.
 
 Se Safari chiude una connessione inattiva, `LocalDatabase` riapre e riprova, ma solo se la transazione non era ancora partita.
 
@@ -119,6 +121,6 @@ vite-plugin-pwa genera `sw.js` (Workbox) con:
 - `navigateFallback: /index.html` per i deep link;
 - `cleanupOutdatedCaches`.
 
-`registerType: 'prompt'` e `skipWaiting: false`: una nuova versione resta in attesa. L'avviso «Nuova versione disponibile» non appare in partita live né nei moduli di creazione; l'utente aggiorna quando vuole, da avviso o da Impostazioni. Un controllo aggiornamenti parte ogni ora solo con app visibile e online. TanStack Query usa `networkMode: 'always'` in standalone: altrimenti, offline, le letture locali resterebbero in pausa.
+`registerType: 'prompt'` e `skipWaiting: false`: una nuova versione resta in attesa. L'avviso «Nuova versione disponibile» non appare in partita live né nei moduli di creazione; l'utente aggiorna quando vuole, da avviso o da Impostazioni. Dalla V1.2 anche un backup in esportazione, in lettura, in anteprima o in importazione trattiene l'aggiornamento (`useUpdateHold` in `services/pwa.ts`): avviso nascosto e «Aggiorna ora» disabilitato finché l'operazione non termina. Chiudere e riaprire l'app installata attiva la nuova versione: i dati sono già in IndexedDB. Un controllo aggiornamenti parte ogni ora solo con app visibile e online. TanStack Query usa `networkMode: 'always'` in standalone: altrimenti, offline, le letture locali resterebbero in pausa.
 
 Bundle (gzip): React 65 kB, app 25 kB, engine 21 kB, Zod 27 kB. I chunk separati mantengono l'hash fra versioni, quindi un aggiornamento scarica solo ciò che cambia.

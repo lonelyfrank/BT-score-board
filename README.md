@@ -79,14 +79,16 @@ tests/                 Vitest: dominio, modalità, API, SQLite, equivalenza, Ind
 apps/web/e2e/          Playwright: progetti shared e standalone
 ```
 
+Stato di rilascio e checklist della serata di prova: [V1.2 Operational Readiness](docs/release/V1_2_OPERATIONAL_READINESS.md).
+
 Documenti: [architettura](docs/architecture.md), [modello di dominio](docs/domain-model.md), [regole di punteggio](docs/scoring-rules.md), [modalità torneo](docs/tournament-modes.md), [macchine a stati](docs/state-machines.md), [API](docs/api.md), [OpenAPI](docs/openapi.json), [database](docs/database.md), [test](docs/testing.md), [stato frontend](docs/frontend/IMPLEMENTATION_STATUS.md).
 
 ## Test
 
 ```sh
-pnpm test                                        # 155 test Vitest
+pnpm test                                        # 178 test Vitest
 pnpm --filter @bt/web exec playwright install chromium
-pnpm test:e2e                                    # 13 flussi: 3 shared + 10 standalone/PWA
+pnpm test:e2e                                    # 20 flussi: 3 shared + 17 standalone/PWA/layout
 ```
 
 Playwright costruisce entrambe le versioni da sé. Fastify gira sulla porta 3107 con SQLite in memoria; la build statica è servita sulla 3108. Per usare un Chromium già installato, impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.

@@ -1,4 +1,18 @@
-# Verifica visuale e funzionale — 18 ottobre 2026
+# Verifica visuale e funzionale
+
+## V1.2 — 20 ottobre 2026
+
+Verifiche automatiche in `apps/web/e2e/standalone-layout.spec.ts` (Chromium headless, emulazione) su 320×568, 360×800, 390×844, 430×932, 768×1024 e 844×390, per Home, Giocatori, Tornei, Hi-Score, Impostazioni, Nuova partita e una partita in corso:
+
+- nessuno scroll orizzontale della pagina;
+- a fine pagina contenuto e controlli finiscono sopra la barra flottante (eccezione voluta: il footer decorativo della Home scorre sotto il vetro, i suoi controlli no). Il controllo è stato provato in negativo togliendo lo spazio riservato alla barra: segnala il problema;
+- voci della barra di almeno 44×44 px, etichette non tagliate;
+- tasto di conferma del tastierino visibile, non coperto da altri elementi, almeno 44 px; tasti numerici almeno 44 px;
+- su contesto touch emulato la barra sparisce mentre un campo di testo ha il focus e torna dopo.
+
+Controllo a vista degli screenshot a 390×844 e 320×568 della schermata risultati: stato «MANCHE 1 COMPLETATA» con tastierino spento e indicazione per avviare la manche successiva; dialog «Completare la manche N?» con i nomi dei mancanti; quattro card visibili insieme a 320 px dopo la riduzione della larghezza minima. Non eseguiti: axe, Lighthouse, Safari/WebKit, dispositivi fisici.
+
+## Fase 1 — 18 ottobre 2026 (storico)
 
 Reference: cinque schermate Bite the Trouble consegnate nell'handoff. Implementazione verificata con screenshot Chromium a 390×844, DPR 2. I file `-full.png` documentano anche il contenuto scorrevole; la bottom nav rimane ancorata al viewport, quindi nei full-page compare all'altezza del viewport originale.
 

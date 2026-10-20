@@ -64,6 +64,14 @@ test('starts, navigates and saves scores offline after the first visit', async (
   await expect(page.getByRole('link', { name: /Partita libera/ })).toBeVisible();
   await page.goto('/pagina-che-non-esiste');
   await expect(page.getByRole('heading', { name: 'Pagina non trovata' })).toBeVisible();
+  // The backup is exported without network too, and holds the match just played.
+  await page.goto('/impostazioni');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Esporta backup' }).click();
+  const backup = JSON.parse(readFileSync((await (await download).path())!, 'utf8')) as {
+    counts: { players: number; tournaments: number };
+  };
+  expect(backup.counts).toMatchObject({ players: 2, tournaments: 1 });
   // Brand fonts and images come from the precache too.
   await page.goto('/');
   // Waits for the face: check() alone races with font-display: swap.

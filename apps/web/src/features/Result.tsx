@@ -155,7 +155,6 @@ export function ResultEntry({
   const playing = order.filter((p) => !excluded.has(p.tournamentEntryId));
   const name = (id: string) => (t ? entryName(t, id) : 'Giocatore');
   const recorded = (id: string) => m.result?.scores[id] ?? null;
-  const missing = playing.filter((p) => recorded(p.tournamentEntryId) === null);
   // The whole match, every heat: what the header counts as still to record.
   const toRecord = m.participants.filter(
     (p) => !excluded.has(p.tournamentEntryId) && recorded(p.tournamentEntryId) === null,
