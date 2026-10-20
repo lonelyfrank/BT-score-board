@@ -257,7 +257,9 @@ export function Live() {
           className="scoreboard"
           role="list"
           aria-label="Punteggi totali"
-          style={{ gridTemplateColumns: `repeat(${m.participants.length}, minmax(80px, 1fr))` }}
+          style={{
+            gridTemplateColumns: `repeat(${m.participants.length}, minmax(var(--bt-card-min), 1fr))`,
+          }}
         >
           {order.map((p) => {
             const current = live && turn?.participantId === p.tournamentEntryId;

@@ -197,6 +197,7 @@ export function RoundScoreEntry({
             type="button"
             disabled={busy}
             onClick={() => {
+              if (inFlight.current || busy) return;
               inFlight.current = true;
               remove.mutate(true);
             }}
@@ -262,6 +263,8 @@ export function RotationManager({
   saved: (fresh: Match) => void;
 }) {
   const view = m.rotationViews.find((r) => r.entryId === entryId);
+  // A second tap before the first is saved would advance from a stale position: ignored.
+  const inFlight = useRef(false);
   const rotate = useMutation({
     mutationFn: (action: 'advance' | 'undo' | 'pause' | 'resume') =>
       api.matchCommand(m, 'rotation', { entryId, action }),
@@ -269,9 +272,15 @@ export function RotationManager({
       vibrate();
       saved(fresh);
     },
+    onSettled: () => (inFlight.current = false),
   });
   if (!view) return null;
   const busy = disabled || rotate.isPending;
+  const act = (action: 'advance' | 'undo' | 'pause' | 'resume') => {
+    if (inFlight.current || busy) return;
+    inFlight.current = true;
+    rotate.mutate(action);
+  };
   return (
     <div className="rotation-bar" aria-label="Rotazione della squadra">
       <span className="rotation-now">
@@ -290,7 +299,7 @@ export function RotationManager({
           className="mini"
           aria-label="Passa al prossimo tiratore"
           disabled={busy}
-          onClick={() => rotate.mutate('advance')}
+          onClick={() => act('advance')}
         >
           <SkipForward size={16} />
         </button>
@@ -300,7 +309,7 @@ export function RotationManager({
         className="mini"
         aria-label="Annulla ultimo avanzamento"
         disabled={busy || !view.canUndo}
-        onClick={() => rotate.mutate('undo')}
+        onClick={() => act('undo')}
       >
         <Undo2 size={16} />
       </button>
@@ -309,7 +318,7 @@ export function RotationManager({
         className="mini"
         aria-label={view.paused ? 'Riprendi la rotazione' : 'Metti in pausa la rotazione'}
         disabled={busy}
-        onClick={() => rotate.mutate(view.paused ? 'resume' : 'pause')}
+        onClick={() => act(view.paused ? 'resume' : 'pause')}
       >
         {view.paused ? <Play size={16} /> : <Pause size={16} />}
       </button>

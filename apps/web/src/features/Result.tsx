@@ -13,6 +13,13 @@ import {
 } from '../services/api';
 import { tournamentPath } from '../services/session';
 import {
+  currentEntry,
+  nextAfter,
+  parseDraft,
+  serializeDraft,
+  type Draft,
+} from '../services/result-flow';
+import {
   dependenciesOf,
   evaluateResult,
   gameOf,
@@ -89,8 +96,10 @@ export function ResultEntry({
   const hiScore = game.scoreRequired || heated;
   const tracked = m.tracking !== 'FINAL_ONLY';
   const draftKey = `bt-result:${m.id}`;
-  const [input, setInput] = useState(() => storage.get(`${draftKey}:input`) ?? '');
-  const [selected, setSelected] = useState<string | null>(null);
+  // Digits typed for a competitor survive a reload together with that competitor only.
+  const [restored] = useState(() => parseDraft(storage.get(`${draftKey}:input`)));
+  const [draft, setDraft] = useState<Draft | null>(restored);
+  const [selected, setSelected] = useState<string | null>(restored?.entryId ?? null);
   const [form, setForm] = useState<Form>(() => {
     try {
       return { ...formOf(m), ...JSON.parse(storage.get(`${draftKey}:form`) ?? '{}') };
@@ -104,6 +113,8 @@ export function ResultEntry({
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [flash, setFlash] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState<string | null>(null);
+  const [closingHeat, setClosingHeat] = useState(false);
   const [heatChoice, setHeatChoice] = useState<string | null>(null);
   const [managing, setManaging] = useState(false);
   const [entry, setEntry] = useState<'final' | 'rounds'>(() =>
@@ -118,12 +129,17 @@ export function ResultEntry({
   const inFlight = useRef(false);
   useEffect(() => {
     if (!flash) return;
-    const timer = setTimeout(() => setFlash(null), 1800);
+    const timer = setTimeout(() => {
+      setFlash(null);
+      setJustSaved(null);
+    }, 1800);
     return () => clearTimeout(timer);
   }, [flash]);
   const saveInput = (value: string) => {
-    setInput(value);
-    storage.set(`${draftKey}:input`, value);
+    const next = value && current ? { entryId: current, value } : null;
+    setDraft(next);
+    if (next) storage.set(`${draftKey}:input`, serializeDraft(next));
+    else storage.remove(`${draftKey}:input`);
   };
   const saveForm = (next: Form) => {
     setForm(next);
@@ -140,11 +156,14 @@ export function ResultEntry({
   const name = (id: string) => (t ? entryName(t, id) : 'Giocatore');
   const recorded = (id: string) => m.result?.scores[id] ?? null;
   const missing = playing.filter((p) => recorded(p.tournamentEntryId) === null);
-  // Hi-Score: whose total is being typed. Defaults to the next player still without a score.
-  const current =
-    selected && playing.some((p) => p.tournamentEntryId === selected)
-      ? selected
-      : (missing[0]?.tournamentEntryId ?? playing[0]?.tournamentEntryId ?? null);
+  // The whole match, every heat: what the header counts as still to record.
+  const toRecord = m.participants.filter(
+    (p) => !excluded.has(p.tournamentEntryId) && recorded(p.tournamentEntryId) === null,
+  ).length;
+  // Hi-Score: whose total is being typed. Defaults to the next player still without a score;
+  // a recorded one is corrected only after an explicit tap on its card.
+  const current = currentEntry(playing, selected, (id) => recorded(id) !== null);
+  const input = draft && draft.entryId === current ? draft.value : '';
   const limit = maxScore(m.gameMode as GameMode, m.scoringConfiguration);
   const completed = m.status === 'completed';
   const cancelled = m.status === 'cancelled';
@@ -211,17 +230,24 @@ export function ResultEntry({
       // until the organizer starts the next one.
       if (heat) setHeatChoice(heat.heatId);
       if (hiScore) {
-        saveInput('');
+        const [savedId, value] = Object.entries(sent.scores ?? {})[0] ?? [null, null];
+        setDraft(null);
+        storage.remove(`${draftKey}:input`);
         // Move on to the next player still to record, in playing order.
-        const after = order.findIndex((p) => p.tournamentEntryId === current);
-        const next = [...order.slice(after + 1), ...order.slice(0, after + 1)].find(
-          (p) =>
-            !fresh.excludedEntryIds.includes(p.tournamentEntryId) &&
-            (fresh.result?.scores[p.tournamentEntryId] ?? null) === null,
+        setSelected(
+          nextAfter(
+            order,
+            savedId,
+            (id) =>
+              !fresh.excludedEntryIds.includes(id) && (fresh.result?.scores[id] ?? null) === null,
+          ),
         );
-        setSelected(next?.tournamentEntryId ?? null);
-        const value = sent.scores && Object.values(sent.scores)[0];
-        setFlash(value === null ? 'Punteggio rimosso' : 'Punteggio salvato');
+        setJustSaved(value === null ? null : savedId);
+        setFlash(
+          value === null
+            ? 'Punteggio rimosso'
+            : `Salvato: ${savedId ? name(savedId) : 'punteggio'} ${value}`,
+        );
       } else {
         storage.remove(`${draftKey}:form`);
         setForm(formOf(fresh));
@@ -366,7 +392,7 @@ export function ResultEntry({
       : completed
         ? 'risultato registrato'
         : hiScore
-          ? `${missing.length} da registrare`
+          ? `${toRecord} da registrare`
           : 'da registrare'
   }`;
   const compact = order.length > 4;
@@ -407,7 +433,7 @@ export function ResultEntry({
         <article
           role="listitem"
           key={id}
-          className={`score-card ${chosen ? 'selected' : ''} ${out ? 'out' : ''}`}
+          className={`score-card ${chosen ? 'selected' : ''} ${out ? 'out' : ''} ${justSaved === id ? 'just-saved' : ''}`}
         >
           {content}
         </article>
@@ -418,7 +444,7 @@ export function ResultEntry({
         role="radio"
         aria-checked={chosen}
         key={id}
-        className={`score-card ${chosen ? 'selected' : ''}`}
+        className={`score-card ${chosen ? 'selected' : ''} ${justSaved === id ? 'just-saved' : ''}`}
         disabled={mutation.isPending || paused}
         onClick={() => {
           if (hiScore || rounds) {
@@ -487,16 +513,11 @@ export function ResultEntry({
               {activeHeat && heat?.heatId === activeHeat.heatId && (
                 <button
                   disabled={heatCommand.isPending}
-                  onClick={() => {
-                    if (
-                      activeHeat.missing.length &&
-                      !window.confirm(
-                        `Mancano ${activeHeat.missing.length} risultati: completare comunque la manche? Restano da inserire.`,
-                      )
-                    )
-                      return;
-                    heatCommand.mutate({ action: 'heats/complete', heatId: activeHeat.heatId });
-                  }}
+                  onClick={() =>
+                    activeHeat.missing.length
+                      ? setClosingHeat(true)
+                      : heatCommand.mutate({ action: 'heats/complete', heatId: activeHeat.heatId })
+                  }
                 >
                   Completa manche
                 </button>
@@ -532,7 +553,7 @@ export function ResultEntry({
                     type="button"
                     role="radio"
                     aria-checked={chosen}
-                    className={chosen ? 'selected' : ''}
+                    className={`${chosen ? 'selected' : ''} ${justSaved === id ? 'just-saved' : ''}`}
                     disabled={!entering || out || mutation.isPending || paused}
                     onClick={() => {
                       setSelected(id);
@@ -565,7 +586,9 @@ export function ResultEntry({
             className="scoreboard"
             role={entering ? 'radiogroup' : 'list'}
             aria-label={hiScore ? 'Punteggi finali' : 'Chi ha vinto?'}
-            style={{ gridTemplateColumns: `repeat(${order.length}, minmax(80px, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(${order.length}, minmax(var(--bt-card-min), 1fr))`,
+            }}
           >
             {order.map(card)}
           </div>
@@ -622,7 +645,13 @@ export function ResultEntry({
                 <div className="turn-row">
                   <div className="turn-banner" aria-live="polite">
                     <DartIcon />
-                    <span>{current ? `PUNTEGGIO DI ${name(current)}` : 'TUTTI REGISTRATI'}</span>
+                    <span>
+                      {current
+                        ? `PUNTEGGIO DI ${name(current)}`
+                        : heat?.status === 'completed'
+                          ? `MANCHE ${heat.number} COMPLETATA`
+                          : 'TUTTI REGISTRATI'}
+                    </span>
                   </div>
                 </div>
                 <div className="paper-area">
@@ -645,7 +674,11 @@ export function ResultEntry({
                 </div>
                 <p className="totem-note">
                   <Info aria-hidden="true" />
-                  Il totem conta i punti: qui si registra il totale che mostra.
+                  {current
+                    ? 'Il totem conta i punti: qui si registra il totale che mostra.'
+                    : !activeHeat && nextHeat && t?.status === 'active'
+                      ? `Avvia la manche ${nextHeat.number} per continuare, oppure tocca un giocatore per correggerlo.`
+                      : 'Tocca un giocatore per correggere il suo punteggio.'}
                 </p>
               </div>
             </div>
@@ -883,6 +916,37 @@ export function ResultEntry({
         />
       )}
       {managing && <HeatEditor m={m} name={name} close={() => setManaging(false)} />}
+      {closingHeat && activeHeat && (
+        <Modal
+          variant="dialog"
+          tone="warning"
+          alert
+          title={`Completare la manche ${activeHeat.number}?`}
+          close={() => setClosingHeat(false)}
+        >
+          <AlertTriangle aria-hidden="true" className="warning-icon" />
+          <p>
+            Mancano i risultati di {activeHeat.missing.map(name).join(', ')}. Restano da inserire:
+            la classifica li aspetta e non conta zero.
+          </p>
+          <ErrorMessage error={heatCommand.error} />
+          <button
+            className="primary"
+            disabled={heatCommand.isPending}
+            onClick={() =>
+              heatCommand.mutate(
+                { action: 'heats/complete', heatId: activeHeat.heatId },
+                { onSuccess: () => setClosingHeat(false) },
+              )
+            }
+          >
+            COMPLETA LA MANCHE
+          </button>
+          <button disabled={heatCommand.isPending} onClick={() => setClosingHeat(false)}>
+            Torna alla manche
+          </button>
+        </Modal>
+      )}
       {differences && (
         <ScoreReconciliation
           differences={differences.rows}

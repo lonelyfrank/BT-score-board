@@ -1265,6 +1265,7 @@ select:disabled {
   padding: 0 10px calc(12px + env(safe-area-inset-bottom));
 }
 .scoreboard {
+  --bt-card-min: 80px;
   display: grid;
   gap: 6px;
   overflow-x: auto;
@@ -1273,7 +1274,7 @@ select:disabled {
 .score-card {
   position: relative;
   flex: 1;
-  min-width: 80px;
+  min-width: var(--bt-card-min, 80px);
   height: 118px;
   display: flex;
   flex-direction: column;
@@ -4099,6 +4100,17 @@ div.match-row {
   }
 }
 @media (max-width: 370px) {
+  /* Quattro posti del totem visibili insieme anche su 320px, senza scorrere il tabellone. */
+  .scoreboard {
+    --bt-card-min: 68px;
+  }
+  .score-card {
+    padding-inline: 2px;
+  }
+  .card-tag {
+    font-size: 11px;
+    letter-spacing: 0;
+  }
   .home-card {
     gap: 10px;
     padding: 0 12px;
@@ -4264,6 +4276,23 @@ button.score-card:disabled {
 .result-list button.selected {
   background: var(--bt-surface-selected);
   box-shadow: inset 3px 0 0 var(--bt-accent-primary);
+}
+/* Conferma visiva del risultato appena salvato: breve, senza bloccare l'inserimento. */
+.score-card.just-saved,
+.result-list button.just-saved {
+  animation: bt-saved 1.2s var(--bt-ease-out);
+}
+.score-card.just-saved strong,
+.result-list button.just-saved strong {
+  color: var(--bt-success-bright);
+}
+@keyframes bt-saved {
+  from {
+    box-shadow: inset 0 0 0 2px var(--bt-success);
+  }
+  to {
+    box-shadow: inset 0 0 0 2px transparent;
+  }
 }
 .result-list .avatar {
   width: 30px;
