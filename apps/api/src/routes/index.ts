@@ -295,7 +295,7 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
       {
         body: commandSchemas[name],
         command: true,
-        score: name === 'RecordScore' || name === 'RecordRound',
+        score: name === 'RecordScore' || name === 'RecordRound' || name === 'RecordTurn',
       },
     );
   }

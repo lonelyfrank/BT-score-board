@@ -106,6 +106,7 @@ export function newMatch(
     heats: [],
     rounds: [],
     rotations: [],
+    guide: null,
   };
   // More entries than seats on the totem: the match is played over several heats.
   initialHeats(t, m, c);

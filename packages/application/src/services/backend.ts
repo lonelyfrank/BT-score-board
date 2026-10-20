@@ -48,6 +48,8 @@ export const commandSchemas = {
   RecordRound: s.recordRound,
   VoidRound: s.voidRound,
   RotateTeam: s.rotateTeam,
+  RecordTurn: s.recordTurn,
+  GuideTurn: s.guideTurn,
 };
 type CommandInput<K extends CommandName> = z.output<(typeof commandSchemas)[K]>;
 // Command paths shared by the REST routes and the standalone adapter, relative to their resource.
@@ -90,6 +92,8 @@ export const matchCommandPaths = {
   rounds: 'RecordRound',
   'rounds/void': 'VoidRound',
   rotation: 'RotateTeam',
+  'turns/record': 'RecordTurn',
+  'turns/guide': 'GuideTurn',
 } as const satisfies Record<string, CommandName>;
 export const scoreCommandPaths = {
   correct: 'CorrectScore',
@@ -255,7 +259,8 @@ export class Backend {
     this.authorize();
     const input = commandSchemas[name].parse(raw) as CommandInput<K>;
     d.ensure(
-      options.idempotencyKey || (name !== 'RecordScore' && name !== 'RecordRound'),
+      options.idempotencyKey ||
+        (name !== 'RecordScore' && name !== 'RecordRound' && name !== 'RecordTurn'),
       'IDEMPOTENCY_KEY_REQUIRED',
       `${name} requires an Idempotency-Key`,
       400,
@@ -479,6 +484,24 @@ export class Backend {
           d.rotateTeam(t, m!, i.entryId, i.action, i.order);
           break;
         }
+        case 'RecordTurn': {
+          const {
+            expectedVersion: _v,
+            expectedMatchVersion: _m,
+            ...turn
+          } = input as CommandInput<'RecordTurn'>;
+          d.recordTurn(t, m!, turn, c);
+          break;
+        }
+        case 'GuideTurn': {
+          const {
+            expectedVersion: _v,
+            expectedMatchVersion: _m,
+            ...guide
+          } = input as CommandInput<'GuideTurn'>;
+          d.guideTurn(t, m!, guide);
+          break;
+        }
         case 'AdvanceKnockout': {
           d.activeTournament(t);
           const stage = d.currentStage(t);
@@ -543,6 +566,7 @@ export class Backend {
         DecideTie: 'TieDecided',
         RecordRound: 'RoundRecorded',
         VoidRound: 'RoundVoided',
+        RecordTurn: 'RoundRecorded',
         StartHeat: 'HeatStarted',
         CompleteHeat: 'HeatCompleted',
       };
@@ -601,6 +625,7 @@ export class Backend {
         t.recording === 'result'
           ? m.participants.map((p) => d.roundProgress(t, m, p.tournamentEntryId))
           : [],
+      turnPlans: t.recording === 'result' && t.tracking !== 'FINAL_ONLY' ? d.turnPlans(t, m) : [],
       rotationViews: d.rotationsOf(t, m),
       scoreboard: m.participants.map((p) => ({
         tournamentEntryId: p.tournamentEntryId,
