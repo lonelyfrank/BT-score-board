@@ -208,6 +208,10 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
       422,
     );
   const entry = t.entries.find((e) => e.id === input.entryId)!;
+  // Any earlier observation of this round (also corrected or voided): the round was thrown.
+  const earlier = m.rounds
+    .filter((r) => r.tournamentEntryId === input.entryId && r.round === input.round)
+    .at(-1);
   let playerId = input.playerId ?? null;
   if (playerId !== null)
     ensure(
@@ -217,6 +221,8 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
       422,
     );
   else if (entry.members.length === 1) playerId = entry.members[0]!.playerId;
+  // A new value of a round already thrown keeps its thrower, wherever the rotation is now.
+  else if (earlier) playerId = earlier.playerId;
   else if (input.advanceRotation || m.rotations.some((r) => r.entryId === entry.id)) {
     // The team follows a rotation: the expected thrower is the one at the board.
     const rotation = rotationFor(t, m, entry.id);
@@ -255,7 +261,8 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     recordedBy: c.operator,
   };
   m.rounds.push(record);
-  if (input.advanceRotation && !previous && entry.members.length > 1) {
+  // Only the first observation of a round moves the rotation: corrections never do.
+  if (input.advanceRotation && !earlier && entry.members.length > 1) {
     const rotation = rotationFor(t, m, entry.id);
     if (!rotation.paused)
       m.rotations = [

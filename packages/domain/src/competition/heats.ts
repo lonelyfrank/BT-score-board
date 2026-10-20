@@ -291,9 +291,9 @@ export function heatForEntry(t: Tournament, m: Match, entryId: string, c: Contex
 }
 
 /**
- * Keeps heat states in line with the results: a heat whose results are all in is completed,
- * a played heat missing a result again is reopened, a heat whose entries all withdrew is
- * cancelled.
+ * Keeps heat states in line with the results: a heat at the board whose results are all in is
+ * completed, a heat whose entries all withdrew is cancelled. A played heat that misses a result
+ * again (a cleared value) stays played: the overview lists the value as missing.
  */
 export function syncHeats(t: Tournament, m: Match, c: Context) {
   for (const h of m.heats) {
