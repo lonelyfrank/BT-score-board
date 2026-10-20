@@ -66,7 +66,15 @@ test('starts, navigates and saves scores offline after the first visit', async (
   await expect(page.getByRole('heading', { name: 'Pagina non trovata' })).toBeVisible();
   // Brand fonts and images come from the precache too.
   await page.goto('/');
-  expect(await page.evaluate(() => document.fonts.check('600 23px Oswald'))).toBe(true);
+  // Waits for the face: check() alone races with font-display: swap.
+  expect(
+    await page.evaluate(() =>
+      document.fonts.load('600 23px Oswald').then(
+        (faces) => faces.length > 0 && document.fonts.check('600 23px Oswald'),
+        () => false,
+      ),
+    ),
+  ).toBe(true);
   expect(
     await page.evaluate(async () =>
       (await fetch('/assets/bt-hero.jpg')).headers.get('content-type'),
