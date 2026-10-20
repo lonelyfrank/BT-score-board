@@ -314,7 +314,8 @@ export const roundResponse = z.object({
   source: z.literal('manual'),
   createdAt: z.string(),
   recordedBy: z.string(),
-  darts: z.array(dartThrow).nullable().default(null),
+  /** Absent on rounds recorded before darts existed: only their value is known. */
+  darts: z.array(dartThrow).nullable().optional(),
 });
 const turnSlot = z.object({ entryId: id, round: z.number() });
 export const guideResponse = z.object({
@@ -385,7 +386,7 @@ export const matchResponse = z.object({
   heats: z.array(heatResponse).default([]),
   rounds: z.array(roundResponse).default([]),
   rotations: z.array(rotationResponse).default([]),
-  guide: guideResponse.nullable().default(null),
+  guide: guideResponse.nullable().optional(),
 });
 export const resultResponse = z.object({
   tournamentId: id,
@@ -545,6 +546,7 @@ export const liveMatchResponse = matchResponse.extend({
           ]),
           darts: z.array(dartThrow).nullable(),
           dartsValue: z.number().nullable(),
+          bust: z.boolean(),
         }),
       ),
       recorded: z.number(),

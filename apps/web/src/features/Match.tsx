@@ -3,12 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { api, pollInterval } from '../services/api';
 import { isResultRecording } from '../services/rules';
 import { ErrorMessage, Header, Loading } from '../components/ui';
+import { GuidedMatch } from './Guided';
 import { Live } from './Live';
 import { ResultEntry } from './Result';
 
 /**
- * One address per match. Results recorded from the totem are the norm; tournaments started
- * before results existed keep their turn-by-turn screen until they end.
+ * One address per match. Results recorded from the totem are the norm, followed turn by turn
+ * when rounds are tracked; tournaments started before results existed keep their turn-by-turn
+ * screen until they end.
  */
 export function MatchScreen() {
   const { gameId = '' } = useParams();
@@ -33,9 +35,11 @@ export function MatchScreen() {
         </main>
       </>
     );
-  return isResultRecording(query.data) ? (
-    <ResultEntry key={query.data.id} query={query} tournament={tournament} />
+  if (!isResultRecording(query.data)) return <Live />;
+  // Rounds tracked: the guided screen follows the turns; otherwise only the final result.
+  return query.data.tracking !== 'FINAL_ONLY' ? (
+    <GuidedMatch key={query.data.id} query={query} tournament={tournament} />
   ) : (
-    <Live />
+    <ResultEntry key={query.data.id} query={query} tournament={tournament} />
   );
 }

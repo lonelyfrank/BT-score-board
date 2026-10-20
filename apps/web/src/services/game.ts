@@ -156,8 +156,17 @@ export const messages: Record<string, string> = {
   INVALID_ROUND: 'Numero di round non valido per questo gioco.',
   INVALID_PLAYER: 'Il tiratore indicato non fa parte della squadra.',
   ROTATION_PAUSED: 'Rotazione in pausa: riprendila per avanzare.',
-  NOTHING_TO_UNDO: 'Nessun avanzamento da annullare.',
+  NOTHING_TO_UNDO: 'Nessun turno o avanzamento da annullare.',
   NOTHING_TO_RESTORE: 'Questo valore non ne sostituiva un altro.',
+  TURN_MOVED: 'Al bersaglio c’è già un altro turno: la partita è stata aggiornata.',
+  VALUE_REQUIRED: 'Le freccette non bastano per questo turno: inserisci il totale del totem.',
+  DARTS_MISMATCH: 'Le freccette danno un altro totale: correggile o indica il motivo.',
+  DARTS_AFTER_END:
+    'Il turno è finito prima dell’ultima freccetta: quelle non usate non si registrano.',
+  DARTS_INCOMPLETE: 'Inserisci tutte e tre le freccette, oppure solo il totale del turno.',
+  INVALID_DARTS: 'Freccetta non valida: settore da 1 a 20, bull, fuori o non osservata.',
+  ALREADY_RECORDED: 'Questo turno ha già un valore: correggilo dalla matrice dei round.',
+  ENTRY_CLOSED: 'Ha già chiuso: non tira più in questa partita.',
   INVALID_ROTATION: 'Il nuovo ordine deve contenere tutti i giocatori una volta sola.',
 };
 

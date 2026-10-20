@@ -242,10 +242,11 @@ describe('Scenario I: integrity on the device', () => {
     expect(live.turnPlans[0]!.current).toMatchObject({ entryId: t.entries[2]!.id, round: 1 });
     const next = await confirm(reopened, old, m, { darts: [S(1), S(2), S(3)] });
     expect(roundProgress(next, matchById(next, m), t.entries[2]!.id).rounds[0]!.value).toBe(6);
-    // The old records come out of a backup with explicit nulls, still equivalent.
+    // The old records go through a backup unchanged: nothing is added to them.
     const backup = await readBackup(JSON.stringify(await reopened.exportBackup()));
     const copy = backup.data.tournaments.find((x) => x.id === t.id)!;
-    expect(copy.matches[0]!.rounds[0]!.darts).toBeNull();
+    expect(copy.matches[0]!.rounds[0]!.darts).toBeUndefined();
+    expect(copy.matches[0]!.rounds.at(-1)!.darts).toEqual([S(1), S(2), S(3)]);
   });
 });
 

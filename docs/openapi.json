@@ -6733,7 +6733,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -6779,8 +6778,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -6828,7 +6826,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -6905,8 +6902,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -8286,7 +8282,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -8332,8 +8327,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -8381,7 +8375,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -8458,8 +8451,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -10323,7 +10315,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -10369,8 +10360,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -10418,7 +10408,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -10495,8 +10484,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -12271,7 +12259,6 @@
                               "type": "string"
                             },
                             "darts": {
-                              "default": null,
                               "nullable": true,
                               "type": "array",
                               "items": {
@@ -12317,8 +12304,7 @@
                             "reason",
                             "source",
                             "createdAt",
-                            "recordedBy",
-                            "darts"
+                            "recordedBy"
                           ],
                           "additionalProperties": false
                         }
@@ -12366,7 +12352,6 @@
                         }
                       },
                       "guide": {
-                        "default": null,
                         "nullable": true,
                         "type": "object",
                         "properties": {
@@ -12443,8 +12428,7 @@
                       "result",
                       "heats",
                       "rounds",
-                      "rotations",
-                      "guide"
+                      "rotations"
                     ],
                     "additionalProperties": false
                   }
@@ -15140,7 +15124,6 @@
                             "type": "string"
                           },
                           "darts": {
-                            "default": null,
                             "nullable": true,
                             "type": "array",
                             "items": {
@@ -15186,8 +15169,7 @@
                           "reason",
                           "source",
                           "createdAt",
-                          "recordedBy",
-                          "darts"
+                          "recordedBy"
                         ],
                         "additionalProperties": false
                       }
@@ -15235,7 +15217,6 @@
                       }
                     },
                     "guide": {
-                      "default": null,
                       "nullable": true,
                       "type": "object",
                       "properties": {
@@ -15670,6 +15651,9 @@
                                 "dartsValue": {
                                   "nullable": true,
                                   "type": "number"
+                                },
+                                "bust": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -15681,7 +15665,8 @@
                                 "recordId",
                                 "state",
                                 "darts",
-                                "dartsValue"
+                                "dartsValue",
+                                "bust"
                               ],
                               "additionalProperties": false
                             }
@@ -16056,7 +16041,6 @@
                     "heats",
                     "rounds",
                     "rotations",
-                    "guide",
                     "tournamentVersion",
                     "gameMode",
                     "recording",
@@ -17835,7 +17819,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -17881,8 +17864,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -17930,7 +17912,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -18007,8 +17988,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -19901,7 +19881,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -19947,8 +19926,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -19996,7 +19974,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -20073,8 +20050,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -21485,7 +21461,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -21531,8 +21506,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -21580,7 +21554,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -21657,8 +21630,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -23267,7 +23239,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -23313,8 +23284,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -23362,7 +23332,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -23439,8 +23408,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -24851,7 +24819,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -24897,8 +24864,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -24946,7 +24912,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -25023,8 +24988,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -26435,7 +26399,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -26481,8 +26444,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -26530,7 +26492,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -26607,8 +26568,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -28019,7 +27979,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -28065,8 +28024,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -28114,7 +28072,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -28191,8 +28148,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -29603,7 +29559,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -29649,8 +29604,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -29698,7 +29652,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -29775,8 +29728,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -31187,7 +31139,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -31233,8 +31184,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -31282,7 +31232,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -31359,8 +31308,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -32771,7 +32719,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -32817,8 +32764,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -32866,7 +32812,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -32943,8 +32888,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -34372,7 +34316,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -34418,8 +34361,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -34467,7 +34409,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -34544,8 +34485,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -35956,7 +35896,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -36002,8 +35941,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -36051,7 +35989,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -36128,8 +36065,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -37557,7 +37493,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -37603,8 +37538,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -37652,7 +37586,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -37729,8 +37662,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -39153,7 +39085,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -39199,8 +39130,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -39248,7 +39178,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -39325,8 +39254,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -40748,7 +40676,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -40794,8 +40721,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -40843,7 +40769,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -40920,8 +40845,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -42332,7 +42256,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -42378,8 +42301,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -42427,7 +42349,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -42504,8 +42425,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -43928,7 +43848,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -43974,8 +43893,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -44023,7 +43941,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -44100,8 +44017,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -45518,7 +45434,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -45564,8 +45479,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -45613,7 +45527,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -45690,8 +45603,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -47125,7 +47037,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -47171,8 +47082,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -47220,7 +47130,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -47297,8 +47206,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -48740,7 +48648,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -48786,8 +48693,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -48835,7 +48741,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -48912,8 +48817,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -50330,7 +50234,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -50376,8 +50279,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -50425,7 +50327,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -50502,8 +50403,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -51920,7 +51820,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -51966,8 +51865,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -52015,7 +51913,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -52092,8 +51989,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -53510,7 +53406,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -53556,8 +53451,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -53605,7 +53499,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -53682,8 +53575,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -55106,7 +54998,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -55152,8 +55043,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -55201,7 +55091,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -55278,8 +55167,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -56696,7 +56584,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -56742,8 +56629,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -56791,7 +56677,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -56868,8 +56753,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -58331,7 +58215,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -58377,8 +58260,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -58426,7 +58308,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -58503,8 +58384,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -59927,7 +59807,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -59973,8 +59852,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -60022,7 +59900,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -60099,8 +59976,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -61538,7 +61414,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -61584,8 +61459,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -61633,7 +61507,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -61710,8 +61583,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -63159,7 +63031,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -63205,8 +63076,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -63254,7 +63124,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -63331,8 +63200,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -64759,7 +64627,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -64805,8 +64672,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -64854,7 +64720,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -64931,8 +64796,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -66355,7 +66219,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -66401,8 +66264,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -66450,7 +66312,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -66527,8 +66388,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -67951,7 +67811,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -67997,8 +67856,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -68046,7 +67904,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -68123,8 +67980,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -69609,7 +69465,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -69655,8 +69510,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -69704,7 +69558,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -69781,8 +69634,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -71221,7 +71073,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -71267,8 +71118,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -71316,7 +71166,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -71393,8 +71242,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -72838,7 +72686,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -72884,8 +72731,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -72933,7 +72779,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -73010,8 +72855,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -74491,7 +74335,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -74537,8 +74380,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -74586,7 +74428,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -74663,8 +74504,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -76109,7 +75949,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -76155,8 +75994,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -76204,7 +76042,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -76281,8 +76118,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -77710,7 +77546,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -77756,8 +77591,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -77805,7 +77639,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -77882,8 +77715,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }
@@ -79306,7 +79138,6 @@
                                   "type": "string"
                                 },
                                 "darts": {
-                                  "default": null,
                                   "nullable": true,
                                   "type": "array",
                                   "items": {
@@ -79352,8 +79183,7 @@
                                 "reason",
                                 "source",
                                 "createdAt",
-                                "recordedBy",
-                                "darts"
+                                "recordedBy"
                               ],
                               "additionalProperties": false
                             }
@@ -79401,7 +79231,6 @@
                             }
                           },
                           "guide": {
-                            "default": null,
                             "nullable": true,
                             "type": "object",
                             "properties": {
@@ -79478,8 +79307,7 @@
                           "result",
                           "heats",
                           "rounds",
-                          "rotations",
-                          "guide"
+                          "rotations"
                         ],
                         "additionalProperties": false
                       }

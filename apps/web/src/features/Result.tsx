@@ -81,9 +81,15 @@ const toNumber = (v: string) => (v.trim() === '' ? null : Number(v));
 export function ResultEntry({
   query,
   tournament,
+  embedded = false,
+  review,
 }: {
   query: UseQueryResult<Match>;
   tournament: UseQueryResult<Tournament>;
+  /** Inside the guided match screen: no header, rounds are entered from Live and the matrix. */
+  embedded?: boolean;
+  /** Opens an entry's rounds when its official value differs from them. */
+  review?: (entryId: string) => void;
 }) {
   const m = query.data!;
   const t = tournament.data;
@@ -118,7 +124,7 @@ export function ResultEntry({
   const [heatChoice, setHeatChoice] = useState<string | null>(null);
   const [managing, setManaging] = useState(false);
   const [entry, setEntry] = useState<'final' | 'rounds'>(() =>
-    m.tracking === 'ROUND_BY_ROUND' ? 'rounds' : 'final',
+    m.tracking === 'ROUND_BY_ROUND' && !embedded ? 'rounds' : 'final',
   );
   const [differences, setDifferences] = useState<{
     change: ResultInput;
@@ -458,26 +464,43 @@ export function ResultEntry({
   }
 
   return (
-    <div className="live-page result-page">
-      <Header
-        title={game.label}
-        subtitle={subtitle}
-        back={back}
-        action={
-          completed && !editing && !locked && !ended ? (
-            <button
-              className="icon-button"
-              aria-label="Correggi risultato"
-              onClick={() => {
-                setForm(formOf(m));
-                setEditing(true);
-              }}
-            >
-              <Pencil />
-            </button>
-          ) : undefined
-        }
-      />
+    <div className={embedded ? 'result-page embedded' : 'live-page result-page'}>
+      {embedded ? (
+        completed &&
+        !editing &&
+        !locked &&
+        !ended && (
+          <button
+            className="result-cancel"
+            onClick={() => {
+              setForm(formOf(m));
+              setEditing(true);
+            }}
+          >
+            <Pencil size={16} aria-hidden="true" /> Correggi il risultato ufficiale
+          </button>
+        )
+      ) : (
+        <Header
+          title={game.label}
+          subtitle={subtitle}
+          back={back}
+          action={
+            completed && !editing && !locked && !ended ? (
+              <button
+                className="icon-button"
+                aria-label="Correggi risultato"
+                onClick={() => {
+                  setForm(formOf(m));
+                  setEditing(true);
+                }}
+              >
+                <Pencil />
+              </button>
+            ) : undefined
+          }
+        />
+      )}
       <main className="live-content">
         {heated && (
           <section className="heat-panel" aria-label="Manche">
@@ -526,7 +549,7 @@ export function ResultEntry({
             <ErrorMessage error={heatCommand.error} />
           </section>
         )}
-        {tracked && entering && (
+        {tracked && entering && !embedded && (
           <Segmented
             label="Cosa inserisci"
             value={entry}
@@ -954,8 +977,11 @@ export function ResultEntry({
           error={null}
           close={() => setDifferences(null)}
           review={() => {
-            setSelected(differences.rows[0]!.entryId);
-            setEntry('rounds');
+            if (review) review(differences.rows[0]!.entryId);
+            else {
+              setSelected(differences.rows[0]!.entryId);
+              setEntry('rounds');
+            }
             setDifferences(null);
           }}
           confirm={(reasons) => {

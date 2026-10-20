@@ -32,7 +32,8 @@ export interface TrackingSpec {
 
 /**
  * What one progressive value means for the game of the tournament. Only observed values are
- * kept: nothing is deduced (no bust, opening or closing is inferred for X01).
+ * kept: nothing is deduced from a value alone (no bust, opening or closing is inferred for X01;
+ * only darts entered one by one are read with the rules of the game, see darts.ts).
  */
 export function trackingSpec(t: Tournament, m: Match): TrackingSpec {
   const g = games[t.gameMode];
@@ -104,6 +105,8 @@ export interface RoundView {
   darts: DartThrow[] | null;
   /** Value the darts give under the game rules, when they decide it. */
   dartsValue: number | null;
+  /** X01: the darts went past zero, the turn is worth nothing. */
+  bust: boolean;
 }
 export interface Progress {
   tournamentEntryId: string;
@@ -174,7 +177,8 @@ export function roundProgress(t: Tournament, m: Match, entryId: string): Progres
   const rounds: RoundView[] = Array.from({ length: count }, (_, i) => {
     const r = records.find((x) => x.round === i + 1);
     const darts = r?.darts ?? null;
-    const dartsValue = darts ? evaluateRecordDarts(t, m, entryId, i + 1, darts).value : null;
+    const evaluated = darts ? evaluateRecordDarts(t, m, entryId, i + 1, darts) : null;
+    const dartsValue = evaluated?.value ?? null;
     let state: TurnState;
     if (!r) state = all.some((x) => x.round === i + 1) ? 'reenter' : 'missing';
     else if (r.status === 'skipped')
@@ -191,6 +195,7 @@ export function roundProgress(t: Tournament, m: Match, entryId: string): Progres
       state,
       darts,
       dartsValue,
+      bust: !!evaluated?.ev.bust,
     };
   });
   const values = rounds.filter((r) => r.status === 'recorded').map((r) => r.value!);

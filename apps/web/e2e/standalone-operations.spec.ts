@@ -125,27 +125,40 @@ test('seven players in uneven teams: rotation kept through an annulled round, ra
   // Four units on four seats: one session, no heats.
   await expect(page.locator('.heat-timeline')).toHaveCount(0);
 
-  await page.getByRole('radio', { name: 'Round per round' }).click();
-  const rotation = page.getByLabel('Rotazione della squadra');
-  await expect(rotation).toContainText('Tira Ada · poi Bea');
+  // Guided turns: Ada throws for her pair, her round taken back and entered again.
+  const now = page.locator('.g-now');
+  await expect(now.locator('h2')).toHaveText('Ada');
+  await expect(now).toContainText('Tiratore 1 di 2 · con Bea');
+  await page.getByRole('radio', { name: 'Totale' }).click();
   await page.keyboard.type('60');
-  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
-  await expect(rotation).toContainText('Tira Bea · poi Ada');
-  // Annulled and entered again: the same throw, the rotation does not move twice.
-  await page.getByRole('radio', { name: 'R1 60' }).click();
-  await page.getByRole('button', { name: 'Annulla ultimo punteggio' }).click();
-  await expect(page.getByRole('radio', { name: 'R1 —' })).toBeVisible();
-  await expect(rotation).toContainText('Tira Bea · poi Ada');
+  await page.locator('.g-ctas .cta').click();
+  await expect(now.locator('h2')).toHaveText('Ciro');
+  await page.locator('.g-toast').getByRole('button', { name: 'Annulla' }).click();
+  await expect(now.locator('h2')).toHaveText('Ada');
   await page.keyboard.type('50');
-  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
-  await expect(page.getByRole('radio', { name: 'R1 50' })).toBeVisible();
+  await page.locator('.g-ctas .cta').click();
+  for (const [name, value] of [
+    ['Ciro', '40'],
+    ['Elio', '30'],
+    ['Gino', '20'],
+  ]) {
+    await expect(now.locator('h2')).toHaveText(name);
+    await page.keyboard.type(value);
+    await page.locator('.g-ctas .cta').click();
+  }
+  // Round 2: the rotation moved once, to Bea; a double tap on «next thrower» moves it once.
+  await page.locator('.g-next').click();
+  await expect(now.locator('h2')).toHaveText('Bea');
+  await page.getByRole('button', { name: 'Controlli del turno' }).click();
+  const rotation = page.getByLabel('Rotazione della squadra');
   await expect(rotation).toContainText('Tira Bea · poi Ada');
-  // A double tap on «next thrower» moves it once.
   await page.getByRole('button', { name: 'Passa al prossimo tiratore' }).dblclick();
   await expect(rotation).toContainText('Tira Ada · poi Bea');
+  await page.getByRole('button', { name: 'Chiudi' }).click();
+  await expect(now.locator('h2')).toHaveText('Ada');
   await expect(page.getByRole('alert')).toHaveCount(0);
 
-  await page.getByRole('radio', { name: 'Risultato finale' }).click();
+  await page.getByRole('link', { name: 'Risultati' }).click();
   for (const [unit, total] of [
     ['Ada + Bea', 310],
     ['Ciro + Dino', 420],
@@ -166,65 +179,7 @@ test('seven players in uneven teams: rotation kept through an annulled round, ra
   expect(guard.errors).toEqual([]);
 });
 
-test('round by round: skipped round, correction, official result, difference and history', async ({
-  page,
-}) => {
-  await page.goto('/partite/nuova');
-  await addPlayers(page, ['Ivo', 'Lea']);
-  await page.getByText(/^Opzioni avanzate/).click();
-  await page.getByRole('radio', { name: 'Round per round' }).click();
-  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
-  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
-  await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
-
-  // Ivo: R2 not seen, R3 corrected, the rest recorded.
-  await expect(page.locator('.round-target')).toContainText('Ivo');
-  const round = async (n: number, value: number) => {
-    await page.keyboard.type(String(value));
-    await page.getByRole('button', { name: `Conferma il round ${n}` }).click();
-    await expect(page.getByRole('radio', { name: `R${n} ${value}` })).toBeVisible();
-  };
-  await round(1, 60);
-  await page.getByRole('button', { name: 'Salta R2 (non visto)' }).click();
-  await expect(page.getByRole('radio', { name: 'R2 saltato' })).toBeVisible();
-  for (const n of [3, 4, 5, 6, 7]) await round(n, 40);
-  await page.getByRole('radio', { name: 'R3 40' }).click();
-  await round(3, 45);
-  await expect(page.locator('.round-summary')).toContainText('Totale round 265 (parziale)');
-  await page.locator('.round-history summary').click();
-  await expect(page.locator('.round-history')).toContainText('sostituito');
-  // The official total of the totem; a skipped round makes the rounds not comparable.
-  await page.getByRole('radio', { name: 'Risultato finale' }).click();
-  await enterScore(page, 'Ivo', 330);
-
-  // Lea: complete rounds, a different official value, a reason, both values kept.
-  await page.getByRole('radio', { name: 'Round per round' }).click();
-  await expect(page.locator('.round-target')).toContainText('Lea');
-  for (const n of [1, 2, 3, 4, 5, 6, 7]) await round(n, 40);
-  await expect(page.locator('.round-summary')).toContainText('Totale round 280 · completo');
-  await page.getByRole('radio', { name: 'Risultato finale' }).click();
-  await page.keyboard.type('300');
-  await page.getByRole('button', { name: 'Conferma il punteggio di Lea' }).click();
-  const difference = page.getByRole('alertdialog', { name: 'Risultato diverso dai round' });
-  await expect(difference).toContainText('Lea: round 280, totem 300 (differenza +20)');
-  await expect(
-    difference.getByRole('button', { name: 'CONFERMA IL VALORE DEL TOTEM' }),
-  ).toBeDisabled();
-  await difference.getByLabel(/Motivo/).fill('R5 letto male');
-  await difference.getByRole('button', { name: 'CONFERMA IL VALORE DEL TOTEM' }).click();
-  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
-  await expect(page.locator('.final-rows li.first')).toContainText('Ivo');
-  await expect(page.getByText('Lea: ufficiale 300, round 280 — R5 letto male')).toBeVisible();
-
-  // After a reload the history of every observation is still there.
-  await page.reload();
-  await expect(page.getByText('Lea: ufficiale 300, round 280 — R5 letto male')).toBeVisible();
-  await page.getByRole('button', { name: 'Correggi risultato' }).click();
-  await page.getByRole('radio', { name: 'Round per round' }).click();
-  await page.getByRole('radio', { name: /Ivo/ }).click();
-  await page.locator('.round-history summary').click();
-  await expect(page.locator('.round-history li')).toHaveCount(8);
-});
+// Round by round (skipped turn, correction, difference, history): standalone-guided.spec.ts.
 
 test('recovery: a reload keeps the score and the digits of the right player, a double tap saves once', async ({
   page,

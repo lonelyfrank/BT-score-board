@@ -318,22 +318,24 @@ test('pairs composed by hand, rounds tracked with rotation, official result from
   await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
   await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
 
-  await page.getByRole('radio', { name: 'Round per round' }).click();
-  const rotation = page.getByLabel('Rotazione della squadra');
-  await expect(rotation).toContainText('Tira Ada · poi Ciro');
-  await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
+  // Guided turns: Ada throws first for her pair; a turn not seen is skipped, never zero.
+  const now = page.locator('.g-now');
+  await expect(now.locator('h2')).toHaveText('Ada');
+  await expect(now).toContainText('con Ciro');
+  await page.getByRole('radio', { name: 'Totale' }).click();
   await page.keyboard.type('60');
-  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
-  await expect(page.getByRole('radio', { name: 'R1 60' })).toBeVisible();
-  await expect(rotation).toContainText('Tira Ciro · poi Ada');
-  // A round not seen is skipped, never counted as zero.
-  await page.getByRole('button', { name: 'Salta R2 (non visto)' }).click();
-  await expect(page.getByRole('radio', { name: 'R2 saltato' })).toBeVisible();
-  await expect(page.locator('.round-summary')).toContainText('Totale round 60 (parziale)');
-  await expect(page.locator('.round-summary')).toContainText('saltati R2');
+  await page.locator('.g-ctas .cta').click();
+  await expect(now.locator('h2')).toHaveText('Bea');
+  await page.getByRole('button', { name: 'Controlli del turno' }).click();
+  await page.getByRole('button', { name: /Salta il turno di Bea/ }).click();
+  await page.locator('.g-next').click();
+  await expect(now.locator('h2')).toHaveText('Ciro');
+  await page.getByRole('link', { name: 'Matrice' }).click();
+  await expect(page.getByRole('button', { name: 'Ada + Ciro, round 1: 60' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Bea + Dino, round 1: salt.' })).toBeVisible();
 
   // The official totals come from the totem.
-  await page.getByRole('radio', { name: 'Risultato finale' }).click();
+  await page.getByRole('link', { name: 'Risultati' }).click();
   await enterScore(page, 'Ada + Ciro', 300);
   await enterScore(page, 'Bea + Dino', 250);
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
