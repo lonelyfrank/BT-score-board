@@ -6693,6 +6693,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -6772,6 +6776,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -8242,6 +8247,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -8321,6 +8330,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -10275,6 +10285,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -10354,6 +10368,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -12219,6 +12234,10 @@
                               "nullable": true,
                               "type": "number"
                             },
+                            "bust": {
+                              "default": false,
+                              "type": "boolean"
+                            },
                             "kind": {
                               "type": "string",
                               "enum": [
@@ -12298,6 +12317,7 @@
                             "round",
                             "playerId",
                             "value",
+                            "bust",
                             "kind",
                             "status",
                             "correctsId",
@@ -15084,6 +15104,10 @@
                             "nullable": true,
                             "type": "number"
                           },
+                          "bust": {
+                            "default": false,
+                            "type": "boolean"
+                          },
                           "kind": {
                             "type": "string",
                             "enum": [
@@ -15163,6 +15187,7 @@
                           "round",
                           "playerId",
                           "value",
+                          "bust",
                           "kind",
                           "status",
                           "correctsId",
@@ -15589,6 +15614,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "playerId": {
                                   "nullable": true,
                                   "type": "string",
@@ -15651,22 +15680,19 @@
                                 "dartsValue": {
                                   "nullable": true,
                                   "type": "number"
-                                },
-                                "bust": {
-                                  "type": "boolean"
                                 }
                               },
                               "required": [
                                 "round",
                                 "status",
                                 "value",
+                                "bust",
                                 "playerId",
                                 "corrected",
                                 "recordId",
                                 "state",
                                 "darts",
-                                "dartsValue",
-                                "bust"
+                                "dartsValue"
                               ],
                               "additionalProperties": false
                             }
@@ -17779,6 +17805,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -17858,6 +17888,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -19841,6 +19872,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -19920,6 +19955,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -21421,6 +21457,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -21500,6 +21540,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -23199,6 +23240,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -23278,6 +23323,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -24779,6 +24825,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -24858,6 +24908,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -26359,6 +26410,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -26438,6 +26493,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -27939,6 +27995,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -28018,6 +28078,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -29519,6 +29580,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -29598,6 +29663,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -31099,6 +31165,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -31178,6 +31248,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -32679,6 +32750,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -32758,6 +32833,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -34276,6 +34352,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -34355,6 +34435,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -35856,6 +35937,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -35935,6 +36020,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -37453,6 +37539,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -37532,6 +37622,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -39045,6 +39136,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -39124,6 +39219,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -40636,6 +40732,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -40715,6 +40815,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -42216,6 +42317,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -42295,6 +42400,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -43808,6 +43914,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -43887,6 +43997,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -45394,6 +45505,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -45473,6 +45588,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -46997,6 +47113,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -47076,6 +47196,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -48608,6 +48729,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -48687,6 +48812,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -50194,6 +50320,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -50273,6 +50403,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -51780,6 +51911,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -51859,6 +51994,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -53366,6 +53502,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -53445,6 +53585,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -54958,6 +55099,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -55037,6 +55182,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -56544,6 +56690,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -56623,6 +56773,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -58175,6 +58326,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -58254,6 +58409,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -59767,6 +59923,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -59846,6 +60006,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -61374,6 +61535,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -61453,6 +61618,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -62991,6 +63157,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -63070,6 +63240,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -64587,6 +64758,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -64666,6 +64841,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -66179,6 +66355,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -66258,6 +66438,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -67771,6 +67952,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -67850,6 +68035,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -68477,6 +68663,10 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "bust": {
+                    "default": false,
+                    "type": "boolean"
                   },
                   "playerId": {
                     "nullable": true,
@@ -69425,6 +69615,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -69504,6 +69698,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -71033,6 +71228,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -71112,6 +71311,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -72646,6 +72846,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -72725,6 +72929,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -73352,6 +73557,10 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "bust": {
+                    "default": false,
+                    "type": "boolean"
                   },
                   "playerId": {
                     "nullable": true,
@@ -74295,6 +74504,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -74374,6 +74587,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -75909,6 +76123,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -75988,6 +76206,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -77506,6 +77725,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -77585,6 +77808,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",
@@ -79098,6 +79322,10 @@
                                   "nullable": true,
                                   "type": "number"
                                 },
+                                "bust": {
+                                  "default": false,
+                                  "type": "boolean"
+                                },
                                 "kind": {
                                   "type": "string",
                                   "enum": [
@@ -79177,6 +79405,7 @@
                                 "round",
                                 "playerId",
                                 "value",
+                                "bust",
                                 "kind",
                                 "status",
                                 "correctsId",

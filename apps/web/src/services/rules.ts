@@ -100,7 +100,7 @@ export type Tracking = keyof typeof trackingLabels;
 export const trackingHints: Record<Tracking, string> = {
   FINAL_ONLY: 'Si inserisce solo il risultato finale mostrato dal totem.',
   ROUND_BY_ROUND:
-    'Si registra ogni round (o lo si salta esplicitamente) prima del risultato finale.',
+    'Si registra ogni round (o lo si salta esplicitamente); in X01 si può segnare Eccesso.',
   FLEXIBLE: 'Round facoltativi: si può saltare e chiudere con il risultato finale del totem.',
 };
 /** Keeps a composition in line with the selected players: removed ones leave, new ones join as singles. */

@@ -190,6 +190,16 @@ export function recordResult(t: Tournament, m: Match, input: RecordResultInput, 
   activeTournament(t);
   ensure(stage.status === 'open', 'STAGE_CLOSED', 'Stage must be open');
   const entries = countedEntries(t, m);
+  if (t.tracking === 'ROUND_BY_ROUND' && !games[t.gameMode].scoreRequired)
+    ensure(
+      entries.every((entryId) => {
+        const progress = roundProgress(t, m, entryId);
+        return progress.rounds.length > 0 && progress.missing.length === 0;
+      }),
+      'ROUNDS_MISSING',
+      'Record or skip every round before the final result',
+      422,
+    );
   for (const id of Object.keys(input.scores ?? {}))
     ensure(
       entries.includes(id),
@@ -254,7 +264,7 @@ export function recordResult(t: Tournament, m: Match, input: RecordResultInput, 
  * Official values against the progressive rounds of the same entries. The official result
  * prevails; when it differs from a complete progression the organizer gives the reason, and
  * both values are kept. ROUND_BY_ROUND asks for every round (recorded or explicitly skipped)
- * before the final value of games with fixed rounds.
+ * before the official result; open-ended games need at least one recorded round.
  */
 function reconcile(
   t: Tournament,
@@ -272,7 +282,7 @@ function reconcile(
     const progress = roundProgress(t, m, entryId);
     if (t.tracking === 'ROUND_BY_ROUND')
       ensure(
-        progress.missing.length === 0 || progress.rounds.length === 0,
+        progress.missing.length === 0 && progress.rounds.length > 0,
         'ROUNDS_MISSING',
         'Record or skip every round before the final result',
         422,

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+// @ts-ignore -- vite-plugin-pwa is supplied by the workspace at build time.
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json';
 

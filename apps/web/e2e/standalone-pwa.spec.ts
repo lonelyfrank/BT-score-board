@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { chooseTracking } from './helpers';
 
 const banner = (page: Page) => page.locator('.turn-banner');
 async function controlled(page: Page) {
@@ -16,6 +17,7 @@ async function matchInProgress(page: Page, names: [string, string]) {
     await expect(field).toHaveValue('');
   }
   await page.getByRole('button', { name: 'Chiudi', exact: true }).click();
+  await chooseTracking(page, 'Solo finale');
   await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
   await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
   await score(page, names[0], 620);

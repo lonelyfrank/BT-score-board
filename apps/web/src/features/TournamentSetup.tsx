@@ -95,7 +95,8 @@ export function TournamentSetup() {
   const [teamMode, setTeamMode] = useState(false);
   const [teams, setTeams] = useState<TeamDraft[]>([]);
   const [unevenOk, setUnevenOk] = useState(false);
-  const [tracking, setTracking] = useState<Tracking>('FINAL_ONLY');
+  const [tracking, setTracking] = useState<Tracking>('ROUND_BY_ROUND');
+  const [x01Entry, setX01Entry] = useState<'REMAINING' | 'SCORED'>('SCORED');
   const [heatStrategy, setHeatStrategy] = useState<'balanced' | 'sequential' | 'random'>(
     'balanced',
   );
@@ -183,6 +184,7 @@ export function TournamentSetup() {
             lossPoints: loss,
             allowDraws: game.drawPossible && allowDraws,
             playingOrder: order,
+            x01Entry,
             heatStrategy,
           },
         }));
@@ -590,6 +592,20 @@ export function TournamentSetup() {
                 }))}
               />
               <p className="hint">{trackingHints[tracking]}</p>
+              {game.scoring === 'remaining' && tracking !== 'FINAL_ONLY' && (
+                <div className="stack-row">
+                  <span>Valore di ogni turno</span>
+                  <Segmented
+                    label="Valore di ogni turno"
+                    value={x01Entry}
+                    change={setX01Entry}
+                    options={[
+                      { id: 'SCORED', label: 'Punti fatti' },
+                      { id: 'REMAINING', label: 'Punti rimasti' },
+                    ]}
+                  />
+                </div>
+              )}
             </div>
           </details>
           <section className="form-section">

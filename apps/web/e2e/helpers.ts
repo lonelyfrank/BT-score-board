@@ -40,8 +40,27 @@ export async function addEntrants(page: Page, names: string[]) {
     await expect(page.getByRole('button', { name: new RegExp(name), pressed: true })).toBeVisible();
 }
 export const banner = (page: Page) => page.locator('.turn-banner');
+/** Tracking of a new match or tournament, from its advanced options. */
+export async function chooseTracking(
+  page: Page,
+  label: 'Solo finale' | 'Round per round' | 'Flessibile',
+) {
+  await page.locator('details.advanced summary').click();
+  await page.getByRole('radio', { name: label, exact: true }).click();
+}
+export const useFlexibleTracking = (page: Page) => chooseTracking(page, 'Flessibile');
+/** The official result: the Risultati tab of a guided match, or the result screen itself. */
+export async function openFinalResult(page: Page) {
+  // Wait for the match screen: the guided one or the result screen.
+  await expect(page.locator('.guided-page, .result-page').first()).toBeVisible();
+  const tab = page.getByRole('link', { name: 'Risultati', exact: true });
+  if (await tab.isVisible()) await tab.click();
+  const final = page.getByRole('radio', { name: 'Risultato finale' });
+  if (await final.isVisible()) await final.click();
+}
 /** Hi-Score: the totem's final total of the player in entry, typed on the keypad. */
 export async function enterScore(page: Page, player: string, score: number) {
+  await openFinalResult(page);
   await expect(banner(page)).toHaveText(`PUNTEGGIO DI ${player}`);
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type(String(score));
@@ -55,10 +74,21 @@ export async function enterScore(page: Page, player: string, score: number) {
       .first(),
   ).toContainText(String(score));
 }
-export async function freeMatch(page: Page, game: string, names: string[]) {
+/** A free match recording the final result only, or with flexible rounds. */
+export async function freeMatch(
+  page: Page,
+  game: string,
+  names: string[],
+  tracking: boolean | 'Solo finale' | 'Round per round' | 'Flessibile' = false,
+) {
   await page.goto('/partite/nuova');
-  await page.getByRole('radio', { name: new RegExp(`^${game}`) }).click();
+  // The label then the players («301 2–4 giocatori»), not «301 Double In/Out».
+  await page.getByRole('radio', { name: new RegExp(`^${game} \\d`) }).click();
   await addPlayers(page, names);
+  await chooseTracking(
+    page,
+    tracking === true ? 'Flessibile' : tracking === false ? 'Solo finale' : tracking,
+  );
   await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
   await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
   await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);

@@ -199,6 +199,8 @@ export interface RoundRecord {
   /** Team member who threw, when tracked. */
   playerId: string | null;
   value: number | null;
+  /** X01 bust: this turn contributes no points to the running total. */
+  bust: boolean;
   kind: RoundValueKind;
   status: 'recorded' | 'skipped' | 'corrected' | 'voided';
   correctsId: string | null;

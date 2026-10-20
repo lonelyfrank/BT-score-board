@@ -13,7 +13,7 @@ import {
   type DartThrow,
   type Tournament,
 } from '../packages/domain/src/index.js';
-import { LocalEngine, readBackup } from '../packages/local-store/src/index.js';
+import { LocalEngine, migrations, readBackup } from '../packages/local-store/src/index.js';
 
 const S = (sector: number): DartThrow => ({ kind: 'single', sector });
 const T = (sector: number): DartThrow => ({ kind: 'triple', sector });
@@ -196,10 +196,14 @@ describe('Scenario I: integrity on the device', () => {
       engine.read((b) => b.liveMatch(m)).turnPlans,
     );
   });
-  it('reads a V1.2 match with value-only rounds and goes on guided', async () => {
-    const engine = await open();
-    let { t, m } = await evening(engine);
-    t = await engine.write((b) =>
+  it('upgrades a V1.2 database: rounds without bust and darts, then goes on guided', async () => {
+    // V1.2 stored schema 3: rounds with a value only, no bust flag, no darts, no guide.
+    const old = await LocalEngine.open({
+      channel: null,
+      database: { name, migrations: migrations.slice(0, 3) },
+    });
+    let { t, m } = await evening(old);
+    t = await old.write((b) =>
       exec(
         b,
         t,
@@ -208,41 +212,48 @@ describe('Scenario I: integrity on the device', () => {
         m,
       ),
     );
-    t = await engine.write((b) =>
+    t = await old.write((b) =>
       exec(b, t, 'RecordRound', { entryId: t.entries[1]!.id, round: 1, value: 45 }, m),
     );
-    engine.close();
-    // As V1.2 stored it: no darts on the rounds, no guide on the match.
+    old.close();
     const raw = await new Promise<IDBDatabase>((resolve, reject) => {
       const r = indexedDB.open(name);
       r.onsuccess = () => resolve(r.result);
       r.onerror = () => reject(r.error);
     });
+    expect(raw.version).toBe(3);
     const tx = raw.transaction(['tournaments'], 'readwrite');
     const store = tx.objectStore('tournaments');
     for (const stored of await request(store.getAll())) {
       for (const match of stored.matches) {
         delete match.guide;
-        for (const r of match.rounds) delete r.darts;
+        for (const r of match.rounds) {
+          delete r.darts;
+          delete r.bust;
+        }
       }
       store.put(stored);
     }
     await new Promise((resolve) => (tx.oncomplete = resolve));
     raw.close();
+    // Migration 4 adds the bust flag; darts stay absent, nothing is invented.
     const reopened = await open();
-    const old = reopened.read((b) => b.tournament(t.id));
-    expect(matchById(old, m).rounds[0]!.darts).toBeUndefined();
+    const upgraded = reopened.read((b) => b.tournament(t.id));
+    expect(matchById(upgraded, m).rounds.map((r) => [r.value, r.bust, r.darts])).toEqual([
+      [60, false, undefined],
+      [45, false, undefined],
+    ]);
     const live = reopened.read((b) => b.liveMatch(m));
     expect(live.progress[0]!.rounds[0]).toMatchObject({
       value: 60,
       darts: null,
       state: 'complete',
     });
-    // Luca is next: the position follows from the old rounds, nothing invented.
+    // Luca is next: the position follows from the old rounds.
     expect(live.turnPlans[0]!.current).toMatchObject({ entryId: t.entries[2]!.id, round: 1 });
-    const next = await confirm(reopened, old, m, { darts: [S(1), S(2), S(3)] });
+    const next = await confirm(reopened, upgraded, m, { darts: [S(1), S(2), S(3)] });
     expect(roundProgress(next, matchById(next, m), t.entries[2]!.id).rounds[0]!.value).toBe(6);
-    // The old records go through a backup unchanged: nothing is added to them.
+    // Through a backup the old rounds keep no darts, the new one keeps its darts.
     const backup = await readBackup(JSON.stringify(await reopened.exportBackup()));
     const copy = backup.data.tournaments.find((x) => x.id === t.id)!;
     expect(copy.matches[0]!.rounds[0]!.darts).toBeUndefined();

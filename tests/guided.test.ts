@@ -402,7 +402,9 @@ describe('Scenario G: X01', () => {
     );
     t = confirm(backend, t, m, { darts: [T(20)] });
     const salvo = roundProgress(t, matchById(t, m), entry('Salvo'));
-    expect(salvo.rounds[3]).toMatchObject({ value: 0, state: 'early', darts: [T(20)] });
+    expect(salvo.rounds[3]).toMatchObject({ value: 0, state: 'early', darts: [T(20)], bust: true });
+    // The darts set the same persisted flag as a declared bust.
+    expect(matchById(t, m).rounds.at(-1)).toMatchObject({ bust: true, reason: 'Eccesso' });
     expect(salvo.partialValue).toBe(21);
   });
   it('keeps points left (REMAINING) and recalculates after a correction', () => {
@@ -424,6 +426,33 @@ describe('Scenario G: X01', () => {
     expect(rounds[0]).toMatchObject({ value: 216, state: 'complete' });
     // Round 2 now reads 216 - 60 = 156 from its darts, not 160: flagged, never changed silently.
     expect(rounds[1]).toMatchObject({ value: 160, dartsValue: 156, state: 'review' });
+  });
+  it('records one bust flag from the darts or declared without them', () => {
+    let { backend, t, m, entry } = x01('501', 'REMAINING');
+    const f = entry('Frank');
+    t = confirm(backend, t, m, { darts: [T(20), T(20), T(20)] }); // Frank 321
+    t = confirm(backend, t, m, { value: 400 });
+    // Declared bust, no darts: the points left stay 321.
+    t = confirm(backend, t, m, { bust: true } as never);
+    let rounds = roundProgress(t, matchById(t, m), f).rounds;
+    expect(rounds[1]).toMatchObject({ value: 321, bust: true, state: 'complete' });
+    expect(matchById(t, m).rounds.at(-1)).toMatchObject({ bust: true, reason: 'Eccesso' });
+  });
+  it('declares a bust only in X01, never with a value', () => {
+    const hs = game([['Frank'], ['Salvo']]);
+    expect(code(() => confirm(hs.backend, hs.t, hs.m, { bust: true } as never))).toBe(
+      'INVALID_ROUND',
+    );
+    const { backend, t, m } = x01('501', 'SCORED');
+    expect(code(() => confirm(backend, t, m, { bust: true, value: 60 } as never))).toBe(
+      'INVALID_ROUND',
+    );
+    const saved = confirm(backend, t, m, { bust: true } as never);
+    expect(matchById(saved, m).rounds[0]).toMatchObject({
+      value: 0,
+      bust: true,
+      status: 'recorded',
+    });
   });
   it('does not guess points left after a missing round', () => {
     let { backend, t, m } = x01('501', 'SCORED');

@@ -114,6 +114,13 @@ export const migrations: Migration[] = [
     for (let cursor = await tournaments.openCursor(); cursor; cursor = await cursor.continue())
       await cursor.update(upgradeTournament(cursor.value));
   },
+  // 4: X01 busts are recorded on the rounds. Rounds stored before get `bust: false`, so that
+  // the integrity check accepts them; darts and turn choices are optional and need nothing.
+  async (_db, transaction) => {
+    const tournaments = transaction.objectStore('tournaments');
+    for (let cursor = await tournaments.openCursor(); cursor; cursor = await cursor.continue())
+      await cursor.update(upgradeTournament(cursor.value));
+  },
 ];
 export const SCHEMA_VERSION = migrations.length;
 

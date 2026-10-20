@@ -3,11 +3,12 @@
 Branch di lavoro `feat/v1.3-guided-scoring`, costruito sopra `feat/v1.2-operational-readiness`
 (la V1.2 non era ancora su `main`; la V1.3 ne usa la correzione della rotazione).
 
-| Commit             | Contenuto                                                                             |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| `247c341`          | Dominio, contratti, backend, API, archivio locale: freccette e coordinatore dei turni |
-| `9fcd92f`          | Schermata Guided Scoring (Live, Matrice, Classifica, Risultati), E2E e screenshot     |
-| (questo documento) | Report tecnico                                                                        |
+| Commit    | Contenuto                                                                             |
+| --------- | ------------------------------------------------------------------------------------- |
+| `247c341` | Dominio, contratti, backend, API, archivio locale: freccette e coordinatore dei turni |
+| `9fcd92f` | Schermata Guided Scoring (Live, Matrice, Classifica, Risultati), E2E e screenshot     |
+| `60b885c` | Report tecnico                                                                        |
+| merge     | Integrazione di `origin/main` (`fc00299`) e unificazione del bust X01                 |
 
 Design di riferimento: prototipo «BT Darts V1.1» con le tavole Guided Scoring V1.3 (artifact
 claude.ai `8uTfSy8zQL3ent9XTQU6gs`).
@@ -97,10 +98,45 @@ bersaglio non cambia.
 
 ## 5. Persistenza e migrazioni
 
-Nessuna migrazione: il modello effettivo non la richiede. Freccette e guida sono campi
-facoltativi del documento JSON della partita (IndexedDB e SQLite). I round storici senza
-freccette continuano a funzionare con `darts: null` nella vista, senza dati inventati.
-`integrity.ts` verifica freccette e guida anche all'importazione di un backup.
+Freccette e guida sono campi facoltativi del documento JSON della partita (IndexedDB e SQLite):
+per loro nessuna migrazione. I round storici senza freccette funzionano con `darts: null` nella
+vista, senza dati inventati. `integrity.ts` verifica freccette e guida anche all'importazione di
+un backup.
+
+Il flag `bust` sui round, introdotto su `main` da `fc00299`, è obbligatorio per il controllo di
+integrità: i round già salvati sul telefono non lo avevano e la prima scrittura successiva
+sarebbe stata rifiutata. Per questo la merge aggiunge la **migrazione IndexedDB 4**
+(`SCHEMA_VERSION` 4), che applica `upgradeTournament` (`bust: false` sui round esistenti) nella
+stessa transazione dell'upgrade. SQLite aggiorna già i documenti in lettura; i backup di schema
+precedente passano dallo stesso upgrade.
+
+## 5b. Integrazione con `main` (`fc00299`)
+
+Durante il lavoro `origin/main` ha ricevuto `fc00299` (D'Amico Salvatore Alessandro), basato su
+`d004035` e quindi senza la V1.2. La merge (scelta dall'organizzatore) è stata risolta così:
+
+- **Bust X01 unificato**: un solo campo persistito `RoundRecord.bust`. Lo imposta il bust
+  dichiarato senza freccette (regole di `fc00299`: solo X01, senza valore; il round vale 0 punti
+  fatti o mantiene i punti rimasti, motivo «Eccesso») e lo impostano le freccette che vanno oltre
+  lo zero. `RoundView.bust` è vero se il record è un bust o se le freccette lo indicano; un bust
+  dichiarato con freccette che non lo confermano è rifiutato. `RecordTurn` accetta `bust`; la
+  schermata guidata in modalità Totale per X01 ha l'azione **BUST**.
+- **Controlli `ROUND_BY_ROUND` più severi** di `fc00299` mantenuti (ogni round registrato o
+  saltato prima del risultato ufficiale, anche nei giochi a vincitore); il suggerimento relativo è
+  mostrato anche nella scheda Risultati.
+- **Impostazioni predefinite** di `fc00299` mantenute: partite e tornei nuovi in
+  `ROUND_BY_ROUND` (quindi con la schermata guidata) e X01 in «punti fatti». I test E2E V1.2 che
+  verificano la sola schermata dei risultati scelgono ora esplicitamente «Solo finale»;
+  `enterScore` apre la scheda Risultati quando la partita è guidata.
+- **Tipografia**: `fc00299` sostituisce Oswald/Barlow Condensed con i font di sistema. È una scelta
+  presente su `main` e non è stata annullata, ma differisce dal design V1.3 (che usa
+  Oswald/Barlow): da confermare.
+- L'inserimento round per round della vecchia schermata risultati (con il pulsante Eccesso e
+  l'avanzamento automatico di `fc00299`) resta nel codice, ma le partite con round tracciati usano
+  ora la schermata guidata: le stesse funzioni sono offerte lì.
+- `package-lock.json` aggiunto da `fc00299` lasciato com'è (il progetto usa pnpm).
+- Con i font di sistema l'etichetta «Giocatori» della barra veniva tagliata a 320 px: sotto i
+  360 px le etichette della barra passano a 12 px.
 
 ## 6. Componenti UI
 
@@ -130,8 +166,8 @@ freccette continuano a funzionare con `darts: null` nella vista, senza dati inve
 
 | File                                         | Copertura                                                                                                                                                                                                                                                                                                                                                                                       |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/guided.test.ts` (19)                  | Scenari A (4 giocatori × 7 round), B (fuori, zero per regola, non osservata, non usata, discrepanze), C (solo totale), D (correzione, annullamento, undo, scelta, pausa), E (tre coppie e un singolo), F (17 iscritti, 5 manche, classifica unica), G (X01 bust, chiusura, residuo, round mancante, Double In/Out, Masters), integrità (doppio tap, turno stale, chiave obbligatoria, Shanghai) |
-| `tests/guided-local.test.ts` (7)             | Scenario H (chiusura e riapertura), I (doppio tap, due tab, errore IndexedDB, backup con freccette e guida, partita V1.2 senza freccette), modalità shared via HTTP                                                                                                                                                                                                                             |
+| `tests/guided.test.ts` (21)                  | Scenari A (4 giocatori × 7 round), B (fuori, zero per regola, non osservata, non usata, discrepanze), C (solo totale), D (correzione, annullamento, undo, scelta, pausa), E (tre coppie e un singolo), F (17 iscritti, 5 manche, classifica unica), G (X01 bust, chiusura, residuo, round mancante, Double In/Out, Masters), integrità (doppio tap, turno stale, chiave obbligatoria, Shanghai) |
+| `tests/guided-local.test.ts` (7)             | Scenario H (chiusura e riapertura), I (doppio tap, due tab, errore IndexedDB, backup con freccette e guida, database V1.2 aggiornato dalla migrazione 4), modalità shared via HTTP                                                                                                                                                                                                              |
 | `tests/guided-ui.test.ts` (12)               | Tastierino, conferma, bozze                                                                                                                                                                                                                                                                                                                                                                     |
 | `apps/web/e2e/standalone-guided.spec.ts` (3) | Flusso completo con screenshot, squadre disomogenee con undo e pausa, round per round con differenza e cronologia                                                                                                                                                                                                                                                                               |
 
@@ -141,12 +177,15 @@ Le tre prove E2E del vecchio flusso «Round per round» sono state portate alla 
 
 - `npm run typecheck`: superato.
 - `npm run format:check`: superato.
-- `vitest`: 18 file, 216 test superati.
+- `vitest`: 18 file, 220 test superati (dopo la merge con `main`).
 - Nota: durante il lavoro il portatile era a batteria con profilo `low-power` (CPU 400–800 MHz);
   in quella condizione alcune prove lunghe (`api.test.ts`, `groups.test.ts`) superano il
   timeout di 15 s **anche sul commit di partenza** `75a9272`. Con timeout esteso, e poi di nuovo
   con la CPU normale, l'intera suite è passata.
-- E2E Playwright (`npm run test:e2e`, progetti shared e standalone): 22 test superati.
+- E2E Playwright (`npm run test:e2e`, progetti shared e standalone): 23 test superati dopo la
+  merge. Su `fc00299` da solo 4 prove E2E fallivano già (Odd & Even/Exacta/Shanghai, X01 con
+  eccesso, coppie, sette giocatori): sono state adattate al flusso guidato e ora passano; il
+  selettore `^301` ambiguo è stato corretto.
 
 ## 9. Screenshot
 

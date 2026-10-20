@@ -105,7 +105,7 @@ export interface RoundView {
   darts: DartThrow[] | null;
   /** Value the darts give under the game rules, when they decide it. */
   dartsValue: number | null;
-  /** X01: the darts went past zero, the turn is worth nothing. */
+  /** X01 bust, recorded as such or given by the darts: the turn is worth nothing. */
   bust: boolean;
 }
 export interface Progress {
@@ -195,7 +195,7 @@ export function roundProgress(t: Tournament, m: Match, entryId: string): Progres
       state,
       darts,
       dartsValue,
-      bust: !!evaluated?.ev.bust,
+      bust: !!r?.bust || !!evaluated?.ev.bust,
     };
   });
   const values = rounds.filter((r) => r.status === 'recorded').map((r) => r.value!);
@@ -261,6 +261,11 @@ export interface RecordRoundInput {
    * were (a value that no longer matches them is shown for review). null: no detail.
    */
   darts?: DartThrow[] | null;
+  /**
+   * X01: this round's points do not count and the running total is retained. Darts that go
+   * past zero mark the bust by themselves.
+   */
+  bust?: boolean;
   playerId?: string | null;
   reason?: string | null;
   /** Teams: move the rotation to the next thrower after a new round. */
@@ -274,6 +279,13 @@ export interface RecordRoundInput {
 export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c: Context) {
   assertTracking(t, m, input.entryId);
   const spec = trackingSpec(t, m);
+  const declaredBust = input.bust ?? false;
+  ensure(
+    !declaredBust || (games[t.gameMode].scoring === 'remaining' && input.value == null),
+    'INVALID_ROUND',
+    'A bust is only valid for X01 and cannot include a round score',
+    422,
+  );
   const limit = spec.rounds ?? MAX_OPEN_ROUNDS;
   ensure(
     Number.isInteger(input.round) && input.round >= 1 && input.round <= limit,
@@ -282,19 +294,27 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     422,
   );
   let value = input.value;
+  let bust = declaredBust;
   if (input.darts) {
     const remaining = remainingBefore(t, m, input.entryId, input.round);
     const ev = assertTurn({ game: t.gameMode, round: input.round, remaining }, input.darts);
     const derived = valueOfDarts(spec, ev, remaining);
-    if (value === undefined) {
+    ensure(
+      !declaredBust || ev.points === null || ev.bust,
+      'DARTS_MISMATCH',
+      'The darts do not go past zero: this turn is not a bust',
+      422,
+    );
+    bust ||= ev.bust;
+    if (value === undefined && derived !== null) value = derived;
+    else if (value === undefined)
       ensure(
-        derived !== null,
+        declaredBust,
         'VALUE_REQUIRED',
         'The darts do not decide this turn: enter the value shown by the totem',
         422,
       );
-      value = derived;
-    } else if (derived !== null && value !== derived)
+    else if (derived !== null && value !== derived)
       // Darts and value disagree: kept only as an explicit, explained correction.
       ensure(
         input.reason?.trim(),
@@ -303,6 +323,18 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
         422,
       );
   }
+  if (declaredBust && value == null)
+    // A declared bust keeps the running total: 0 points scored, or the points left before.
+    value =
+      t.tournamentConfiguration.x01Entry === 'SCORED'
+        ? 0
+        : (() => {
+            for (let round = input.round - 1; round >= 1; round--) {
+              const earlier = currentRound(m, input.entryId, round);
+              if (earlier?.status === 'recorded' && earlier.value !== null) return earlier.value;
+            }
+            return games[t.gameMode].startingScore!;
+          })();
   ensure(value !== undefined, 'VALUE_REQUIRED', 'Enter the value of the round', 422);
   if (value !== null)
     ensure(
@@ -351,6 +383,7 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
   if (
     previous &&
     previous.value === value &&
+    (previous.bust ?? false) === bust &&
     previous.status === status &&
     JSON.stringify(previous.darts ?? null) === JSON.stringify(darts)
   )
@@ -363,10 +396,11 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     round: input.round,
     playerId,
     value,
+    bust,
     kind: spec.kind,
     status,
     correctsId: previous?.id ?? null,
-    reason: input.reason?.trim() || null,
+    reason: input.reason?.trim() || (bust ? 'Eccesso' : null),
     source: 'manual',
     createdAt: c.now(),
     recordedBy: c.operator,

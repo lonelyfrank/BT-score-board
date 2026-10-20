@@ -272,6 +272,8 @@ export interface RecordTurnInput {
   /** Left out when the darts decide the turn. */
   value?: number | null;
   darts?: DartThrow[] | null;
+  /** X01: a bust declared without darts. */
+  bust?: boolean;
   /** Another member than the one expected throws for the team. */
   playerId?: string | null;
   reason?: string | null;
@@ -298,6 +300,7 @@ export function recordTurn(t: Tournament, m: Match, input: RecordTurnInput, c: C
       round: input.round,
       value: input.value,
       darts: input.darts,
+      bust: input.bust,
       playerId: input.playerId ?? undefined,
       reason: input.reason,
       advanceRotation: true,

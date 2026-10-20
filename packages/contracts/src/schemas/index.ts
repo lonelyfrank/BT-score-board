@@ -154,6 +154,8 @@ export const recordRound = matchCommand.extend({
   value: z.number().int().nonnegative().max(12000).nullable(),
   /** Darts one by one; left out on a correction to keep the darts already entered. */
   darts: darts.nullable().optional(),
+  /** X01: the points from this round do not count. */
+  bust: z.boolean().default(false),
   playerId: id.nullable().optional(),
   reason: z.string().trim().max(1000).nullable().optional(),
   advanceRotation: z.boolean().default(false),
@@ -165,6 +167,8 @@ export const recordTurn = matchCommand.extend({
   /** Left out when the darts decide the turn; null: not observed. */
   value: z.number().int().nonnegative().max(12000).nullable().optional(),
   darts: darts.nullable().optional(),
+  /** X01: declared bust, without a value (the running total is kept). */
+  bust: z.boolean().default(false),
   playerId: id.nullable().optional(),
   reason: z.string().trim().max(1000).nullable().optional(),
 });
@@ -307,6 +311,7 @@ export const roundResponse = z.object({
   round: z.number(),
   playerId: id.nullable(),
   value: z.number().nullable(),
+  bust: z.boolean().default(false),
   kind: z.enum(['points', 'remaining', 'progress']),
   status: z.enum(['recorded', 'skipped', 'corrected', 'voided']),
   correctsId: id.nullable(),
@@ -532,6 +537,7 @@ export const liveMatchResponse = matchResponse.extend({
           round: z.number(),
           status: z.enum(['recorded', 'skipped', 'missing']),
           value: z.number().nullable(),
+          bust: z.boolean().default(false),
           playerId: id.nullable(),
           corrected: z.boolean(),
           recordId: id.nullable(),
@@ -546,7 +552,6 @@ export const liveMatchResponse = matchResponse.extend({
           ]),
           darts: z.array(dartThrow).nullable(),
           dartsValue: z.number().nullable(),
-          bust: z.boolean(),
         }),
       ),
       recorded: z.number(),

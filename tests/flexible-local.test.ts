@@ -223,7 +223,7 @@ describe('Upgrade of data written by the previous version (schema 2)', () => {
   it('migrates schema 2 in place: entries become singles, results and players intact', async () => {
     const { tournamentId, matchId, players } = await schema2Database();
     const engine = await open();
-    expect(SCHEMA_VERSION).toBe(3);
+    expect(SCHEMA_VERSION).toBe(4);
     const t = engine.read((b) => b.tournament(tournamentId));
     expect(t.tracking).toBe('FINAL_ONLY');
     expect(t.entries.map((e) => [e.kind, e.members.map((m) => m.playerId)])).toEqual(

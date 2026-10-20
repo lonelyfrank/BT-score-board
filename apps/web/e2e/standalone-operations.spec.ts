@@ -1,5 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addEntrants, addPlayers, banner, enterScore, freeMatch, guardNetwork } from './helpers';
+import {
+  addEntrants,
+  addPlayers,
+  banner,
+  chooseTracking,
+  enterScore,
+  freeMatch,
+  guardNetwork,
+} from './helpers';
 
 // V1.2 operational readiness: the evenings of the acceptance checklist, end to end.
 
@@ -17,6 +25,7 @@ async function newHiScoreTournament(page: Page, players: string[]) {
   await page.goto('/tornei/nuovo');
   await page.getByRole('radio', { name: 'Hi-Score rapido' }).click();
   await addEntrants(page, players);
+  await chooseTracking(page, 'Solo finale');
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
   await expect(page).toHaveURL(/\/hiscore\//);
   return page.url();

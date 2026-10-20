@@ -4070,6 +4070,10 @@ div.match-row {
     grid-template-columns: 1fr 1fr;
     gap: 16px 26px;
   }
+  .live-content > .round-target,
+  .live-content > .round-entry {
+    grid-column: 1/-1;
+  }
   .scoreboard,
   .recent,
   .match-panel,
@@ -4642,6 +4646,30 @@ details.advanced > summary,
   margin: 0;
   color: var(--bt-text-secondary);
   font-size: 15px;
+}
+.round-record-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-sunken);
+}
+.round-record-actions p {
+  min-width: 0;
+  margin: 0;
+  color: var(--bt-text-secondary);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.round-record-actions p strong {
+  color: var(--bt-text-primary);
+}
+.round-record-actions button {
+  min-height: var(--bt-touch-min);
+  white-space: normal;
 }
 .score-paper.round-paper {
   position: relative;
@@ -5944,5 +5972,359 @@ button.dart-cell:disabled {
   .g-live > .section {
     grid-column: 2;
     grid-row: 1 / span 8;
+  }
+}
+
+/* Compact, touch-first materials: a calm liquid-glass layer over the BT dark theme. */
+.app-shell {
+  background-image:
+    radial-gradient(ellipse at 12% 0%, rgba(80, 91, 255, 0.09), transparent 34rem),
+    radial-gradient(ellipse at 92% 38%, rgba(255, 35, 139, 0.055), transparent 30rem),
+    radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    3px 3px;
+}
+
+.panel,
+.match-panel,
+.team-list > li,
+.heat-editor > li,
+.rotation-bar {
+  border-color: rgba(255, 255, 255, 0.085);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    var(--bt-surface-sunken);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.bottom-nav {
+  background: rgba(32, 32, 38, 0.72);
+  border-color: rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  backdrop-filter: blur(28px) saturate(170%);
+}
+
+.icon-button,
+.heat-chip,
+.round-cell {
+  background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.055), transparent 65%);
+}
+
+@media (max-width: 699px) {
+  .app-shell {
+    overflow-x: clip;
+  }
+
+  .live-content > *,
+  .content > * {
+    min-width: 0;
+  }
+
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    height: calc(58px + env(safe-area-inset-top));
+    background: rgba(13, 13, 17, 0.76);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+  }
+
+  .content {
+    padding: 8px 12px 20px;
+  }
+
+  .panel {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 16px;
+  }
+
+  .sheet,
+  .dialog {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(29, 29, 35, 0.92);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(28px) saturate(160%);
+  }
+
+  .sheet {
+    max-width: none;
+    max-height: 88dvh;
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-radius: 22px 22px 0 0;
+    padding-inline: 14px;
+  }
+
+  .dialog {
+    width: calc(100% - 24px);
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .home-card {
+    min-height: 68px;
+    border-radius: 18px;
+    border-color: rgba(255, 255, 255, 0.11);
+    background: rgba(31, 31, 37, 0.76);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
+  }
+
+  .home-card.primary {
+    background: linear-gradient(135deg, #ff3b9d, #e91e7b);
+  }
+
+  button,
+  .button {
+    border-radius: 14px;
+    border-color: rgba(255, 255, 255, 0.11);
+  }
+
+  .primary {
+    border-radius: 16px;
+  }
+
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    min-height: 46px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0 5px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs button {
+    flex: 0 0 auto;
+    min-width: 82px;
+    padding-inline: 12px;
+    border-radius: 999px;
+    scroll-snap-align: start;
+  }
+
+  .tabs [aria-selected='true'],
+  .tabs [aria-selected='true']:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 5px 16px rgba(255, 35, 139, 0.2);
+  }
+
+  .segmented {
+    min-height: 46px;
+    border-radius: 999px;
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.055);
+  }
+
+  .segmented button {
+    border-radius: 999px;
+    font-size: 16px;
+  }
+
+  .segmented [aria-checked='true'] {
+    background: linear-gradient(145deg, #ff3b9d, #e91e7b);
+    box-shadow: 0 2px 8px rgba(255, 35, 139, 0.22);
+  }
+
+  .mode-grid button {
+    min-height: 52px;
+    border-radius: 16px;
+    background-color: rgba(31, 31, 37, 0.76);
+    border-color: rgba(255, 255, 255, 0.085);
+  }
+
+  .score-card {
+    height: auto;
+    min-height: 138px;
+    border-radius: 16px;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 72%), rgba(27, 27, 33, 0.9);
+  }
+
+  .scoreboard {
+    grid-template-columns: none !important;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(112px, 1fr);
+    justify-content: start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 2px 2px 8px;
+    scrollbar-width: none;
+    scroll-padding-inline: 10px;
+  }
+
+  .scoreboard::-webkit-scrollbar {
+    display: none;
+  }
+
+  .score-card .player-name {
+    display: -webkit-box;
+    min-height: 2.4em;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .score-card .card-tag {
+    max-width: 100%;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .score-card.selected {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      0 0 0 1px rgba(255, 59, 157, 0.7),
+      0 8px 24px rgba(255, 35, 139, 0.13);
+  }
+
+  .round-target {
+    width: fit-content;
+    max-width: 100%;
+    margin: 4px 0;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
+    color: var(--bt-text-primary);
+  }
+
+  .round-entry {
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
+    background:
+      linear-gradient(155deg, rgba(255, 255, 255, 0.055), transparent 65%), rgba(22, 22, 27, 0.78);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  .round-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 58px), 1fr));
+    gap: 6px;
+  }
+
+  .round-cell {
+    min-width: 0;
+    min-height: 58px;
+    border-radius: 13px;
+    background-color: rgba(255, 255, 255, 0.045);
+  }
+
+  .round-tools {
+    gap: 6px;
+  }
+
+  .round-tools > button {
+    flex: 1 1 100%;
+    min-height: var(--bt-touch-min);
+    padding: 9px 12px;
+    font-size: 15px;
+    white-space: normal;
+  }
+
+  .keypad button {
+    height: 54px;
+    border-radius: 15px;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 75%), var(--bt-surface-card);
+  }
+
+  .score-paper.round-paper {
+    min-height: 96px;
+    margin: 0 2px 6px;
+    border-radius: 14px;
+    clip-path: none;
+    transform: none;
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.55),
+      0 5px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  .round-summary {
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .round-record-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .round-record-actions button {
+    width: 100%;
+  }
+
+  .hint,
+  .muted {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .round-history {
+    padding-top: 4px;
+  }
+}
+
+@media (max-width: 380px) {
+  .content {
+    padding-inline: 10px;
+  }
+
+  .round-entry {
+    padding: 8px;
+  }
+
+  .round-tools > button {
+    flex-basis: 100%;
+  }
+
+  .app-header h1 {
+    font-size: 21px;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-header {
+    background: rgba(13, 13, 17, 0.98);
+  }
+
+  .home-card,
+  .round-entry {
+    background-color: var(--bt-surface-card);
+  }
+}
+
+/* V1.3: bust dichiarato in X01 (solo totale), secondario rispetto alla conferma. */
+button.warning.g-bust {
+  background: transparent;
+  border-color: rgba(255, 191, 56, 0.6);
+  color: var(--bt-warning);
+  font-weight: 600;
+}
+
+/* Schermi molto stretti (320px) con i font di sistema: le etichette della barra restano intere. */
+@media (max-width: 360px) {
+  .bottom-nav a span {
+    font-size: 12px;
+    letter-spacing: 0;
   }
 }

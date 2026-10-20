@@ -575,6 +575,31 @@ function GuidedLive({
       },
     );
   };
+  /** X01 without darts: the totem shows a bust, the turn is worth nothing. */
+  const declareBust = () => {
+    if (!current || busy || interrupted) return;
+    const who = throwerName;
+    const saving = current;
+    record.run(
+      'turns/record',
+      { entryId: saving.entryId, round: saving.round, bust: true },
+      (fresh) => {
+        vibrate();
+        roundDone(fresh, saving);
+        storage.remove(draftKey);
+        setInput(emptyInput());
+        setQuick('');
+        notify({
+          text: (
+            <>
+              <b>{who}</b> · bust, il turno vale 0
+            </>
+          ),
+          undo: saving,
+        });
+      },
+    );
+  };
   const undoable = plan.undoable;
   const undoName = undoable
     ? names.thrower({
@@ -765,6 +790,16 @@ function GuidedLive({
             limitLabel={`Massimo ${max}`}
             okLabel={`Conferma il turno di ${throwerName}`}
           />
+        )}
+        {mode === 'quick' && x01 && (
+          <button
+            type="button"
+            className="warning g-bust"
+            disabled={busy || interrupted}
+            onClick={declareBust}
+          >
+            BUST · il turno non conta, il residuo resta
+          </button>
         )}
         <div className="g-ctas">
           <button className="primary cta" disabled={!c.ok || busy || interrupted} onClick={confirm}>

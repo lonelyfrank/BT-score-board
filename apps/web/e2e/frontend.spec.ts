@@ -28,9 +28,23 @@ async function addEntrant(page: Page, name: string) {
   await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('');
   await page.getByRole('button', { name: 'Chiudi', exact: true }).click();
 }
+async function useFlexibleTracking(page: Page) {
+  await page.locator('details.advanced summary').click();
+  await page.getByRole('radio', { name: 'Flessibile', exact: true }).click();
+}
 const confirmTurn = (page: Page) =>
   page.getByRole('button', { name: 'Conferma totale e chiudi il turno' });
+/** The official result: the Risultati tab of a guided match, or the result screen itself. */
+async function openFinalResult(page: Page) {
+  // Wait for the match screen: the guided one or the result screen.
+  await expect(page.locator('.guided-page, .result-page').first()).toBeVisible();
+  const tab = page.getByRole('link', { name: 'Risultati', exact: true });
+  if (await tab.isVisible()) await tab.click();
+  const final = page.getByRole('radio', { name: 'Risultato finale' });
+  if (await final.isVisible()) await final.click();
+}
 async function enterScore(page: Page, player: string, score: number) {
+  await openFinalResult(page);
   await expect(page.locator('.turn-banner')).toHaveText(`PUNTEGGIO DI ${player}`);
   await page.keyboard.type(String(score));
   await page.getByRole('button', { name: `Conferma il punteggio di ${player}` }).click();
@@ -54,9 +68,11 @@ test('home, result entry, reload, correction, qualification and final', async ({
   await page.goto('/tornei/nuovo');
   await page.getByRole('radio', { name: 'Hi-Score rapido' }).click();
   for (const name of ['Frank', 'Giulia', 'Hugo']) await addEntrant(page, name);
+  await useFlexibleTracking(page);
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
   await expect(page.getByRole('tab', { name: 'Finale', selected: true })).toBeVisible();
   await page.getByRole('link', { name: 'GIOCA LA FINALE' }).click();
+  await openFinalResult(page);
   // Typing before the keypad is ready would be lost.
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type('1270');
@@ -66,7 +82,11 @@ test('home, result entry, reload, correction, qualification and final', async ({
   await page.getByRole('button', { name: 'Svuota input' }).click();
   await page.keyboard.type('640');
   await shot(page, '03-partita-live');
-  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(844);
+  // The result screen fits the phone; the guided Risultati tab scrolls by design.
+  if (!(await page.locator('.guided-page').count()))
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
+      844,
+    );
   await page.setViewportSize({ width: 844, height: 390 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(844);
   await shot(page, '06-live-landscape');
@@ -100,6 +120,7 @@ test('group setup and responsive views', async ({ page }) => {
   await page.getByRole('radio', { name: 'A gironi', exact: true }).click();
   await page.getByRole('radio', { name: '301 Masters', exact: true }).click();
   for (const name of ['Marco', 'Davide', 'Sara', 'Elena']) await addEntrant(page, name);
+  await useFlexibleTracking(page);
   await shot(page, '04-torneo');
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
   await page.getByRole('tab', { name: 'Gironi' }).click();
@@ -107,6 +128,7 @@ test('group setup and responsive views', async ({ page }) => {
   await page.getByRole('tab', { name: 'Panoramica' }).click();
   async function playNext() {
     await page.getByRole('link', { name: 'Gioca l’incontro' }).click();
+    await openFinalResult(page);
     const first = page.locator('.scoreboard [role="radio"]').first();
     await first.click();
     await page.getByRole('button', { name: 'CONFERMA RISULTATO' }).click();

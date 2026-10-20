@@ -107,6 +107,7 @@ export function assertTournamentIntegrity(
       if (!Number.isInteger(r.round) || r.round <= 0) fail('round number');
       if (r.value !== null && (!Number.isSafeInteger(r.value) || r.value < 0 || r.value > 12000))
         fail('round value');
+      if (typeof r.bust !== 'boolean') fail('round bust');
       if (r.playerId !== null && !members.get(r.tournamentEntryId)?.includes(r.playerId))
         fail('round player');
       if (r.darts)
