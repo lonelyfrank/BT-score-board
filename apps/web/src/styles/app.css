@@ -205,6 +205,10 @@ form > .primary {
 .with-nav:has(.home-page) {
   padding-bottom: 0;
 }
+/* L'avviso di aggiornamento flotta sopra la barra: il fondo della pagina resta raggiungibile. */
+.with-nav:has(.update-toast) {
+  padding-bottom: calc(var(--bt-nav-space) + 24px + 76px);
+}
 .content {
   padding: 4px var(--bt-gutter) 24px;
 }
@@ -316,6 +320,22 @@ form > .primary {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .bottom-nav {
     background: var(--bt-glass-bg-fallback);
+  }
+}
+/*
+ * Tastiera virtuale aperta (un campo di testo ha il focus su uno schermo touch): la barra
+ * sparisce invece di salire sopra la tastiera o restarci sotto, e torna alla chiusura.
+ * Senza :has() la barra resta com'era in V1.1.
+ */
+@media (pointer: coarse) {
+  .app-shell:has(
+      :is(
+        input:not([type='checkbox'], [type='radio'], [type='file'], [type='range']),
+        textarea
+      ):focus
+    )
+    :is(.bottom-nav, .nav-scrim, .update-toast) {
+    display: none;
   }
 }
 .nav-pill {

@@ -20,7 +20,7 @@ export function AppStatus() {
 function UpdateToast() {
   const { pathname } = useLocation();
   const pwa = usePwa();
-  if (!pwa.updateAvailable || isCriticalRoute(pathname)) return null;
+  if (!pwa.canApply || isCriticalRoute(pathname)) return null;
   return (
     <div className="update-toast" role="status">
       <p>Nuova versione disponibile</p>

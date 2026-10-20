@@ -105,6 +105,17 @@ test('a new version waits for a safe moment and keeps the data', async ({ page }
     await expect(page.getByText('Nuova versione disponibile')).toHaveCount(0);
     await score(page, 'Alba', 600);
     await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+    // A backup being reviewed holds the update too: no reload in the middle of an import.
+    await page.goto('/impostazioni');
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Esporta backup' }).click();
+    const file = await download;
+    await page.getByLabel('Importa backup').setInputFiles((await file.path())!);
+    await expect(page.getByRole('dialog', { name: 'Ripristinare questo backup?' })).toBeVisible();
+    await expect(page.locator('.update-toast')).toHaveCount(0);
+    await expect(page.locator('button', { hasText: 'Aggiorna ora' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('button', { hasText: 'Aggiorna ora' })).toBeEnabled();
     await page.goto('/tornei');
     const notice = page.getByRole('status').filter({ hasText: 'Nuova versione disponibile' });
     await expect(notice).toBeVisible();

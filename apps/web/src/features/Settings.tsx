@@ -12,7 +12,7 @@ import {
   shareFile,
   storageInfo,
 } from '../services/device';
-import { usePwa } from '../services/pwa';
+import { usePwa, useUpdateHold } from '../services/pwa';
 import { gameModes, games } from '../services/rules';
 import { Header, ErrorMessage, Modal } from '../components/ui';
 
@@ -101,6 +101,10 @@ function DeviceData() {
     mutationFn: requestPersistence,
     onSuccess: () => void client.invalidateQueries({ queryKey: ['storage-info'] }),
   });
+  // An app update never reloads the page in the middle of a backup or of its preview.
+  useUpdateHold(
+    !!preview || readFile.isPending || importBackup.isPending || exportBackup.isPending,
+  );
   const s = status.data;
   const counts = s?.counts;
   const hasData = !!counts && counts.players + counts.tournaments + counts.events > 0;
@@ -276,7 +280,7 @@ function AppSection() {
       {pwa.updateAvailable && (
         <>
           <p>È disponibile una nuova versione. Aggiorna quando nessuna partita è in corso.</p>
-          <button className="primary" onClick={pwa.applyUpdate}>
+          <button className="primary" disabled={!pwa.canApply} onClick={pwa.applyUpdate}>
             Aggiorna ora
           </button>
         </>
