@@ -10,6 +10,7 @@ const current = (t: Tournament) =>
     (m) =>
       m.result !== undefined &&
       m.heats !== undefined &&
+      (m.rounds ?? []).every((r) => r.bust !== undefined) &&
       (m.result === null || m.result.reconciliation !== undefined),
   );
 
@@ -28,7 +29,7 @@ function upgradeMatch(m: Match): Match {
     ...m,
     result: m.result ? { ...m.result, reconciliation: m.result.reconciliation ?? [] } : null,
     heats: m.heats ?? [],
-    rounds: m.rounds ?? [],
+    rounds: (m.rounds ?? []).map((r) => ({ ...r, bust: r.bust ?? false })),
     rotations: m.rotations ?? [],
   };
 }

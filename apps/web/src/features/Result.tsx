@@ -140,11 +140,20 @@ export function ResultEntry({
   const name = (id: string) => (t ? entryName(t, id) : 'Giocatore');
   const recorded = (id: string) => m.result?.scores[id] ?? null;
   const missing = playing.filter((p) => recorded(p.tournamentEntryId) === null);
+  const entryRoundsReady = (entryId: string) => {
+    const progress = m.progress.find((x) => x.tournamentEntryId === entryId);
+    return !!progress && progress.rounds.length > 0 && progress.missing.length === 0;
+  };
   // Hi-Score: whose total is being typed. Defaults to the next player still without a score.
   const current =
     selected && playing.some((p) => p.tournamentEntryId === selected)
       ? selected
       : (missing[0]?.tournamentEntryId ?? playing[0]?.tournamentEntryId ?? null);
+  const roundsReady =
+    m.tracking !== 'ROUND_BY_ROUND' ||
+    (game.scoreRequired
+      ? !!current && entryRoundsReady(current)
+      : playing.every((p) => entryRoundsReady(p.tournamentEntryId)));
   const limit = maxScore(m.gameMode as GameMode, m.scoringConfiguration);
   const completed = m.status === 'completed';
   const cancelled = m.status === 'cancelled';
@@ -167,6 +176,44 @@ export function ResultEntry({
     void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['session'] });
+  };
+  const roundSaved = (
+    fresh: Match,
+    roundNumber: number,
+    corrected: boolean,
+    entryId: string,
+  ) => {
+    refreshed(fresh);
+    if (corrected) return;
+    const entries = playing.map((p) => p.tournamentEntryId);
+    const currentIndex = entries.indexOf(entryId);
+    const cyclic = Array.from(
+      { length: entries.length },
+      (_, index) => entries[(currentIndex + index + 1) % entries.length]!,
+    );
+    if (fresh.trackingSpec.rounds !== null) {
+      for (let number = 1; number <= fresh.trackingSpec.rounds; number++) {
+        const next = cyclic.find((candidate) =>
+          fresh.progress
+            .find((progress) => progress.tournamentEntryId === candidate)
+            ?.rounds.some((r) => r.round === number && r.status === 'missing'),
+        );
+        if (next) {
+          setSelected(next);
+          return;
+        }
+      }
+      setSelected(null);
+      setEntry('final');
+      setFlash('Tutti i round registrati · inserisci il risultato finale');
+      return;
+    }
+    const next =
+      cyclic.find((candidate) => {
+        const progress = fresh.progress.find((p) => p.tournamentEntryId === candidate);
+        return (progress?.rounds.length ?? 0) + 1 <= roundNumber;
+      }) ?? cyclic[0];
+    if (next) setSelected(next);
   };
   const heatCommand = useMutation({
     mutationFn: ({
@@ -296,7 +343,9 @@ export function ResultEntry({
     };
     let reason = '';
     let derived: string | null = null;
-    if (Object.values(scores).some((v) => !Number.isInteger(v) || v < 0 || v > limit))
+    if (!roundsReady)
+      reason = 'Registra o salta tutti i round prima del risultato finale.';
+    else if (Object.values(scores).some((v) => !Number.isInteger(v) || v < 0 || v > limit))
       reason = `${game.scoreLabel}: da 0 a ${limit}.`;
     else if (
       game.target &&
@@ -326,7 +375,7 @@ export function ResultEntry({
             : 'Controlla i valori inseriti.';
       }
     return { input, reason, derived };
-  }, [form, playing, m.result, game, limit, m.gameMode]);
+  }, [form, playing, m.result, game, limit, m.gameMode, roundsReady]);
 
   const isFinal = t?.stages.find((s) => s.id === m.stageId)?.kind === 'final';
   const single = t?.mode === 'SINGLE_MATCH';
@@ -507,18 +556,27 @@ export function ResultEntry({
           </section>
         )}
         {tracked && entering && (
-          <Segmented
-            label="Cosa inserisci"
-            value={entry}
-            change={(v) => {
-              setEntry(v);
-              saveInput('');
-            }}
-            options={[
-              { id: 'final', label: 'Risultato finale' },
-              { id: 'rounds', label: 'Round per round' },
-            ]}
-          />
+          <>
+            <Segmented
+              label="Cosa inserisci"
+              value={entry}
+              change={(v) => {
+                setEntry(v);
+                saveInput('');
+              }}
+              options={[
+                { id: 'final', label: 'Risultato finale' },
+                { id: 'rounds', label: 'Round per round' },
+              ]}
+            />
+            {entry === 'final' && !roundsReady && (
+              <p className="hint" role="status">
+                {game.scoreRequired
+                  ? 'Registra o salta tutti i round di questo partecipante prima del risultato finale.'
+                  : 'Registra o salta tutti i round prima del risultato finale.'}
+              </p>
+            )}
+          </>
         )}
         {compact ? (
           <ol className="result-list" role="radiogroup" aria-label="Giocatori">
@@ -577,7 +635,7 @@ export function ResultEntry({
         )}
         {rounds && roundTarget && (
           <>
-            <p className="round-target">
+            <p className="round-target" role="status" aria-live="polite">
               Round di <strong>{name(roundTarget)}</strong>
             </p>
             {(unit(roundTarget)?.members.length ?? 0) > 1 && (
@@ -595,7 +653,9 @@ export function ResultEntry({
               entryId={roundTarget}
               team={(unit(roundTarget)?.members.length ?? 0) > 1}
               disabled={paused || mutation.isPending}
-              saved={(fresh) => refreshed(fresh)}
+              saved={(fresh, _message, roundNumber, corrected) =>
+                roundSaved(fresh, roundNumber, corrected, roundTarget)
+              }
               applyComputed={(value) => {
                 if (hiScore) send({ scores: { [roundTarget]: value } });
                 else {
@@ -656,7 +716,7 @@ export function ResultEntry({
                 current && input !== '' && send({ scores: { [current]: Number(input) } })
               }
               undo={() => current && send({ scores: { [current]: null } })}
-              busy={mutation.isPending || !current || paused}
+              busy={mutation.isPending || !current || paused || !roundsReady}
               canUndo={!!current && recorded(current) !== null}
               maximum={limit}
               notify={(text) => setFlash(text)}

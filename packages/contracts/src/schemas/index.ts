@@ -142,6 +142,8 @@ export const recordRound = matchCommand.extend({
   round: z.number().int().min(1).max(99),
   /** null: the round was not observed (skipped), which is not zero. */
   value: z.number().int().nonnegative().max(12000).nullable(),
+  /** X01: the points from this round do not count. */
+  bust: z.boolean().default(false),
   playerId: id.nullable().optional(),
   reason: z.string().trim().max(1000).nullable().optional(),
   advanceRotation: z.boolean().default(false),
@@ -279,6 +281,7 @@ export const roundResponse = z.object({
   round: z.number(),
   playerId: id.nullable(),
   value: z.number().nullable(),
+  bust: z.boolean().default(false),
   kind: z.enum(['points', 'remaining', 'progress']),
   status: z.enum(['recorded', 'skipped', 'corrected', 'voided']),
   correctsId: id.nullable(),
@@ -495,6 +498,7 @@ export const liveMatchResponse = matchResponse.extend({
           round: z.number(),
           status: z.enum(['recorded', 'skipped', 'missing']),
           value: z.number().nullable(),
+          bust: z.boolean().default(false),
           playerId: id.nullable(),
           corrected: z.boolean(),
           recordId: id.nullable(),

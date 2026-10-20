@@ -564,12 +564,14 @@ describe('Progressive scoring', () => {
   it('asks for a reason when the official result differs, and keeps both values', () => {
     let { backend, t, m, e } = hiScore('ROUND_BY_ROUND');
     for (let i = 1; i <= 7; i++) t = round(backend, t, m, e[0]!, i, 50);
-    expect(code(() => run(backend, t, 'RecordResult', { scores: { [e[0]!]: 360 } }, m))).toBe(
-      'RESULT_DIFFERS_FROM_ROUNDS',
-    );
-    // ROUND_BY_ROUND: the other player still has rounds to record or skip.
+    // ROUND_BY_ROUND requires every entry to finish its progression before the result.
     expect(code(() => run(backend, t, 'RecordResult', { scores: { [e[1]!]: 200 } }, m))).toBe(
       'ROUNDS_MISSING',
+    );
+    for (const [i, value] of [50, 50, 50, 50, 0, 0, 0].entries())
+      t = round(backend, t, m, e[1]!, i + 1, value);
+    expect(code(() => run(backend, t, 'RecordResult', { scores: { [e[0]!]: 360 } }, m))).toBe(
+      'RESULT_DIFFERS_FROM_ROUNDS',
     );
     t = run(
       backend,
@@ -585,7 +587,6 @@ describe('Progressive scoring', () => {
     ]);
     // The rounds were not touched to make the numbers match.
     expect(roundProgress(t, matchById(t, m), e[0]!).computed).toBe(350);
-    for (let i = 1; i <= 7; i++) t = round(backend, t, m, e[1]!, i, null);
     t = run(backend, t, 'RecordResult', { scores: { [e[1]!]: 200 } }, m);
     // The ranking uses the official values.
     expect(matchStandings(t, matchById(t, m)).map((r) => r.total)).toEqual([360, 200]);
@@ -596,7 +597,12 @@ describe('Progressive scoring', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
-      { mode: 'SINGLE_MATCH', gameMode: '501', tracking: 'FLEXIBLE' },
+      {
+        mode: 'SINGLE_MATCH',
+        gameMode: '501',
+        tracking: 'FLEXIBLE',
+        config: { x01Entry: 'REMAINING' },
+      },
     );
     const m = t.matches[0]!.id;
     const [a, b] = t.entries.map((x) => x.id);
@@ -637,6 +643,74 @@ describe('Progressive scoring', () => {
     expect(
       code(() => run(backend, t, 'RecordResult', { scores: { [a!]: 0 }, winnerEntryId: a }, m)),
     ).toBe('RESULT_DIFFERS_FROM_ROUNDS');
+  });
+  it('keeps an X01 total unchanged on a bust and reconciles it to the final result', () => {
+    const backend = setup().backend;
+    const p = players(backend, 2);
+    let t = tournament(
+      backend,
+      p.map((id) => [id]),
+      {
+        mode: 'SINGLE_MATCH',
+        gameMode: '301',
+        tracking: 'ROUND_BY_ROUND',
+        config: { x01Entry: 'SCORED' },
+      },
+    );
+    const m = t.matches[0]!.id;
+    const [a, b] = t.entries.map((x) => x.id);
+    expect(
+      code(() =>
+        run(
+          backend,
+          t,
+          'RecordResult',
+          { winnerEntryId: a },
+          m,
+        ),
+      ),
+    ).toBe('ROUNDS_MISSING');
+    t = round(backend, t, m, a!, 1, 10);
+    t = round(backend, t, m, a!, 2, null, { bust: true });
+    t = round(backend, t, m, b!, 1, 0);
+    expect(
+      matchById(t, m).rounds.find((r) => r.tournamentEntryId === a && r.round === 2),
+    ).toMatchObject({ value: 0, bust: true });
+    expect(roundProgress(t, matchById(t, m), a!)).toMatchObject({
+      complete: true,
+      computed: 291,
+    });
+    t = run(
+      backend,
+      t,
+      'RecordResult',
+      { scores: { [a!]: 291, [b!]: 301 }, winnerEntryId: a },
+      m,
+    );
+    expect(matchById(t, m).winnerEntryId).toBe(a);
+  });
+  it('keeps the last remaining X01 total when a bust is recorded in remaining-score mode', () => {
+    const backend = setup().backend;
+    const p = players(backend, 2);
+    const t = tournament(
+      backend,
+      p.map((id) => [id]),
+      {
+        mode: 'SINGLE_MATCH',
+        gameMode: '301',
+        tracking: 'ROUND_BY_ROUND',
+        config: { x01Entry: 'REMAINING' },
+      },
+    );
+    const m = t.matches[0]!.id;
+    const entry = t.entries[0]!.id;
+    const afterFirst = round(backend, t, m, entry, 1, 291);
+    const afterBust = round(backend, afterFirst, m, entry, 2, null, { bust: true });
+    expect(matchById(afterBust, m).rounds.at(-1)).toMatchObject({
+      value: 291,
+      bust: true,
+    });
+    expect(roundProgress(afterBust, matchById(afterBust, m), entry).partialValue).toBe(291);
   });
   it('rotates a pair between its two players without recording scores by itself', () => {
     const backend = setup().backend;

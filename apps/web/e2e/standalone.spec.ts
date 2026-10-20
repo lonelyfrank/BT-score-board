@@ -39,9 +39,15 @@ async function addEntrants(page: Page, names: string[]) {
   for (const name of names)
     await expect(page.getByRole('button', { name: new RegExp(name), pressed: true })).toBeVisible();
 }
+async function useFlexibleTracking(page: Page) {
+  await page.locator('details.advanced summary').click();
+  await page.getByRole('radio', { name: 'Flessibile', exact: true }).click();
+}
 const banner = (page: Page) => page.locator('.turn-banner');
 /** Hi-Score: the totem's final total of the player in entry, typed on the keypad. */
 async function enterScore(page: Page, player: string, score: number) {
+  const finalEntry = page.getByRole('radio', { name: 'Risultato finale' });
+  if (await finalEntry.isVisible()) await finalEntry.click();
   await expect(banner(page)).toHaveText(`PUNTEGGIO DI ${player}`);
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type(String(score));
@@ -55,10 +61,11 @@ async function enterScore(page: Page, player: string, score: number) {
       .first(),
   ).toContainText(String(score));
 }
-async function freeMatch(page: Page, game: string, names: string[]) {
+async function freeMatch(page: Page, game: string, names: string[], flexible = false) {
   await page.goto('/partite/nuova');
   await page.getByRole('radio', { name: new RegExp(`^${game}`) }).click();
   await addPlayers(page, names);
+  if (flexible) await useFlexibleTracking(page);
   await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
   await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
   await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
@@ -78,6 +85,7 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   // The quick format compares totals: only Hi-Score can be chosen.
   await expect(page.getByRole('radio', { name: '501', exact: true })).toBeDisabled();
   await addEntrants(page, players);
+  await useFlexibleTracking(page);
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
   await expect(page).toHaveURL(/\/hiscore\//);
   const tournamentUrl = page.url();
@@ -162,6 +170,7 @@ test('501 groups with winners only, final, then a correction that asks before re
   await page.getByRole('radio', { name: '501', exact: true }).click();
   await expect(page.getByText('il totem indica sempre un vincitore')).toBeVisible();
   await addEntrants(page, ['Marco', 'Davide', 'Sara']);
+  await useFlexibleTracking(page);
   await page.getByRole('button', { name: 'Riduci Numero gironi' }).click();
   await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
   await expect(page).toHaveURL(/\/tornei\//);
@@ -236,7 +245,7 @@ test('free matches of the totem: Odd & Even sides, Exacta target and Shanghai wi
   await page.getByRole('button', { name: 'CONFERMA RISULTATO' }).click();
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
 
-  await freeMatch(page, 'Exacta', ['Tea', 'Ugo']);
+  await freeMatch(page, 'Exacta', ['Tea', 'Ugo'], true);
   await page.getByLabel(/Obiettivo del totem/).fill('400');
   await expect(page.getByText('Obiettivo tra 250 e 350.')).toBeVisible();
   await page.getByLabel(/Obiettivo del totem/).fill('310');
@@ -246,7 +255,7 @@ test('free matches of the totem: Odd & Even sides, Exacta target and Shanghai wi
   await page.getByRole('button', { name: 'CONFERMA RISULTATO' }).click();
   await expect(page.locator('.final-rows li.first')).toContainText('Ugo');
 
-  await freeMatch(page, 'Shanghai', ['Tea', 'Ugo', 'Vito']);
+  await freeMatch(page, 'Shanghai', ['Tea', 'Ugo', 'Vito'], true);
   await page.getByLabel('Punti di Tea').fill('120');
   await page.getByLabel('Punti di Ugo').fill('40');
   await page.getByRole('switch', { name: 'Vittoria con Shanghai' }).click();
@@ -315,7 +324,7 @@ test('backup export and import onto a new device, with confirmation before repla
   page,
   browser,
 }) => {
-  await freeMatch(page, 'Hi-Score', ['Nora', 'Otto']);
+  await freeMatch(page, 'Hi-Score', ['Nora', 'Otto'], true);
   await enterScore(page, 'Nora', 640);
   await page.goto('/impostazioni');
   await expect(page.getByText('Giocatori · tornei')).toBeVisible();
@@ -350,7 +359,8 @@ test('backup export and import onto a new device, with confirmation before repla
 });
 
 test('a double tap on confirm records one score only', async ({ page }) => {
-  await freeMatch(page, 'Hi-Score', ['Pia', 'Rino']);
+  await freeMatch(page, 'Hi-Score', ['Pia', 'Rino'], true);
+  await page.getByRole('radio', { name: 'Risultato finale' }).click();
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type('560');
   await page.getByRole('button', { name: 'Conferma il punteggio di Pia' }).dblclick();
@@ -358,6 +368,33 @@ test('a double tap on confirm records one score only', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.score-card strong')).toHaveText(['560', '—']);
+});
+
+test('X01 records every round and an excess keeps the remaining points', async ({ page }) => {
+  await freeMatch(page, '301', ['Tina', 'Ugo']);
+  const bustButton = page.getByRole('button', {
+    name: 'Eccesso: mantieni i punti rimasti',
+  });
+  await expect(bustButton).toBeVisible();
+
+  await page.keyboard.type('160');
+  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
+  await page.keyboard.type('131');
+  await page.getByRole('button', { name: 'Conferma il round 2' }).click();
+  await bustButton.click();
+
+  await expect(page.getByRole('radio', { name: 'R3 ECCESSO' })).toBeVisible();
+  await expect(page.locator('.round-summary')).toContainText('Punti rimasti 10 (parziale)');
+
+  await page.getByRole('radio', { name: /^Ugo/ }).click();
+  await page.keyboard.type('0');
+  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
+  await page.getByRole('radio', { name: 'Risultato finale' }).click();
+  await page.getByLabel('Punti rimasti di Tina').fill('10');
+  await page.getByLabel('Punti rimasti di Ugo').fill('301');
+  await page.getByRole('button', { name: 'CONFERMA RISULTATO' }).click();
+  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+  await expect(page.locator('.final-rows li.first')).toContainText('Tina');
 });
 
 test('pairs composed by hand, rounds tracked with rotation, official result from the totem', async ({
@@ -388,9 +425,17 @@ test('pairs composed by hand, rounds tracked with rotation, official result from
   await page.keyboard.type('60');
   await page.getByRole('button', { name: 'Conferma il round 1' }).click();
   await expect(page.getByRole('radio', { name: 'R1 60' })).toBeVisible();
+  await expect(page.locator('.round-target')).toContainText('Bea + Dino');
+  const nextRotation = page.getByLabel('Rotazione della squadra');
+  await expect(nextRotation).toContainText('Tira Bea · poi Dino');
+  await page.keyboard.type('60');
+  await page.getByRole('button', { name: 'Conferma il round 1' }).click();
+  await expect(page.locator('.round-target')).toContainText('Ada + Ciro');
   await expect(rotation).toContainText('Tira Ciro · poi Ada');
   // A round not seen is skipped, never counted as zero.
   await page.getByRole('button', { name: 'Salta R2 (non visto)' }).click();
+  await expect(page.locator('.round-target')).toContainText('Bea + Dino');
+  await page.getByRole('radio', { name: /^Ada \+ Ciro/ }).click();
   await expect(page.getByRole('radio', { name: 'R2 saltato' })).toBeVisible();
   await expect(page.locator('.round-summary')).toContainText('Totale round 60 (parziale)');
   await expect(page.locator('.round-summary')).toContainText('saltati R2');

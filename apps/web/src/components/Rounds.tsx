@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangle, Pause, Play, RotateCcw, SkipForward, Undo2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Ban,
+  Pause,
+  Play,
+  RotateCcw,
+  SkipForward,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import { ErrorMessage, Modal } from './ui';
 import { NumberKeypad } from './NumberKeypad';
 import { api, type Match } from '../services/api';
+import { gameOf } from '../services/rules';
 
 type Progress = Match['progress'][number];
 const vibrate = () => {
@@ -19,7 +29,11 @@ export function progressSummary(m: Match, p: Progress | undefined) {
   if (!p || p.partialValue === null) return 'Nessun round registrato';
   const spec = m.trackingSpec;
   const value =
-    spec.computed === 'sum' ? `Totale round ${p.partialValue}` : `${spec.label}: ${p.partialValue}`;
+    spec.computed === 'sum'
+      ? `Totale round ${p.partialValue}`
+      : spec.computed === 'start-minus-sum'
+        ? `Punti rimasti ${p.partialValue}`
+        : `${spec.label}: ${p.partialValue}`;
   if (p.complete) return `${value} · completo`;
   const missing = p.missing.length ? ` · mancano R${p.missing.join(', R')}` : '';
   const skipped = p.skipped.length ? ` · saltati R${p.skipped.join(', R')}` : '';
@@ -27,9 +41,9 @@ export function progressSummary(m: Match, p: Progress | undefined) {
 }
 
 /**
- * Round-by-round entry for one competitor: a cell per round (missing, skipped, recorded,
- * corrected), a big keypad for the selected round, skip and undo. Values are provisional; the
- * computed total can be proposed as the official result once every round is in.
+ * Round-by-round entry for one competitor: a cell per round (missing, skipped, recorded, bust),
+ * a big keypad for the selected round, skip and undo. Values are provisional; the computed total
+ * can be proposed as the official result once every round is in.
  */
 export function RoundScoreEntry({
   m,
@@ -44,7 +58,7 @@ export function RoundScoreEntry({
   /** Teams advance their rotation with each new round. */
   team: boolean;
   disabled: boolean;
-  saved: (fresh: Match, message: string) => void;
+  saved: (fresh: Match, message: string, round: number, corrected: boolean) => void;
   applyComputed: (value: number) => void;
 }) {
   const spec = m.trackingSpec;
@@ -59,6 +73,7 @@ export function RoundScoreEntry({
   const current = rounds.find((r) => r.round === round);
   const [input, setInput] = useState('');
   const [flash, setFlash] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const inFlight = useRef(false);
   useEffect(() => {
     if (!flash) return;
@@ -67,19 +82,26 @@ export function RoundScoreEntry({
   }, [flash]);
   const max = spec.max[Math.min(round, spec.max.length) - 1] ?? spec.max[0] ?? 180;
   const record = useMutation({
-    mutationFn: (value: number | null) =>
+    mutationFn: ({ value, bust }: { value: number | null; bust?: boolean }) =>
       api.matchCommand(m, 'rounds', {
         entryId,
         round,
         value,
+        bust,
         advanceRotation: team && !current?.recordId,
       }),
-    onSuccess: (fresh, value) => {
+    onSuccess: (fresh, submission) => {
+      const correcting = !!current?.recordId;
       setInput('');
-      setChosen(null);
+      setChosen(correcting ? round : null);
       vibrate();
-      setFlash(value === null ? `R${round} saltato` : `R${round} salvato`);
-      saved(fresh, value === null ? `R${round} saltato` : `R${round} salvato`);
+      const message = submission.bust
+        ? `R${round} eccesso`
+        : submission.value === null
+          ? `R${round} saltato`
+          : `R${round} salvato`;
+      setFlash(message);
+      saved(fresh, message, round, correcting);
     },
     onSettled: () => (inFlight.current = false),
   });
@@ -93,15 +115,15 @@ export function RoundScoreEntry({
       }),
     onSuccess: (fresh, restored) => {
       setInput('');
-      saved(fresh, restored ? `R${round} ripristinato` : `R${round} annullato`);
+      saved(fresh, restored ? `R${round} ripristinato` : `R${round} annullato`, round, true);
     },
     onSettled: () => (inFlight.current = false),
   });
   const busy = disabled || record.isPending || remove.isPending;
-  const send = (value: number | null) => {
+  const send = (value: number | null, bust = false) => {
     if (inFlight.current || busy) return;
     inFlight.current = true;
-    record.mutate(value);
+    record.mutate({ value, bust });
   };
   const cells = open ? [...rounds, { round: rounds.length + 1, status: 'next' as const }] : rounds;
   return (
@@ -124,11 +146,13 @@ export function RoundScoreEntry({
             >
               <small>R{r.round}</small>
               <strong>
-                {view?.status === 'recorded'
-                  ? view.value
-                  : view?.status === 'skipped'
-                    ? 'saltato'
-                    : '—'}
+                {view?.bust
+                  ? 'ECCESSO'
+                  : view?.status === 'recorded'
+                    ? view.value
+                    : view?.status === 'skipped'
+                      ? 'saltato'
+                      : '—'}
               </strong>
               {view?.corrected && (
                 <span className="corrected-mark" aria-label="corretto">
@@ -156,6 +180,36 @@ export function RoundScoreEntry({
             Usa {progress.computed} come risultato dal totem
           </button>
         )}
+      {current?.recordId && (
+        <div className="round-record-actions">
+          <p>
+            {current.status === 'recorded'
+              ? `Punteggio registrato per R${round}: `
+              : `Stato registrato per R${round}: `}
+            <strong>{current.bust ? 'Eccesso' : (current.value ?? 'saltato')}</strong>
+            {current.status === 'recorded' && '. Per correggerlo, inserisci il nuovo valore e conferma.'}
+          </p>
+          <button
+            type="button"
+            className="outline"
+            disabled={busy}
+            onClick={() => {
+              setInput('');
+              setFlash(`Inserisci il nuovo valore per R${round}`);
+            }}
+          >
+            Modifica punteggio R{round}
+          </button>
+          <button
+            type="button"
+            className="danger-outline"
+            disabled={busy}
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 size={16} aria-hidden="true" /> Elimina punteggio R{round}
+          </button>
+        </div>
+      )}
       <div className="score-paper round-paper">
         <output aria-live="polite" aria-label={`Valore del round ${round}`}>
           {input || (current?.status === 'recorded' ? current.value : '0')}
@@ -189,6 +243,11 @@ export function RoundScoreEntry({
         okLabel={`Conferma il round ${round}`}
       />
       <div className="round-tools">
+        {gameOf(m).scoring === 'remaining' && (
+          <button type="button" disabled={busy} onClick={() => send(null, true)}>
+            <Ban size={16} aria-hidden="true" /> Eccesso: mantieni i punti rimasti
+          </button>
+        )}
         <button type="button" disabled={busy} onClick={() => send(null)}>
           <SkipForward size={16} aria-hidden="true" /> Salta R{round} (non visto)
         </button>
@@ -207,6 +266,36 @@ export function RoundScoreEntry({
       </div>
       <ErrorMessage error={record.error ?? remove.error} />
       <RoundHistory m={m} entryId={entryId} />
+      {confirmDelete && (
+        <Modal
+          variant="dialog"
+          tone="danger"
+          alert
+          title={`Eliminare il punteggio di R${round}?`}
+          close={() => setConfirmDelete(false)}
+        >
+          <p>
+            R{round} tornerà da inserire. Il punteggio eliminato resterà nella cronologia delle
+            modifiche.
+          </p>
+          <button type="button" onClick={() => setConfirmDelete(false)}>
+            Mantieni punteggio
+          </button>
+          <button
+            type="button"
+            className="danger-outline"
+            disabled={busy}
+            onClick={() => {
+              if (inFlight.current || busy || !current?.recordId) return;
+              inFlight.current = true;
+              remove.mutate(false);
+              setConfirmDelete(false);
+            }}
+          >
+            Elimina punteggio R{round}
+          </button>
+        </Modal>
+      )}
     </section>
   );
 }
@@ -230,11 +319,11 @@ export function RoundHistory({ m, entryId }: { m: Match; entryId: string }) {
         {records.map((r) => (
           <li key={r.id} className={`record-${r.status}`}>
             <span>R{r.round}</span>
-            <strong>{r.value ?? '—'}</strong>
+            <strong>{r.bust ? 'Eccesso' : (r.value ?? '—')}</strong>
             <small>
               {recordStatus[r.status]}
               {r.correctsId ? ' · correzione' : ''}
-              {r.reason ? ` · ${r.reason}` : ''} ·{' '}
+              {r.reason && !r.bust ? ` · ${r.reason}` : ''} ·{' '}
               {new Date(r.createdAt).toLocaleTimeString('it-IT', {
                 hour: '2-digit',
                 minute: '2-digit',

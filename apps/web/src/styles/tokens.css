@@ -53,8 +53,8 @@
   --bt-rank-4: #a9643e;
 
   /* ---- Tipografia ---- */
-  --bt-font-display: 'Oswald', 'Arial Narrow', sans-serif; /* titoli, etichette CTA */
-  --bt-font-ui: 'Barlow Condensed', 'Arial Narrow', sans-serif; /* interfaccia, testo */
+  --bt-font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; /* titoli, CTA */
+  --bt-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; /* interfaccia, testo */
   --bt-font-score: 'Anton', Impact, sans-serif; /* numeri grandi */
   --bt-font-graffiti: 'Permanent Marker', 'Marker Felt', cursive; /* banner turno, decorazioni */
 

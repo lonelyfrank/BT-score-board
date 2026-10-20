@@ -27,8 +27,8 @@ import { TeamBuilder } from '../components/TeamBuilder';
 type Unit = { key: string; label: string; playerIds: string[]; name: string | null };
 
 /**
- * A free match of any totem game. Simple by default (players in throwing order, final result);
- * teams, heats beyond the seats of the totem and round-by-round tracking appear only when used.
+ * A free match of any totem game. Round-by-round recording is the default; final-only remains
+ * available in the advanced options.
  */
 export function Setup() {
   const [mode, setMode] = useState<GameMode>('HI_SCORE');
@@ -37,8 +37,8 @@ export function Setup() {
   const [teamMode, setTeamMode] = useState(false);
   const [teams, setTeams] = useState<TeamDraft[]>([]);
   const [unevenOk, setUnevenOk] = useState(false);
-  const [tracking, setTracking] = useState<Tracking>('FINAL_ONLY');
-  const [x01Entry, setX01Entry] = useState<'REMAINING' | 'SCORED'>('REMAINING');
+  const [tracking, setTracking] = useState<Tracking>('ROUND_BY_ROUND');
+  const [x01Entry, setX01Entry] = useState<'REMAINING' | 'SCORED'>('SCORED');
   const [picker, setPicker] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [draft, setDraft] = useState<Tournament>();

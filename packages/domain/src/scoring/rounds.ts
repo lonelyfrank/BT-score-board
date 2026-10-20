@@ -85,6 +85,7 @@ export interface RoundView {
   round: number;
   status: 'recorded' | 'skipped' | 'missing';
   value: number | null;
+  bust: boolean;
   playerId: string | null;
   /** The value replaced an earlier one. */
   corrected: boolean;
@@ -120,6 +121,7 @@ export function roundProgress(t: Tournament, m: Match, entryId: string): Progres
       round: i + 1,
       status: r ? (r.status as 'recorded' | 'skipped') : 'missing',
       value: r?.value ?? null,
+      bust: r?.bust ?? false,
       playerId: r?.playerId ?? null,
       corrected: !!r?.correctsId,
       recordId: r?.id ?? null,
@@ -180,6 +182,8 @@ export interface RecordRoundInput {
   round: number;
   /** null: the round was not observed (skipped), which is not zero. */
   value: number | null;
+  /** X01: this round's points do not count and the running total is retained. */
+  bust?: boolean;
   playerId?: string | null;
   reason?: string | null;
   /** Teams: move the rotation to the next thrower after a new round. */
@@ -193,6 +197,13 @@ export interface RecordRoundInput {
 export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c: Context) {
   assertTracking(t, m, input.entryId);
   const spec = trackingSpec(t, m);
+  const bust = input.bust ?? false;
+  ensure(
+    !bust || (games[t.gameMode].scoring === 'remaining' && input.value === null),
+    'INVALID_ROUND',
+    'A bust is only valid for X01 and cannot include a round score',
+    422,
+  );
   const limit = spec.rounds ?? MAX_OPEN_ROUNDS;
   ensure(
     Number.isInteger(input.round) && input.round >= 1 && input.round <= limit,
@@ -235,9 +246,28 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     }
   }
   const previous = currentRound(m, input.entryId, input.round);
-  const status = input.value === null ? 'skipped' : 'recorded';
+  let value = input.value;
+  if (bust) {
+    value =
+      t.tournamentConfiguration.x01Entry === 'SCORED'
+        ? 0
+        : (() => {
+            for (let round = input.round - 1; round >= 1; round--) {
+              const earlier = currentRound(m, input.entryId, round);
+              if (earlier?.status === 'recorded' && earlier.value !== null) return earlier.value;
+            }
+            return games[t.gameMode].startingScore!;
+          })();
+  }
+  const status = input.value === null && !bust ? 'skipped' : 'recorded';
   // The same value tapped twice is not a correction.
-  if (previous && previous.value === input.value && previous.status === status) return previous;
+  if (
+    previous &&
+    previous.value === value &&
+    previous.bust === bust &&
+    previous.status === status
+  )
+    return previous;
   if (previous) previous.status = 'corrected';
   const record: RoundRecord = {
     id: c.id(),
@@ -245,11 +275,12 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     tournamentEntryId: input.entryId,
     round: input.round,
     playerId,
-    value: input.value,
+    value,
+    bust,
     kind: spec.kind,
     status,
     correctsId: previous?.id ?? null,
-    reason: input.reason?.trim() || null,
+    reason: input.reason?.trim() || (bust ? 'Eccesso' : null),
     source: 'manual',
     createdAt: c.now(),
     recordedBy: c.operator,
