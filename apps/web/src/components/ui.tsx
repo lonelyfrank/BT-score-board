@@ -92,7 +92,11 @@ export function BottomNavigation() {
         aria-label="Navigazione principale"
         style={{ '--i': Math.max(current, 0) } as CSSProperties}
       >
-        {current >= 0 && <span className="nav-pill" aria-hidden="true" />}
+        {current >= 0 && (
+          <span className="nav-pill" aria-hidden="true">
+            <span key={current} className="nav-capsule" />
+          </span>
+        )}
         {destinations.map(([url, name, Icon, fillable]) => (
           <NavLink
             key={url}

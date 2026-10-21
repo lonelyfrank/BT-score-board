@@ -329,7 +329,9 @@ function MatchNavigation({
         aria-label="Navigazione della partita"
         style={{ '--i': i } as CSSProperties}
       >
-        <span className="nav-pill" aria-hidden="true" />
+        <span className="nav-pill" aria-hidden="true">
+          <span key={i} className="nav-capsule" />
+        </span>
         {tabs.map(([id, label, Icon]) => (
           <a
             key={id}
