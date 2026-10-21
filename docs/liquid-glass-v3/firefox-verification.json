@@ -1,0 +1,15 @@
+{
+  "engine": "firefox",
+  "version": "157.0",
+  "checks": [
+    "layout 320x568",
+    "layout 390x844",
+    "layout 844x390",
+    "layout 1440x900",
+    "five routes",
+    "touch input focus hides navigation and closing restores it",
+    "laboratory synchronized selection, light backdrop, opaque fallback, reduced motion",
+    "unsupported backdrop-filter keeps opaque base"
+  ],
+  "performance": {}
+}

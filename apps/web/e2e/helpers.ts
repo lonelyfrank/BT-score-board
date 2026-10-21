@@ -17,9 +17,13 @@ export async function addPlayers(page: Page, names: string[]) {
   for (const name of names) {
     await field.fill(name);
     await field.press('Enter');
-    // Ready for the next name, or closed because the last free place was taken.
+    // Read atomically: the sheet can unmount between count() and inputValue().
     await expect
-      .poll(async () => (await field.count()) === 0 || (await field.inputValue()) === '')
+      .poll(() =>
+        field.evaluateAll(
+          (inputs) => inputs.length === 0 || (inputs[0] as HTMLInputElement).value === '',
+        ),
+      )
       .toBe(true);
   }
   const close = page.getByRole('button', { name: 'Chiudi', exact: true });

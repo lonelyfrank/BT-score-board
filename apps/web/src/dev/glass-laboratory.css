@@ -1,0 +1,157 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #101115;
+  color: #f8f7f5;
+  font-family: var(--bt-font-ui);
+}
+.glass-lab {
+  max-width: 1600px;
+  margin: auto;
+  padding: 24px 14px;
+}
+.glass-lab h1 {
+  font-size: 32px;
+  margin: 12px 0;
+}
+.glass-lab h2 {
+  font-size: 18px;
+}
+.glass-lab p {
+  color: #bfc0c7;
+  line-height: 1.5;
+}
+.lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 24px 0;
+}
+.lab-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.lab-controls input {
+  width: 20px;
+  height: 20px;
+  accent-color: #ff83c0;
+}
+.lab-comparison {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.lab-variant > p {
+  min-height: 48px;
+  font-size: 14px;
+}
+.lab-viewport {
+  position: relative;
+  height: 440px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid #44454e;
+  background: #14151a;
+}
+.lab-scene {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px 20px 100px;
+  background: radial-gradient(ellipse at 20% 85%, #74334f, transparent 70%);
+}
+.lab-scene article {
+  padding: 18px;
+  margin: 16px 0;
+  border: 1px solid #64616c;
+  border-radius: 12px;
+  background: #23252e;
+}
+.lab-scene article:nth-of-type(2n) {
+  background: #37424e;
+}
+.lab-scene article span {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #f0bed4;
+}
+.lab-viewport[data-light='true'] .lab-scene {
+  background: #f0ece7;
+  color: #222;
+}
+.lab-viewport[data-light='true'] article {
+  background: #ded8cf;
+}
+.lab-viewport[data-light='true'] .lab-scene :is(p, span) {
+  color: #49434b;
+}
+.lab-viewport > .bt-navigation {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.lab-frosted .bt-navigation {
+  --nav-material: rgba(28, 29, 34, 0.94);
+  --nav-blur: 10px;
+  --nav-selected: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 3px 12px #0003;
+}
+.lab-frosted .bt-nav-selection {
+  box-shadow: none;
+  border-radius: 18px;
+}
+.lab-optical .bt-navigation {
+  --nav-material: rgba(26, 27, 32, 0.78);
+  --nav-blur: 14px;
+}
+/* Progressive experiment confined to a 3px rim: never filter the readable content. */
+@supports (backdrop-filter: url('#lab-edge-refraction')) and (mask-composite: exclude) {
+  .glass-lab[data-refraction='true'] .lab-optical .bt-navigation::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 3px;
+    border-radius: inherit;
+    pointer-events: none;
+    backdrop-filter: url('#lab-edge-refraction');
+    background: linear-gradient(160deg, #ffffff14, transparent 40%, #ffffff08);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+}
+.lab-filter-defs {
+  position: absolute;
+  pointer-events: none;
+}
+.glass-lab[data-fallback='true'] .bt-navigation {
+  background: var(--nav-fallback);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.glass-lab[data-fallback='true'] .bt-navigation::before {
+  display: none;
+}
+.glass-lab[data-still='true'] .bt-navigation {
+  --nav-duration: 0ms;
+}
+.glass-lab[data-still='true'] .bt-nav-item {
+  transition: none;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .lab-optical .bt-navigation::before {
+    display: none;
+  }
+}
+@media (max-width: 1050px) {
+  .lab-comparison {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+    margin: auto;
+  }
+}

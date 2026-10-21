@@ -285,7 +285,7 @@ form > .primary {
   height: 21px;
 }
 
-/* ---- Navigazione inferiore: Liquid Glass, un solo layer con blur ---- */
+/* Scrim e tastiera: il materiale della barra vive in bottom-navigation.css. */
 .nav-scrim {
   position: fixed;
   inset: auto 0 0;
@@ -295,66 +295,9 @@ form > .primary {
   background: linear-gradient(
     180deg,
     rgba(9, 9, 11, 0),
-    rgba(9, 9, 11, 0.55) 55%,
-    rgba(9, 9, 11, 0.8)
+    rgba(9, 9, 11, 0.2) 55%,
+    rgba(9, 9, 11, 0.45)
   );
-}
-.bottom-nav {
-  --nav-items: 5;
-  position: fixed;
-  bottom: var(--bt-nav-bottom);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  width: min(520px, calc(100% - 2 * var(--bt-nav-inset)));
-  height: var(--bt-nav-h);
-  padding: 0 7px;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: repeat(var(--nav-items), minmax(0, 1fr));
-  border-radius: var(--bt-radius-nav);
-  background: var(--bt-lg-substrate);
-  -webkit-backdrop-filter: blur(var(--bt-lg-blur)) saturate(165%);
-  backdrop-filter: blur(var(--bt-lg-blur)) saturate(165%);
-  box-shadow:
-    var(--bt-lg-shadow),
-    inset 0 -10px 18px rgba(0, 0, 0, 0.18);
-}
-.bottom-nav::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: var(--bt-lg-edge);
-  pointer-events: none;
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
-.bottom-nav::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  left: 22px;
-  right: 22px;
-  top: 1px;
-  height: 46%;
-  border-radius: 999px 999px 50% 50% / 999px 999px 100% 100%;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 70%, transparent),
-    radial-gradient(60% 120% at 82% 0%, rgba(255, 150, 205, 0.1), transparent 70%);
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .bottom-nav {
-    background: var(--bt-glass-bg-fallback);
-  }
 }
 /*
  * Tastiera virtuale aperta (un campo di testo ha il focus su uno schermo touch): la barra
@@ -372,117 +315,6 @@ form > .primary {
     display: none;
   }
 }
-.nav-pill {
-  position: absolute;
-  top: 7px;
-  bottom: 7px;
-  left: 7px;
-  width: calc((100% - 14px) / var(--nav-items));
-  transform: translateX(calc(var(--i, 0) * 100%));
-  transition: transform var(--bt-dur-indicator) var(--bt-spring);
-  pointer-events: none;
-}
-.nav-capsule {
-  position: absolute;
-  inset: 0 2px;
-  border-radius: 999px;
-  border: 1px solid var(--bt-lg-capsule-edge);
-  background: var(--bt-lg-capsule);
-  box-shadow: var(--bt-lg-capsule-shadow);
-  animation: nav-capsule-stretch var(--bt-dur-indicator) var(--bt-spring);
-}
-.nav-capsule::after {
-  content: '';
-  position: absolute;
-  left: 16%;
-  right: 16%;
-  top: 2px;
-  height: 40%;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
-}
-@keyframes nav-capsule-stretch {
-  38% {
-    transform: scale(1.14, 0.93);
-  }
-}
-.bottom-nav a {
-  position: relative;
-  z-index: 1;
-  min-width: 44px;
-  min-height: 44px;
-  margin: 7px 0;
-  border-radius: 999px;
-  color: var(--bt-text-muted);
-  text-decoration: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-family: 'Barlow Condensed', var(--bt-font-ui);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-  -webkit-tap-highlight-color: transparent;
-  transition: color var(--bt-dur-indicator) ease;
-}
-.bottom-nav a::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 0 2px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 150, 205, 0.28);
-  background: rgba(255, 35, 139, 0.14);
-  opacity: 0;
-  transform: scale(0.86);
-  pointer-events: none;
-  transition:
-    opacity 160ms ease,
-    transform 220ms var(--bt-spring);
-}
-.bottom-nav a > * {
-  transition:
-    transform var(--bt-dur-press) var(--bt-ease-out),
-    filter 160ms ease;
-}
-.bottom-nav a:active::before {
-  opacity: 1;
-  transform: scale(1);
-}
-.bottom-nav a:active > * {
-  transform: scale(0.9);
-  filter: brightness(1.3);
-}
-.bottom-nav a:focus-visible {
-  outline: 2px solid var(--bt-accent-soft);
-  outline-offset: -3px;
-}
-.bottom-nav svg {
-  width: 23px;
-  height: 23px;
-}
-.bottom-nav a.active {
-  color: var(--bt-lg-label-active);
-  font-weight: 600;
-}
-.bottom-nav a.active svg {
-  color: var(--bt-accent-bright);
-  filter: drop-shadow(0 0 6px rgba(255, 35, 139, 0.6));
-}
-.bottom-nav a.active:active svg {
-  filter: brightness(1.3) drop-shadow(0 0 6px rgba(255, 35, 139, 0.6));
-}
-.bottom-nav a.active .fill-active {
-  fill: currentColor;
-}
-@media (prefers-reduced-motion: reduce) {
-  .bottom-nav a:active > * {
-    transform: none;
-  }
-}
-
 /* ---- Tab, segmented, scelte ---- */
 .tabs {
   display: grid;
@@ -6080,13 +5912,6 @@ button.dart-cell:disabled {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
-.bottom-nav {
-  background: rgba(32, 32, 38, 0.72);
-  border-color: rgba(255, 255, 255, 0.14);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
-  backdrop-filter: blur(28px) saturate(170%);
-}
-
 .icon-button,
 .heat-chip,
 .round-cell {
@@ -6400,12 +6225,4 @@ button.warning.g-bust {
   border-color: rgba(255, 191, 56, 0.6);
   color: var(--bt-warning);
   font-weight: 600;
-}
-
-/* Schermi molto stretti (320px) con i font di sistema: le etichette della barra restano intere. */
-@media (max-width: 360px) {
-  .bottom-nav a span {
-    font-size: 12px;
-    letter-spacing: 0;
-  }
 }

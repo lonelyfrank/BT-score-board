@@ -1,19 +1,6 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
-import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom';
-import { DartIcon } from './BrandIcons';
-import {
-  ChevronLeft,
-  Home,
-  Trophy,
-  ChartNoAxesColumnIncreasing,
-  Users,
-  Crosshair,
-  X,
-  Minus,
-  Plus,
-  Pause,
-  Play,
-} from 'lucide-react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ChevronLeft, Crosshair, X, Minus, Plus, Pause, Play } from 'lucide-react';
 
 export function Header({
   title,
@@ -72,47 +59,7 @@ export function AddButton({ label, onClick }: { label: string; onClick: () => vo
     </button>
   );
 }
-const destinations = [
-  ['/', 'Home', Home, true],
-  ['/partite/nuova', 'Partite', DartIcon, false],
-  ['/tornei', 'Tornei', Trophy, true],
-  ['/hiscore', 'Hi-Score', ChartNoAxesColumnIncreasing, false],
-  ['/giocatori', 'Giocatori', Users, false],
-] as const;
-const isCurrent = (url: string, pathname: string) =>
-  url === '/' ? pathname === '/' : pathname === url || pathname.startsWith(`${url}/`);
-export function BottomNavigation() {
-  const { pathname } = useLocation();
-  const current = destinations.findIndex(([url]) => isCurrent(url, pathname));
-  return (
-    <>
-      <div className="nav-scrim" aria-hidden="true" />
-      <nav
-        className="bottom-nav"
-        aria-label="Navigazione principale"
-        style={{ '--i': Math.max(current, 0) } as CSSProperties}
-      >
-        {current >= 0 && (
-          <span className="nav-pill" aria-hidden="true">
-            <span key={current} className="nav-capsule" />
-          </span>
-        )}
-        {destinations.map(([url, name, Icon, fillable]) => (
-          <NavLink
-            key={url}
-            to={url}
-            end={url === '/'}
-            // A short tick confirms the tap where the device supports it (Android).
-            onClick={() => navigator.vibrate?.(8)}
-          >
-            <Icon aria-hidden="true" className={fillable ? 'fill-active' : undefined} />
-            <span>{name}</span>
-          </NavLink>
-        ))}
-      </nav>
-    </>
-  );
-}
+export { BottomNavigation } from './BottomNavigation';
 /** Optional player avatars: the same pub palette, chosen instead of derived from the name. */
 export const avatarPresets: Record<string, string> = {
   rosa: '#5B2340',
