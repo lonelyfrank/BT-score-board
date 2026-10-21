@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { NavigationSurface, navigationDestinations } from '../components/BottomNavigation';
+import {
+  GlassFilters,
+  NavigationSurface,
+  navigationDestinations,
+} from '../components/BottomNavigation';
 import '../styles/tokens.css';
 import './glass-laboratory.css';
 
@@ -82,6 +86,7 @@ function GlassLaboratory() {
           </filter>
         </defs>
       </svg>
+      <GlassFilters />
       <div className="lab-comparison">
         {variants.map(([variant, title, description]) => (
           <section className={`lab-variant lab-${variant}`} key={variant}>

@@ -290,9 +290,10 @@ form > .primary {
   background: linear-gradient(
     180deg,
     rgba(9, 9, 11, 0),
-    rgba(9, 9, 11, 0.2) 55%,
-    rgba(9, 9, 11, 0.45)
+    rgba(9, 9, 11, 0.5) 55%,
+    rgba(9, 9, 11, 0.78)
   );
+  transition: opacity var(--bt-dur-indicator);
 }
 /*
  * Tastiera virtuale aperta (un campo di testo ha il focus su uno schermo touch): la barra
@@ -4487,8 +4488,7 @@ details.advanced > summary {
 .heat-panel.compact {
   margin-bottom: 0;
 }
-.match-nav {
-  --nav-items: 4;
+.match-nav.bt-navigation {
   width: min(440px, calc(100% - 2 * var(--bt-nav-inset)));
 }
 .nav-dot {

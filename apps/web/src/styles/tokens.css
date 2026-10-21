@@ -109,14 +109,11 @@
   --bt-glass-blur: 20px;
   --bt-elev-float: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.45);
 
-  /* Navigazione V3: materiale neutro, profondità limitata, movimento senza overshoot. */
-  --bt-nav-material: rgba(26, 27, 32, 0.84);
-  --bt-nav-fallback: #202126;
-  --bt-nav-blur: 18px;
-  --bt-nav-edge: rgba(255, 255, 255, 0.16);
-  --bt-nav-selected: rgba(255, 255, 255, 0.12);
-  --bt-nav-duration: 180ms;
-  --bt-nav-easing: cubic-bezier(0.2, 0, 0.2, 1);
+  /* Navigazione Liquid Glass V1.1: lente su Blink, vetro sfocato altrove. */
+  --bt-nav-tint: rgba(12, 11, 15, 0.34); /* serve a leggere le etichette su liste scure e chiare */
+  --bt-nav-fallback: rgba(16, 16, 19, 0.96);
+  --bt-nav-duration: 520ms; /* scivolata lunga della capsula */
+  --bt-nav-easing: cubic-bezier(0.16, 1, 0.22, 1); /* senza rimbalzo */
 
   /* ---- Movimento ---- */
   --bt-dur-press: 110ms;

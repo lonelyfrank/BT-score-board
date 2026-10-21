@@ -65,11 +65,11 @@ test('safe-area clearance and high-contrast fallback preserve geometry', async (
   expect(Math.round(page.viewportSize()!.height - rect!.y - rect!.height)).toBe(34);
   await page.emulateMedia({ contrast: 'more' });
   expect(
-    await nav.evaluate((el) => ({
+    await nav.locator('.bt-nav-lens').evaluate((el) => ({
       blur: getComputedStyle(el).backdropFilter,
       background: getComputedStyle(el).backgroundColor,
     })),
-  ).toEqual({ blur: 'none', background: 'rgb(32, 33, 38)' });
+  ).toEqual({ blur: 'none', background: 'rgba(16, 16, 19, 0.96)' });
   expect(await nav.boundingBox()).toEqual(rect);
 });
 

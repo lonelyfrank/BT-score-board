@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -18,6 +18,7 @@ import {
   Users,
 } from 'lucide-react';
 import { CrownIcon, PaintSplash } from '../components/BrandIcons';
+import { GlassFilters, NavigationSurface } from '../components/BottomNavigation';
 import { DartCell, DartPad } from '../components/DartPad';
 import { HeatEditor, HeatTimeline, viewedHeat } from '../components/Heats';
 import { NumberKeypad } from '../components/NumberKeypad';
@@ -365,20 +366,19 @@ function MatchNavigation({
   const i = tabs.findIndex(([id]) => id === tab);
   return (
     <>
+      <GlassFilters />
       <div className="nav-scrim" aria-hidden="true" />
-      <nav
+      <NavigationSurface
+        current={i}
+        count={tabs.length}
         className="bottom-nav match-nav"
-        aria-label="Navigazione della partita"
-        style={{ '--i': i } as CSSProperties}
+        label="Navigazione della partita"
       >
-        <span className="nav-pill" aria-hidden="true">
-          <span key={i} className="nav-capsule" />
-        </span>
         {tabs.map(([id, label, Icon]) => (
           <a
             key={id}
             href={`?tab=${id}`}
-            className={id === tab ? 'active' : ''}
+            className="bt-nav-item"
             aria-current={id === tab ? 'page' : undefined}
             onClick={(e) => {
               e.preventDefault();
@@ -386,14 +386,14 @@ function MatchNavigation({
               go(id);
             }}
           >
-            <Icon aria-hidden="true" />
+            <Icon aria-hidden="true" strokeWidth={2} />
             <span>{label}</span>
             {id === 'matrice' && attention && (
               <i className="nav-dot" aria-label="round da verificare" />
             )}
           </a>
         ))}
-      </nav>
+      </NavigationSurface>
     </>
   );
 }
