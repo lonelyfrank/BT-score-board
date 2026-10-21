@@ -325,6 +325,7 @@ describe('Heats', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
+      { config: { heatStrategy: 'balanced' } },
     );
     const q = t.matches[0]!;
     expect(sizes(q.heats.map((h) => h.entryIds))).toEqual([3, 3, 3]);
@@ -798,7 +799,7 @@ describe('Competitions', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
-      { config: { qualifiers: 2 } },
+      { config: { qualifiers: 2, heatStrategy: 'balanced' } },
     );
     const q = t.matches[0]!.id;
     const [h1, h2] = matchById(t, q).heats;

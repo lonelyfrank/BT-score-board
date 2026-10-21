@@ -31,6 +31,9 @@ type Unit = { key: string; label: string; playerIds: string[]; name: string | nu
  * available in the advanced options.
  */
 export function Setup() {
+  const [heatStrategy, setHeatStrategy] = useState<'sequential' | 'balanced' | 'custom'>(
+    'sequential',
+  );
   const [mode, setMode] = useState<GameMode>('HI_SCORE');
   const [name, setName] = useState('Partita libera');
   const [selected, setSelected] = useState<Player[]>([]);
@@ -71,7 +74,10 @@ export function Setup() {
       )
     : null;
   const uneven = !!check?.warnings.includes('UNEVEN_TEAMS');
-  const heats = units.length > seats ? heatSizes(units.length, seats) : [];
+  const heats =
+    units.length > seats
+      ? heatSizes(units.length, seats, heatStrategy === 'custom' ? 'sequential' : heatStrategy)
+      : [];
   const unitWord = teamMode ? 'squadre' : 'giocatori';
   const reason = !name.trim()
     ? 'Inserisci un nome per la partita.'
@@ -96,7 +102,11 @@ export function Setup() {
             gameMode: mode,
             tracking,
             scoringConfiguration: { kind: 'HIGH_SCORE', turns: HI_SCORE_ROUNDS },
-            tournamentConfiguration: { playingOrder: 'registration', x01Entry },
+            tournamentConfiguration: {
+              playingOrder: 'registration',
+              x01Entry,
+              heatStrategy: heatStrategy === 'custom' ? 'sequential' : heatStrategy,
+            },
           });
       setDraft(t);
       // One command composes every unit: all registered, or none.
@@ -106,7 +116,7 @@ export function Setup() {
         });
       if (['draft', 'registration', 'ready'].includes(t.status))
         t = await api.tournamentCommand(t, 'start');
-      navigate(`/partite/${t.matches[0]!.id}`);
+      navigate(`/partite/${t.matches[0]!.id}${heatStrategy === 'custom' ? '?organize=1' : ''}`);
     },
     onSettled: () => setConfirm(false),
   });
@@ -267,7 +277,17 @@ export function Setup() {
           </section>
           {heats.length > 0 && (
             <section className="form-section" aria-labelledby="heats-title">
-              <h2 id="heats-title">Manche</h2>
+              <h2 id="heats-title">Organizza manche</h2>
+              <Segmented
+                label="Distribuzione nelle manche"
+                value={heatStrategy}
+                change={setHeatStrategy}
+                options={[
+                  { id: 'sequential', label: 'Riempimento' },
+                  { id: 'balanced', label: 'Bilanciata' },
+                  { id: 'custom', label: 'Personalizzata' },
+                ]}
+              />
               <div className="options padded">
                 <div className="settings-row">
                   <span>

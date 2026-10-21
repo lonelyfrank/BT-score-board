@@ -1,0 +1,52 @@
+Comando: PLAYWRIGHT_HTML_OPEN=never npm run test:e2e --prefix apps/web -- --reporter=line,html --trace on --headed
+Exit code: 0
+[WebServer] (node:963379) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] (node:963378) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[WebServer] (node:963433) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node-22 --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:963464) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[WebServer] (node:963463) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 23 tests using 1 worker
+
+(node:963550) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node-22 --trace-warnings ...` to show where the warning was created)
+
+
+[1/23] [shared] › e2e/frontend.spec.ts:55:1 › home, result entry, reload, correction, qualification and final
+[2/23] [shared] › e2e/frontend.spec.ts:117:1 › group setup and responsive views
+[3/23] [shared] › e2e/frontend.spec.ts:162:1 › resolves a tied final with a real playoff
+
+
+(node:963958) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node-22 --trace-warnings ...` to show where the warning was created)
+[4/23] [standalone] › e2e/standalone-guided.spec.ts:49:1 › guided Hi-Score: three darts, quick totals, next player, reload, matrix and result
+[5/23] [standalone] › e2e/standalone-guided.spec.ts:174:1 › uneven teams: the actual thrower rotates, undo takes back a turn without moving twice
+[6/23] [standalone] › e2e/standalone-guided.spec.ts:242:1 › round by round: skipped turn, correction, official result, difference and history
+[7/23] [standalone] › e2e/standalone-layout.spec.ts:72:1 › no horizontal scroll, bar never over the controls, touch targets of 44px
+[8/23] [standalone] › e2e/standalone-layout.spec.ts:103:3 › touch screen › the bar steps aside while the virtual keyboard is open
+[9/23] [standalone] › e2e/standalone-operations.spec.ts:34:1 › Hi-Score night of 19 over five heats: reload between heats, late entry, top 4 and a correction
+[10/23] [standalone] › e2e/standalone-operations.spec.ts:118:1 › seven players in uneven teams: rotation kept through an annulled round, ranking by totals
+[11/23] [standalone] › e2e/standalone-operations.spec.ts:193:1 › recovery: a reload keeps the score and the digits of the right player, a double tap saves once
+[12/23] [standalone] › e2e/standalone-operations.spec.ts:221:1 › backup transfer of a 12-player tournament in progress, then the evening goes on
+[13/23] [standalone] › e2e/standalone-pwa.spec.ts:36:1 › starts, navigates and saves scores offline after the first visit
+[14/23] [standalone] › e2e/standalone-pwa.spec.ts:96:1 › a new version waits for a safe moment and keeps the data
+[15/23] [standalone] › e2e/standalone.spec.ts:14:1 › Hi-Score night for 8 players: totals from the totem, tie decided, final and results
+[16/23] [standalone] › e2e/standalone.spec.ts:105:1 › 501 groups with winners only, final, then a correction that asks before reopening
+[17/23] [standalone] › e2e/standalone.spec.ts:176:1 › free matches of the totem: Odd & Even sides, Exacta target and Shanghai win
+[18/23] [standalone] › e2e/standalone.spec.ts:224:1 › game night with a tournament and players with nicknames
+[19/23] [standalone] › e2e/standalone.spec.ts:270:1 › backup export and import onto a new device, with confirmation before replacing data
+[20/23] [standalone] › e2e/standalone.spec.ts:309:1 › a double tap on confirm records one score only
+[21/23] [standalone] › e2e/standalone.spec.ts:321:1 › X01 records every round and an excess keeps the remaining points
+[22/23] [standalone] › e2e/standalone.spec.ts:353:1 › pairs composed by hand, rounds tracked with rotation, official result from the totem
+[23/23] [standalone] › e2e/standalone.spec.ts:403:1 › seven players in a free Hi-Score match play two heats with one ranking
+  23 passed (2.4m)

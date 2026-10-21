@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Info, Pencil } from 'lucide-react';
+import { uuid } from '../../../../packages/application/src/portable.js';
 import { CrownIcon, DartIcon, PaintSplash } from '../components/BrandIcons';
 import {
   api,
@@ -20,10 +21,12 @@ import {
   type Draft,
 } from '../services/result-flow';
 import {
+  canOrganizeMatch,
   dependenciesOf,
   evaluateResult,
   gameOf,
   maxScore,
+  seatOf,
   sideOf,
   type GameMode,
 } from '../services/rules';
@@ -32,19 +35,13 @@ import {
   ErrorMessage,
   Header,
   Modal,
-  Segmented,
   Switch,
   StatusChip,
   statusLabel,
 } from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
 import { HeatEditor, HeatTimeline, viewedHeat } from '../components/Heats';
-import {
-  RotationManager,
-  RoundScoreEntry,
-  ScoreReconciliation,
-  progressSummary,
-} from '../components/Rounds';
+import { RotationManager, ScoreReconciliation } from '../components/Rounds';
 import { DecisionSheet, TieAlert, entryName } from './Tournaments';
 
 type Form = {
@@ -55,7 +52,6 @@ type Form = {
   notes: string;
 };
 const emptyForm: Form = { winner: null, scores: {}, target: '', special: false, notes: '' };
-const newKey = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`.replace('.', '');
 
 /** The form prefilled with what is recorded: corrections start from the current result. */
 function formOf(m: Match): Form {
@@ -122,16 +118,14 @@ export function ResultEntry({
   const [justSaved, setJustSaved] = useState<string | null>(null);
   const [closingHeat, setClosingHeat] = useState(false);
   const [heatChoice, setHeatChoice] = useState<string | null>(null);
-  const [managing, setManaging] = useState(false);
-  const [entry, setEntry] = useState<'final' | 'rounds'>(() =>
-    m.tracking === 'ROUND_BY_ROUND' && !embedded ? 'rounds' : 'final',
-  );
+  const [params, setParams] = useSearchParams();
+  const [managing, setManaging] = useState(() => params.get('organize') === '1');
   const [differences, setDifferences] = useState<{
     change: ResultInput;
     rows: { entryId: string; computed: number; official: number }[];
   } | null>(null);
   // One idempotency key per intended result: a repeated tap replays it instead of writing twice.
-  const key = useRef(newKey());
+  const key = useRef(uuid());
   const inFlight = useRef(false);
   useEffect(() => {
     if (!flash) return;
@@ -154,7 +148,7 @@ export function ResultEntry({
 
   const excluded = new Set(m.excludedEntryIds);
   // Over several heats the screen follows one heat: the one at the board by default.
-  const heat = heated ? viewedHeat(overview, heatChoice) : null;
+  const heat = overview.heats.length ? viewedHeat(overview, heatChoice) : null;
   const order = heat
     ? heat.entryIds.map((id) => m.participants.find((p) => p.tournamentEntryId === id)!)
     : [...m.participants].sort((a, b) => a.playingOrder - b.playingOrder);
@@ -186,54 +180,15 @@ export function ResultEntry({
   const paused = t?.status === 'paused';
   const ended = t?.status === 'cancelled';
   const entering = !cancelled && !ended && (!completed || editing);
-  const rounds = tracked && entry === 'rounds' && entering;
   const unit = (id: string) => t?.entries.find((e) => e.id === id);
   const memberName = (playerId: string) =>
     t?.entries.flatMap((e) => e.members).find((x) => x.playerId === playerId)?.displayName ??
     'Giocatore';
-  // Winner games in round mode: the competitor whose rounds are entered.
-  const roundTarget =
-    selected && playing.some((p) => p.tournamentEntryId === selected)
-      ? selected
-      : (current ?? null);
   const refreshed = (fresh: Match) => {
     client.setQueryData(['match', m.id], fresh);
     void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['session'] });
-  };
-  const roundSaved = (fresh: Match, roundNumber: number, corrected: boolean, entryId: string) => {
-    refreshed(fresh);
-    if (corrected) return;
-    const entries = playing.map((p) => p.tournamentEntryId);
-    const currentIndex = entries.indexOf(entryId);
-    const cyclic = Array.from(
-      { length: entries.length },
-      (_, index) => entries[(currentIndex + index + 1) % entries.length]!,
-    );
-    if (fresh.trackingSpec.rounds !== null) {
-      for (let number = 1; number <= fresh.trackingSpec.rounds; number++) {
-        const next = cyclic.find((candidate) =>
-          fresh.progress
-            .find((progress) => progress.tournamentEntryId === candidate)
-            ?.rounds.some((r) => r.round === number && r.status === 'missing'),
-        );
-        if (next) {
-          setSelected(next);
-          return;
-        }
-      }
-      setSelected(null);
-      setEntry('final');
-      setFlash('Tutti i round registrati · inserisci il risultato finale');
-      return;
-    }
-    const next =
-      cyclic.find((candidate) => {
-        const progress = fresh.progress.find((p) => p.tournamentEntryId === candidate);
-        return (progress?.rounds.length ?? 0) + 1 <= roundNumber;
-      }) ?? cyclic[0];
-    if (next) setSelected(next);
   };
   const heatCommand = useMutation({
     mutationFn: ({
@@ -252,17 +207,12 @@ export function ResultEntry({
   });
   const nextHeat = overview.heats.find((h) => h.heatId === overview.nextHeatId);
   const activeHeat = overview.heats.find((h) => h.heatId === overview.currentHeatId);
-  const canManageHeats =
-    heated &&
-    t?.status === 'active' &&
-    !completed &&
-    !cancelled &&
-    overview.heats.some((h) => h.status === 'pending' || h.status === 'ready');
+  const canManageHeats = t?.status === 'active' && canOrganizeMatch(m);
 
   const mutation = useMutation({
     mutationFn: (input: ResultInput) => api.recordResult(m, input, key.current),
     onSuccess: (fresh, sent) => {
-      key.current = newKey();
+      key.current = uuid();
       client.setQueryData(['match', m.id], fresh);
       void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
       void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
@@ -450,11 +400,10 @@ export function ResultEntry({
     const id = p.tournamentEntryId;
     const out = excluded.has(id);
     const score = recorded(id);
-    const chosen =
-      hiScore || rounds
-        ? (rounds ? roundTarget : current) === id && entering
-        : (completed && !editing ? winner : (form.winner ?? formResult.derived)) === id;
-    const side = sideOf(m.gameMode as GameMode, p.playingOrder);
+    const chosen = hiScore
+      ? current === id && entering
+      : (completed && !editing ? winner : (form.winner ?? formResult.derived)) === id;
+    const side = sideOf(m.gameMode as GameMode, seatOf(m, p.tournamentEntryId));
     const tag = out
       ? 'RITIRATO'
       : hiScore
@@ -496,7 +445,7 @@ export function ResultEntry({
         className={`score-card ${chosen ? 'selected' : ''} ${justSaved === id ? 'just-saved' : ''}`}
         disabled={mutation.isPending || paused}
         onClick={() => {
-          if (hiScore || rounds) {
+          if (hiScore) {
             setSelected(id);
             saveInput('');
           } else saveForm({ ...form, winner: form.winner === id ? null : id });
@@ -546,6 +495,11 @@ export function ResultEntry({
         />
       )}
       <main className="live-content">
+        {canManageHeats && (
+          <button type="button" onClick={() => setManaging(true)}>
+            Organizza manche
+          </button>
+        )}
         {heated && (
           <section className="heat-panel" aria-label="Manche">
             <HeatTimeline
@@ -588,26 +542,11 @@ export function ResultEntry({
                   Completa manche
                 </button>
               )}
-              {canManageHeats && <button onClick={() => setManaging(true)}>Gestisci manche</button>}
             </div>
             <ErrorMessage error={heatCommand.error} />
           </section>
         )}
-        {tracked && entering && !embedded && (
-          <Segmented
-            label="Cosa inserisci"
-            value={entry}
-            change={(v) => {
-              setEntry(v);
-              saveInput('');
-            }}
-            options={[
-              { id: 'final', label: 'Risultato finale' },
-              { id: 'rounds', label: 'Round per round' },
-            ]}
-          />
-        )}
-        {tracked && entering && entry === 'final' && !roundsReady && (
+        {tracked && entering && !roundsReady && (
           <p className="hint" role="status">
             {game.scoreRequired
               ? 'Registra o salta tutti i round di questo partecipante prima del risultato finale.'
@@ -619,7 +558,7 @@ export function ResultEntry({
             {order.map((p) => {
               const id = p.tournamentEntryId;
               const out = excluded.has(id);
-              const chosen = entering && (rounds ? roundTarget : current) === id && !out;
+              const chosen = entering && current === id && !out;
               return (
                 <li key={id}>
                   <button
@@ -633,21 +572,10 @@ export function ResultEntry({
                       saveInput('');
                     }}
                   >
-                    <span className="order">{p.playingOrder}</span>
+                    <span className="order">{seatOf(m, p.tournamentEntryId)}</span>
                     <Avatar name={name(id)} />
                     <span className="result-name">{name(id)}</span>
-                    <small>
-                      {out
-                        ? 'RITIRATO'
-                        : rounds
-                          ? progressSummary(
-                              m,
-                              m.progress.find((x) => x.tournamentEntryId === id),
-                            ).replace('Nessun round registrato', 'nessun round')
-                          : recorded(id) === null
-                            ? 'da inserire'
-                            : ''}
-                    </small>
+                    <small>{out ? 'RITIRATO' : recorded(id) === null ? 'da inserire' : ''}</small>
                     <strong>{recorded(id) ?? '—'}</strong>
                   </button>
                 </li>
@@ -671,40 +599,7 @@ export function ResultEntry({
             Torneo in pausa: riprendilo dalla pagina del torneo per registrare risultati.
           </p>
         )}
-        {rounds && roundTarget && (
-          <>
-            <p className="round-target" role="status" aria-live="polite">
-              Round di <strong>{name(roundTarget)}</strong>
-            </p>
-            {(unit(roundTarget)?.members.length ?? 0) > 1 && (
-              <RotationManager
-                m={m}
-                entryId={roundTarget}
-                playerName={memberName}
-                disabled={paused || !entering}
-                saved={refreshed}
-              />
-            )}
-            <RoundScoreEntry
-              key={roundTarget}
-              m={m}
-              entryId={roundTarget}
-              team={(unit(roundTarget)?.members.length ?? 0) > 1}
-              disabled={paused || mutation.isPending}
-              saved={(fresh, _message, roundNumber, corrected) =>
-                roundSaved(fresh, roundNumber, corrected, roundTarget)
-              }
-              applyComputed={(value) => {
-                if (hiScore) send({ scores: { [roundTarget]: value } });
-                else {
-                  saveForm({ ...form, scores: { ...form.scores, [roundTarget]: String(value) } });
-                  setEntry('final');
-                }
-              }}
-            />
-          </>
-        )}
-        {entering && hiScore && !rounds && (
+        {entering && hiScore && (
           <>
             {current && (unit(current)?.members.length ?? 0) > 1 && (
               <RotationManager
@@ -775,7 +670,7 @@ export function ResultEntry({
             />
           </>
         )}
-        {entering && !hiScore && !rounds && (
+        {entering && !hiScore && (
           <section className="result-form" aria-label="Dettagli del risultato">
             {game.target && (
               <label className="field">
@@ -795,8 +690,11 @@ export function ResultEntry({
                 <label key={p.tournamentEntryId}>
                   <span>
                     {name(p.tournamentEntryId)}
-                    {sideOf(m.gameMode as GameMode, p.playingOrder) && (
-                      <small> · {sideOf(m.gameMode as GameMode, p.playingOrder)}</small>
+                    {sideOf(m.gameMode as GameMode, seatOf(m, p.tournamentEntryId)) && (
+                      <small>
+                        {' '}
+                        · {sideOf(m.gameMode as GameMode, seatOf(m, p.tournamentEntryId))}
+                      </small>
                     )}
                   </span>
                   <input
@@ -990,7 +888,23 @@ export function ResultEntry({
           }}
         />
       )}
-      {managing && <HeatEditor m={m} name={name} close={() => setManaging(false)} />}
+      {managing && (
+        <HeatEditor
+          m={m}
+          name={name}
+          close={() => {
+            setManaging(false);
+            setParams(
+              (p) => {
+                const next = new URLSearchParams(p);
+                next.delete('organize');
+                return next;
+              },
+              { replace: true },
+            );
+          }}
+        />
+      )}
       {closingHeat && activeHeat && (
         <Modal
           variant="dialog"
@@ -1030,11 +944,7 @@ export function ResultEntry({
           error={null}
           close={() => setDifferences(null)}
           review={() => {
-            if (review) review(differences.rows[0]!.entryId);
-            else {
-              setSelected(differences.rows[0]!.entryId);
-              setEntry('rounds');
-            }
+            review?.(differences.rows[0]!.entryId);
             setDifferences(null);
           }}
           confirm={(reasons) => {

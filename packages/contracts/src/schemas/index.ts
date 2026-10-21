@@ -18,7 +18,7 @@ export const tracking = z.enum(['FINAL_ONLY', 'ROUND_BY_ROUND', 'FLEXIBLE']);
 export const heatStrategy = z.enum(['sequential', 'random', 'balanced']);
 export const x01Entry = z.enum(['SCORED', 'REMAINING']);
 /** Seats of a heat on the totem (verified: four). */
-const heatCapacity = z.number().int().min(1).max(8);
+const heatCapacity = z.number().int().min(1).max(4);
 /** Preset avatars only: no images are stored. */
 export const avatar = z.string().regex(/^[a-z0-9-]{1,32}$/);
 export const scoringConfiguration = z
@@ -48,7 +48,7 @@ export const tournamentConfiguration = z.strictObject({
   groupRanking: z.union([z.enum(['POINTS_SCORE', 'POINTS_WINS']), z.null()]).default(null),
   // null: the most players of the game on the totem.
   heatCapacity: z.union([heatCapacity, z.null()]).default(null),
-  heatStrategy: heatStrategy.default('balanced'),
+  heatStrategy: heatStrategy.default('sequential'),
   x01Entry: x01Entry.default('REMAINING'),
 });
 export const createPlayer = z.strictObject({
@@ -129,7 +129,8 @@ export const arrangeHeats = matchCommand.extend({
     .array(
       z.strictObject({
         heatId: id.nullable().optional(),
-        entryIds: z.array(id).min(1).max(8),
+        entryIds: z.array(id).min(1).max(4),
+        slotPositions: z.array(z.number().int().min(1).max(4)).optional(),
       }),
     )
     .min(1)
@@ -296,6 +297,7 @@ export const turnResponse = z.object({
   completedAt: z.string().nullable(),
 });
 export const heatResponse = z.object({
+  slotPositions: z.array(z.number().int().min(1)).optional(),
   id,
   matchId: id,
   number: z.number(),

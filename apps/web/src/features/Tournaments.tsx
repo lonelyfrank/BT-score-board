@@ -188,10 +188,6 @@ export function blockingTies(rows: Row[], cut: number, withinCut = false) {
   );
 }
 
-export function RankBadge({ placement }: { placement: number }) {
-  return <span className={`rank-badge rank-${placement}`}>{placement}</span>;
-}
-
 export function Podium({ t }: { t: Tournament }) {
   const placed = [...t.results].sort((a, b) => a.finalPlacement - b.finalPlacement);
   const order = [placed[1], placed[0], placed[2]];

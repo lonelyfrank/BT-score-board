@@ -7,11 +7,11 @@ import {
   type Match,
   type Tournament,
 } from '../model.js';
-import { games } from '../games/catalog.js';
+import { comparableAcrossHeats, games } from '../games/catalog.js';
 import { chunk, evenSizes, shuffle } from './random.js';
 
-/** Most seats a heat can be configured with (the totem verified so far has four). */
-export const MAX_HEAT_CAPACITY = 8;
+/** Physical maximum of the Pub Time totem; a game may allow fewer. */
+export const MAX_HEAT_CAPACITY = 4;
 
 export const heatTransitions: Record<HeatStatus, HeatStatus[]> = {
   pending: ['ready', 'active', 'cancelled'],
@@ -32,7 +32,11 @@ export function transitionHeat(heat: Heat, to: HeatStatus) {
 
 /** Seats per heat: the configured capacity, or the most players of the game on the totem. */
 export const heatCapacity = (t: Tournament) =>
-  t.tournamentConfiguration.heatCapacity ?? games[t.gameMode].players.max;
+  Math.min(
+    t.tournamentConfiguration.heatCapacity ?? MAX_HEAT_CAPACITY,
+    games[t.gameMode].players.max,
+    MAX_HEAT_CAPACITY,
+  );
 
 /**
  * Splits entries into heats of at most `capacity` seats. Sequential keeps the registration
@@ -43,7 +47,7 @@ export const heatCapacity = (t: Tournament) =>
 export function planHeats(
   entryIds: string[],
   capacity: number,
-  strategy: HeatStrategy,
+  strategy: HeatStrategy = 'sequential',
   random: () => number = Math.random,
 ): string[][] {
   ensure(
@@ -71,6 +75,69 @@ export const multiHeat = (m: Pick<Match, 'heats'>) =>
 export const heatOf = (m: Match, entryId: string) =>
   live(m).find((h) => h.entryIds.includes(entryId)) ?? null;
 const editable = (h: Heat) => h.status === 'pending' || h.status === 'ready';
+/** Physical gaps are metadata; entryIds remains the sole throwing order. */
+export function heatSlots(
+  h: { entryIds: string[]; slotPositions?: number[] },
+  capacity: number,
+): (string | null)[] {
+  const slots: (string | null)[] = Array.from({ length: capacity }, () => null);
+  h.entryIds.forEach((id, i) => {
+    slots[(h.slotPositions?.[i] ?? i + 1) - 1] = id;
+  });
+  return slots;
+}
+export function validSlotPositions(
+  h: { entryIds: string[]; slotPositions?: number[] },
+  capacity: number,
+) {
+  return (
+    !h.slotPositions ||
+    (h.slotPositions.length === h.entryIds.length &&
+      h.slotPositions.every(
+        (p, i, positions) =>
+          Number.isInteger(p) && p >= 1 && p <= capacity && (i === 0 || p > positions[i - 1]!),
+      ))
+  );
+}
+/** Includes voided/corrected observations: undo does not make history editable. */
+export function heatHasHistory(m: Match, h: Pick<Heat, 'entryIds' | 'startedAt' | 'completedAt'>) {
+  const ids = new Set(h.entryIds);
+  return (
+    !!h.startedAt ||
+    !!h.completedAt ||
+    m.rounds.some((r) => ids.has(r.tournamentEntryId)) ||
+    m.scores.some((r) => ids.has(r.tournamentEntryId)) ||
+    m.turns.some((r) => ids.has(r.participantId) && (r.status !== 'pending' || !!r.startedAt)) ||
+    h.entryIds.some((id) => m.result?.scores[id] != null || m.result?.declaredWinnerEntryId === id)
+  );
+}
+export const canArrangeHeat = (m: Match, h: Heat) => editable(h) && !heatHasHistory(m, h);
+
+/** Fixed heats keep their place and number, including when played out of order. */
+function mergeHeats(m: Match, arranged: Heat[], fixed: (h: Heat) => boolean) {
+  const next: Heat[] = [];
+  const remaining = [...arranged];
+  for (const h of m.heats) {
+    if (fixed(h)) {
+      ensure(
+        next.length === h.number - 1,
+        'HEAT_ORDER_LOCKED',
+        'Keep the positions before a started heat',
+      );
+      next.push(h);
+    } else if (remaining.length) next.push(remaining.shift()!);
+  }
+  next.push(...remaining);
+  return next;
+}
+function assertComparable(t: Tournament, heats: Pick<Heat, 'status'>[]) {
+  ensure(
+    heats.filter((h) => h.status !== 'cancelled').length <= 1 || comparableAcrossHeats(t.gameMode),
+    'INCOMPATIBLE_HEATS',
+    'This game cannot compare independent heats',
+    422,
+  );
+}
 function renumber(m: Match) {
   m.heats.forEach((h, i) => (h.number = i + 1));
 }
@@ -92,9 +159,11 @@ export function initialHeats(t: Tournament, m: Match, c: Context) {
   const capacity = heatCapacity(t);
   const ids = m.participants.map((p) => p.tournamentEntryId);
   if (ids.length <= capacity) return;
-  m.heats = planHeats(ids, capacity, t.tournamentConfiguration.heatStrategy, c.random).map(
+  const planned = planHeats(ids, capacity, t.tournamentConfiguration.heatStrategy, c.random).map(
     (entries) => newHeat(m, entries, c),
   );
+  assertComparable(t, planned);
+  m.heats = planned;
   renumber(m);
 }
 
@@ -112,10 +181,25 @@ function assertEditable(t: Tournament, m: Match) {
   );
   const stage = t.stages.find((s) => s.id === m.stageId);
   ensure(stage?.status === 'open', 'STAGE_CLOSED', 'Stage must be open');
+  ensure(
+    m.heats.length > 0 ||
+      (!m.startedAt &&
+        !heatHasHistory(m, {
+          entryIds: m.participants.map((p) => p.tournamentEntryId),
+          startedAt: null,
+          completedAt: null,
+        })),
+    'HEAT_HAS_HISTORY',
+    'This session has already started',
+  );
 }
 /** Entries still to be placed: those not in a started, played or confirmed heat. */
 function placeable(m: Match) {
-  const fixed = new Set(m.heats.filter((h) => h.status !== 'pending').flatMap((h) => h.entryIds));
+  const fixed = new Set(
+    m.heats
+      .filter((h) => h.status !== 'pending' || heatHasHistory(m, h))
+      .flatMap((h) => h.entryIds),
+  );
   return m.participants.map((p) => p.tournamentEntryId).filter((id) => !fixed.has(id));
 }
 
@@ -140,28 +224,50 @@ export function generateHeats(
   );
   const ids = placeable(m);
   const planned = planHeats(ids, capacity, input.strategy, random);
-  m.heats = [
-    ...m.heats.filter((h) => !(h.status === 'pending')),
-    ...planned.map((entries) => newHeat(m, entries, c)),
-  ];
+  const next = mergeHeats(
+    m,
+    planned.map((entries) => newHeat(m, entries, c)),
+    (h) => h.status !== 'pending' || heatHasHistory(m, h),
+  );
+  assertComparable(t, next);
+  m.heats = next;
+  // An explicit unplayed pick must not override the new seat order. History/replays of fixed heats stay intact.
+  if (m.guide?.pick && ids.includes(m.guide.pick.entryId)) m.guide.pick = null;
   renumber(m);
   m.version++;
 }
 
 export interface HeatLayout {
+  slotPositions?: number[];
   heatId?: string | null;
   entryIds: string[];
+}
+/** Physical seat, including gaps; legacy sessions use participant order. */
+export function physicalSeat(m: Pick<Match, 'heats' | 'participants'>, entryId: string) {
+  const h = m.heats.find((h) => h.status !== 'cancelled' && h.entryIds.includes(entryId));
+  const i = h?.entryIds.indexOf(entryId) ?? -1;
+  return h
+    ? (h.slotPositions?.[i] ?? i + 1)
+    : (m.participants.find((p) => p.tournamentEntryId === entryId)?.playingOrder ?? 1);
 }
 /**
  * Manual arrangement of the heats not started yet, in their new order: moves, swaps, merges,
  * splits and new heats are all expressed as the resulting layout. Confirmed heats must appear
- * unchanged; started and played heats stay first. Every entry of the match must end up in
+ * unchanged; started and played heats keep their original positions. Every entry of the match must end up in
  * exactly one heat with at most `capacity` seats.
  */
 export function arrangeHeats(t: Tournament, m: Match, layout: HeatLayout[], c: Context) {
   assertEditable(t, m);
   const capacity = heatCapacity(t);
-  const started = m.heats.filter((h) => !editable(h));
+  for (const row of layout) {
+    const h = m.heats.find((h) => h.id === row.heatId);
+    ensure(
+      !h || canArrangeHeat(m, h),
+      'HEAT_HAS_HISTORY',
+      'A started heat or its history cannot change',
+    );
+  }
+  const started = m.heats.filter((h) => !canArrangeHeat(m, h));
   const startedIds = new Set(started.flatMap((h) => h.entryIds));
   const expected = m.participants
     .map((p) => p.tournamentEntryId)
@@ -176,7 +282,10 @@ export function arrangeHeats(t: Tournament, m: Match, layout: HeatLayout[], c: C
     422,
   );
   ensure(
-    layout.every((h) => h.entryIds.length >= 1 && h.entryIds.length <= capacity),
+    layout.every(
+      (h) =>
+        h.entryIds.length >= 1 && h.entryIds.length <= capacity && validSlotPositions(h, capacity),
+    ),
     'INVALID_HEATS',
     `Each heat holds 1 to ${capacity} entries`,
     422,
@@ -184,28 +293,52 @@ export function arrangeHeats(t: Tournament, m: Match, layout: HeatLayout[], c: C
   const used = new Set<string>();
   const arranged = layout.map((h) => {
     const existing = h.heatId ? m.heats.find((x) => x.id === h.heatId) : undefined;
-    ensure(!h.heatId || (existing && editable(existing)), 'INVALID_HEATS', 'Unknown heat', 422);
+    ensure(!h.heatId || existing, 'INVALID_HEATS', 'Unknown heat', 422);
+    ensure(
+      !existing || canArrangeHeat(m, existing),
+      'HEAT_HAS_HISTORY',
+      'A started heat or its history cannot change',
+    );
     ensure(!existing || !used.has(existing.id), 'INVALID_HEATS', 'A heat appears twice', 422);
     if (existing) {
       used.add(existing.id);
       if (existing.status === 'ready')
         ensure(
           existing.entryIds.length === h.entryIds.length &&
-            existing.entryIds.every((id, i) => id === h.entryIds[i]),
+            existing.entryIds.every((id, i) => id === h.entryIds[i]) &&
+            JSON.stringify(heatSlots(existing, capacity)) ===
+              JSON.stringify(heatSlots(h, capacity)),
           'HEAT_LOCKED',
           'Unlock a confirmed heat before changing it',
         );
-      return { ...existing, entryIds: [...h.entryIds] };
+      return {
+        ...existing,
+        entryIds: [...h.entryIds],
+        slotPositions: h.slotPositions ? [...h.slotPositions] : undefined,
+      };
     }
-    return newHeat(m, [...h.entryIds], c);
+    return {
+      ...newHeat(m, [...h.entryIds], c),
+      ...(h.slotPositions ? { slotPositions: [...h.slotPositions] } : {}),
+    };
   });
   // Confirmed heats left out of the layout would lose their entries: they must be listed.
   ensure(
-    m.heats.filter((h) => h.status === 'ready').every((h) => used.has(h.id)),
+    m.heats
+      .filter((h) => h.status === 'ready' && canArrangeHeat(m, h))
+      .every((h) => used.has(h.id)),
     'HEAT_LOCKED',
     'Unlock a confirmed heat before removing it',
   );
-  m.heats = [...started, ...arranged];
+  const next = mergeHeats(m, arranged, (h) => !canArrangeHeat(m, h));
+  ensure(
+    next.every((h, i) => h.status !== 'ready' || h.number === i + 1),
+    'HEAT_LOCKED',
+    'Unlock a confirmed heat before reordering it',
+  );
+  assertComparable(t, next);
+  m.heats = next;
+  if (m.guide?.pick && expected.includes(m.guide.pick.entryId)) m.guide.pick = null;
   renumber(m);
   m.version++;
 }
@@ -219,6 +352,7 @@ const heatById = (m: Match, heatId: string) => {
 export function lockHeat(t: Tournament, m: Match, heatId: string, locked: boolean) {
   assertEditable(t, m);
   const h = heatById(m, heatId);
+  ensure(canArrangeHeat(m, h), 'HEAT_HAS_HISTORY', 'A started heat or its history cannot change');
   transitionHeat(h, locked ? 'ready' : 'pending');
   m.version++;
 }

@@ -5763,11 +5763,11 @@
                         "default": null,
                         "type": "integer",
                         "minimum": 1,
-                        "maximum": 8,
+                        "maximum": 4,
                         "nullable": true
                       },
                       "heatStrategy": {
-                        "default": "balanced",
+                        "default": "sequential",
                         "type": "string",
                         "enum": [
                           "sequential",
@@ -6607,6 +6607,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -8161,6 +8169,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -10199,6 +10215,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -12148,6 +12172,14 @@
                         "items": {
                           "type": "object",
                           "properties": {
+                            "slotPositions": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              }
+                            },
                             "id": {
                               "type": "string",
                               "format": "uuid",
@@ -15018,6 +15050,14 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "slotPositions": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            }
+                          },
                           "id": {
                             "type": "string",
                             "format": "uuid",
@@ -17719,6 +17759,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -19786,6 +19834,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -21371,6 +21427,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -22245,11 +22309,11 @@
                         "default": null,
                         "type": "integer",
                         "minimum": 1,
-                        "maximum": 8,
+                        "maximum": 4,
                         "nullable": true
                       },
                       "heatStrategy": {
-                        "default": "balanced",
+                        "default": "sequential",
                         "type": "string",
                         "enum": [
                           "sequential",
@@ -23154,6 +23218,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -24739,6 +24811,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -26324,6 +26404,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -27909,6 +27997,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -29494,6 +29590,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -31079,6 +31183,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -32664,6 +32776,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -34266,6 +34386,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -35851,6 +35979,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -37453,6 +37589,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -39050,6 +39194,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -40646,6 +40798,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -42231,6 +42391,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -43828,6 +43996,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -45419,6 +45595,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -47027,6 +47211,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -48643,6 +48835,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -50234,6 +50434,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -51825,6 +52033,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -53416,6 +53632,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -55013,6 +55237,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -56604,6 +56836,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -58240,6 +58480,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -59837,6 +60085,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -60597,7 +60853,7 @@
                     "nullable": true,
                     "type": "integer",
                     "minimum": 1,
-                    "maximum": 8
+                    "maximum": 4
                   },
                   "seed": {
                     "nullable": true,
@@ -61449,6 +61705,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -62212,12 +62476,20 @@
                         },
                         "entryIds": {
                           "minItems": 1,
-                          "maxItems": 8,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "string",
                             "format": "uuid",
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "slotPositions": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 4
                           }
                         }
                       },
@@ -63071,6 +63343,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -64672,6 +64952,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -66269,6 +66557,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -67866,6 +68162,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -69529,6 +69833,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -71142,6 +71454,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -72760,6 +73080,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -74418,6 +74746,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -76037,6 +76373,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -77639,6 +77983,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",
@@ -79236,6 +79588,14 @@
                             "items": {
                               "type": "object",
                               "properties": {
+                                "slotPositions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
                                 "id": {
                                   "type": "string",
                                   "format": "uuid",

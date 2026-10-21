@@ -320,7 +320,7 @@ describe('Corrections of a qualification', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
-      { config: { qualifiers: 2, heatCapacity: 8 } },
+      { config: { qualifiers: 2, heatCapacity: 4 } },
     );
     const q = t.matches[0]!.id;
     const e = t.entries.map((x) => x.id);

@@ -97,8 +97,8 @@ export function TournamentSetup() {
   const [unevenOk, setUnevenOk] = useState(false);
   const [tracking, setTracking] = useState<Tracking>('ROUND_BY_ROUND');
   const [x01Entry, setX01Entry] = useState<'REMAINING' | 'SCORED'>('SCORED');
-  const [heatStrategy, setHeatStrategy] = useState<'balanced' | 'sequential' | 'random'>(
-    'balanced',
+  const [heatStrategy, setHeatStrategy] = useState<'balanced' | 'sequential' | 'random' | 'custom'>(
+    'sequential',
   );
   useEffect(() => {
     if (teamMode)
@@ -148,7 +148,10 @@ export function TournamentSetup() {
     ids.forEach((id, i) => result[Math.min(assigned[id] ?? i % groups, groups - 1)]!.push(id));
     return result;
   }, [unitKeys, groups, manual, assigned]);
-  const quickHeats = !isGroups && n > game.players.max ? heatSizes(n, game.players.max) : [];
+  const quickHeats =
+    !isGroups && n > game.players.max
+      ? heatSizes(n, game.players.max, heatStrategy === 'custom' ? 'sequential' : heatStrategy)
+      : [];
 
   const reason = !name.trim()
     ? 'Inserisci il nome del torneo.'
@@ -185,7 +188,7 @@ export function TournamentSetup() {
             allowDraws: game.drawPossible && allowDraws,
             playingOrder: order,
             x01Entry,
-            heatStrategy,
+            heatStrategy: heatStrategy === 'custom' ? 'sequential' : heatStrategy,
           },
         }));
       setDraft(t);
@@ -208,6 +211,10 @@ export function TournamentSetup() {
       }
       if (t.status === 'draft') t = await api.tournamentCommand(t, 'registration/open');
       if (start) t = await api.tournamentCommand(t, 'start');
+      if (start && !isGroups && heatStrategy === 'custom') {
+        navigate(`/partite/${t.matches[0]!.id}?organize=1`);
+        return;
+      }
       navigate(`${format === 'QUICK_HIGH_SCORE' ? '/hiscore' : '/tornei'}/${t.id}`);
     },
   });
@@ -564,7 +571,8 @@ export function TournamentSetup() {
                         value={heatStrategy}
                         change={setHeatStrategy}
                         options={[
-                          { id: 'sequential', label: 'In ordine' },
+                          { id: 'sequential', label: 'Riempimento' },
+                          { id: 'custom', label: 'Personalizzata' },
                           { id: 'random', label: 'Casuale' },
                           { id: 'balanced', label: 'Bilanciata' },
                         ]}

@@ -1,0 +1,66 @@
+{
+  "routes": [
+    {
+      "url": "/",
+      "authenticated": false,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/",
+      "authenticated": true,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/serate",
+      "authenticated": false,
+      "status": 401,
+      "contentType": "application/json; charset=utf-8"
+    },
+    {
+      "url": "/serate",
+      "authenticated": true,
+      "status": 404,
+      "contentType": "application/json; charset=utf-8"
+    },
+    {
+      "url": "/tornei",
+      "authenticated": false,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/tornei",
+      "authenticated": true,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/giocatori",
+      "authenticated": false,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/giocatori",
+      "authenticated": true,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/impostazioni",
+      "authenticated": false,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "/impostazioni",
+      "authenticated": true,
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    }
+  ],
+  "openapiMatches": true,
+  "documentedPaths": 59
+}

@@ -34,6 +34,7 @@ import {
   type ScoreChange,
   type Tournament,
   type TournamentAction,
+  type TournamentStatus,
   type TurnInput,
 } from './game.js';
 
@@ -124,9 +125,14 @@ export class LocalGameAdapter implements GameAdapter {
     const page = await this.read((b) => b.history(id, { ...all, offset: 0 }));
     return { ...page, items: page.items.map(toSummary) };
   }
-  async tournaments(offset = 0, eventId?: string) {
+  async tournaments(offset = 0, eventId?: string, status?: TournamentStatus) {
     const page = await this.read((_, store) =>
-      store.listTournaments({ ...all, offset, ...(eventId ? { eventId } : {}) }),
+      store.listTournaments({
+        ...all,
+        offset,
+        ...(eventId ? { eventId } : {}),
+        ...(status ? { status } : {}),
+      }),
     );
     return { ...page, items: page.items.map(toSummary) };
   }

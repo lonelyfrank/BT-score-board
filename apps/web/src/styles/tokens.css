@@ -138,20 +138,3 @@
     --bt-press-scale: 1;
   }
 }
-
-/* Utility condivise */
-.bt-tabular {
-  font-variant-numeric: tabular-nums;
-}
-.bt-neon {
-  border-color: var(--bt-accent-primary);
-  box-shadow: var(--bt-neon);
-}
-.bt-focus:focus-visible {
-  outline: 2px solid var(--bt-accent-soft);
-  outline-offset: 2px;
-}
-.bt-grain {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 3px 3px;
-}

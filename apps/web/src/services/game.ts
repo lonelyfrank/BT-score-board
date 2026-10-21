@@ -15,6 +15,7 @@ export type Tournament = z.output<typeof schemas.tournamentResponse>;
 export type Match = z.output<typeof schemas.liveMatchResponse>;
 export type Standings = z.output<typeof schemas.standingsResponse>;
 export type Summary = z.output<typeof schemas.tournamentSummary>;
+export type TournamentStatus = Summary['status'];
 export type Statistics = z.output<typeof schemas.statisticsResponse>;
 export type CreateTournament = z.input<typeof schemas.createTournament>;
 export type Page<T> = { items: T[]; total: number; limit: number; offset: number };
@@ -48,7 +49,7 @@ export interface GameAdapter {
   events(): Promise<Page<PubEvent>>;
   createEvent(input: CreateEvent): Promise<PubEvent>;
   updateEvent(id: string, patch: EventPatch): Promise<PubEvent>;
-  tournaments(offset?: number, eventId?: string): Promise<Page<Summary>>;
+  tournaments(offset?: number, eventId?: string, status?: TournamentStatus): Promise<Page<Summary>>;
   tournament(id: string): Promise<Tournament>;
   match(id: string): Promise<Match>;
   standings(id: string): Promise<Standings>;
@@ -144,6 +145,10 @@ export const messages: Record<string, string> = {
   HEAT_BUSY: 'C’è già una manche al bersaglio: completala prima di passare alla successiva.',
   INVALID_HEATS:
     'Ogni giocatore ancora da giocare deve stare in una sola manche, senza superare i posti del totem.',
+  HEAT_HAS_HISTORY: 'Manche avviata o con risultati/turni registrati: la composizione è protetta.',
+  HEAT_ORDER_LOCKED: 'Mantieni i posti delle manche già avviate: modifica solo quelle in attesa.',
+  INCOMPATIBLE_HEATS:
+    'Questo gioco non consente il confronto tra manche indipendenti. Mantieni un unico incontro.',
   HEAT_LOCKED: 'Manche confermata: sbloccala prima di modificarla.',
   INVALID_HEAT_CAPACITY: 'Posti per manche non validi per questo totem.',
   INCOMPLETE_HEAT: 'Mancano risultati in questa manche.',
@@ -168,6 +173,20 @@ export const messages: Record<string, string> = {
   ALREADY_RECORDED: 'Questo turno ha già un valore: correggilo dalla matrice dei round.',
   ENTRY_CLOSED: 'Ha già chiuso: non tira più in questa partita.',
   INVALID_ROTATION: 'Il nuovo ordine deve contenere tutti i giocatori una volta sola.',
+  NOT_FOUND:
+    'Elemento non trovato: potrebbe essere stato rimosso o trovarsi su un altro dispositivo.',
+  FORBIDDEN: 'Serve il token organizzatore per questa operazione.',
+  INVALID_STATE: 'Operazione non disponibile in questo stato. Aggiorna la pagina e riprova.',
+  INVALID_STAGE: 'Questa fase del torneo non consente l’operazione.',
+  NO_STAGE: 'Il torneo non è ancora iniziato.',
+  EMPTY_PAIR: 'Accoppiamento del tabellone senza giocatori.',
+  MATCH_NOT_ACTIVE: 'L’incontro non è in corso: avvialo o riaprine la fase prima di registrare.',
+  INCOMPLETE_MATCH: 'Completa tutti i turni dell’incontro prima di proseguire.',
+  WRONG_TURN: 'Questo turno non è più quello al bersaglio: la partita è stata aggiornata.',
+  DUPLICATE_SCORE: 'Il turno ha già un punteggio registrato.',
+  SCORE_VOIDED: 'Questo punteggio è stato annullato.',
+  INTEGRITY_CONFLICT: 'L’operazione contrasta con i dati salvati: nulla è stato modificato.',
+  NOT_SUPPORTED: 'Operazione non disponibile in questa modalità.',
 };
 
 // Session-scoped drafts: they survive a reload but not a closed tab.

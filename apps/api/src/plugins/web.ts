@@ -9,20 +9,24 @@ declare module 'fastify' {
   }
 }
 
+/** Client routes of apps/web/src/main.tsx: a reload or a bookmark must get the SPA, not the API. */
+export const clientRoutes = [
+  '/',
+  '/partite/*',
+  '/tornei',
+  '/tornei/*',
+  '/hiscore',
+  '/hiscore/*',
+  '/serate',
+  '/giocatori',
+  '/impostazioni',
+];
+
 // Only the compiled client is public. API routes retain bearer authentication.
 export function registerWeb(app: FastifyInstance, directory = resolve('apps/web/dist-shared')) {
   if (!existsSync(resolve(directory, 'index.html'))) return;
   const options = { config: { publicWeb: true }, schema: { hide: true } };
-  for (const path of [
-    '/',
-    '/partite/*',
-    '/tornei',
-    '/tornei/*',
-    '/hiscore',
-    '/hiscore/*',
-    '/giocatori',
-    '/impostazioni',
-  ]) {
+  for (const path of clientRoutes) {
     app.get(path, options, async (_request, reply) => {
       reply.header('Cache-Control', 'no-cache');
       return reply

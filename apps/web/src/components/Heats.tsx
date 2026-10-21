@@ -1,8 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Lock, LockOpen, Plus, Shuffle } from 'lucide-react';
+import { ArrowUp, ArrowDown, Lock, LockOpen, Plus, Shuffle, Trash2 } from 'lucide-react';
 import { ErrorMessage, Modal, Segmented } from './ui';
+import { uuid } from '../../../../packages/application/src/portable.js';
 import { api, type Match } from '../services/api';
+import {
+  planHeats,
+  heatSlots,
+  canOrganizeHeat,
+  canOrganizeMatch,
+  comparableAcrossHeats,
+  type GameMode,
+} from '../services/rules';
 
 type Overview = Match['heatOverview'];
 type HeatRow = Overview['heats'][number];
@@ -70,10 +79,49 @@ export function viewedHeat(overview: Overview, chosen: string | null): HeatRow |
   );
 }
 
-/**
- * Rearranges the heats not played yet: two taps swap two players, «Sposta qui» moves one,
- * a new heat takes the selected player. Confirmed heats are locked; played heats never change.
- */
+type DraftHeat = {
+  key: string;
+  heatId: string | null;
+  slots: (string | null)[];
+  fixed: boolean;
+  locked: boolean;
+  status: string;
+};
+const freshHeat = (slots: (string | null)[]): DraftHeat => ({
+  key: uuid(),
+  heatId: null,
+  slots,
+  fixed: false,
+  locked: false,
+  status: 'pending',
+});
+function draftOf(m: Match): DraftHeat[] {
+  if (!m.heats.length)
+    return [
+      {
+        ...freshHeat(
+          heatSlots(
+            {
+              entryIds: [...m.participants]
+                .sort((a, b) => a.playingOrder - b.playingOrder)
+                .map((p) => p.tournamentEntryId),
+            },
+            m.heatCapacity,
+          ),
+        ),
+        fixed: !canOrganizeMatch(m),
+      },
+    ];
+  return m.heats.map((h) => ({
+    key: h.id,
+    heatId: h.id,
+    slots: heatSlots(h, Math.max(m.heatCapacity, ...(h.slotPositions ?? []), h.entryIds.length)),
+    fixed: !canOrganizeHeat(m, h),
+    locked: h.status === 'ready',
+    status: h.status,
+  }));
+}
+/** Draft-only edits: one versioned command commits the complete layout. */
 export function HeatEditor({
   m,
   name,
@@ -84,170 +132,285 @@ export function HeatEditor({
   close: () => void;
 }) {
   const client = useQueryClient();
-  const editable = m.heats.filter((h) => h.status === 'pending' || h.status === 'ready');
-  const [layout, setLayout] = useState(() =>
-    editable.map((h) => ({
-      heatId: h.id as string | null,
-      entryIds: [...h.entryIds],
-      locked: h.status === 'ready',
-    })),
-  );
+  const [base, setBase] = useState(m);
+  const originalLayout = useMemo(() => draftOf(base), [base]);
+  const [layout, setLayout] = useState(() => draftOf(m));
   const [picked, setPicked] = useState<string | null>(null);
-  const [strategy, setStrategy] = useState<'balanced' | 'sequential' | 'random'>('balanced');
-  const capacity = m.heatCapacity;
-  const dirty =
-    layout.length !== editable.length ||
-    layout.some(
-      (h, i) => h.heatId !== editable[i]?.id || h.entryIds.join() !== editable[i]?.entryIds.join(),
-    );
+  const [feedback, setFeedback] = useState('Tocca un partecipante, poi lo slot di destinazione.');
+  const [strategy, setStrategy] = useState<'sequential' | 'balanced' | 'custom' | 'random'>(
+    'sequential',
+  );
+  const capacity = base.heatCapacity;
+  const stale = base.version !== m.version || base.tournamentVersion !== m.tournamentVersion;
+  const assigned = layout.flatMap((h) => h.slots.filter((id): id is string => id !== null));
+  const expected = base.participants.map((p) => p.tournamentEntryId);
+  const empty = layout.some((h) => !h.fixed && h.slots.every((id) => id === null));
+  const invalid = empty
+    ? 'Rimuovi le manche vuote oppure assegna un partecipante.'
+    : assigned.length !== expected.length ||
+        new Set(assigned).size !== assigned.length ||
+        expected.some((id) => !assigned.includes(id))
+      ? 'Assegna ogni partecipante esattamente una volta.'
+      : !comparableAcrossHeats(base.gameMode as GameMode) &&
+          layout.filter((h) => h.status !== 'cancelled').length > 1
+        ? 'Questo gioco richiede un unico confronto sul totem: non può essere diviso in manche indipendenti.'
+        : '';
   const done = (fresh: Match) => {
     client.setQueryData(['match', m.id], fresh);
     void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['session'] });
+    close();
   };
   const save = useMutation({
     mutationFn: () =>
-      api.matchCommand(m, 'heats/arrange', {
+      api.matchCommand(base, 'heats/arrange', {
         heats: layout
-          .filter((h) => h.entryIds.length)
-          .map((h) => ({ heatId: h.heatId, entryIds: h.entryIds })),
+          .filter((h) => !h.fixed)
+          .map((h) => ({
+            heatId: h.heatId,
+            entryIds: h.slots.filter((id) => id !== null),
+            slotPositions: h.slots.flatMap((id, i) => (id === null ? [] : [i + 1])),
+          })),
       }),
-    onSuccess: (fresh) => {
-      done(fresh);
-      close();
-    },
-  });
-  const regenerate = useMutation({
-    mutationFn: () =>
-      api.matchCommand(m, 'heats/generate', {
-        strategy,
-        ...(strategy === 'random' ? { seed: Math.floor(Math.random() * 2 ** 32) } : {}),
-      }),
-    onSuccess: (fresh) => {
-      done(fresh);
-      close();
-    },
+    onSuccess: done,
   });
   const lock = useMutation({
     mutationFn: ({ heatId, locked }: { heatId: string; locked: boolean }) =>
-      api.matchCommand(m, 'heats/lock', { heatId, locked }),
-    onSuccess: (fresh) => {
-      done(fresh);
-      close();
-    },
+      api.matchCommand(base, 'heats/lock', { heatId, locked }),
+    onSuccess: done,
   });
-  const busy = save.isPending || regenerate.isPending || lock.isPending;
-  const where = (id: string) => layout.findIndex((h) => h.entryIds.includes(id));
-
-  function tap(id: string) {
-    if (picked === null) return setPicked(id);
-    if (picked === id) return setPicked(null);
-    const a = where(picked),
-      b = where(id);
-    if (layout[a]!.locked || layout[b]!.locked) return;
-    const next = layout.map((h) => ({ ...h, entryIds: [...h.entryIds] }));
-    const i = next[a]!.entryIds.indexOf(picked),
-      j = next[b]!.entryIds.indexOf(id);
-    next[a]!.entryIds[i] = id;
-    next[b]!.entryIds[j] = picked;
+  const busy = save.isPending || lock.isPending;
+  const dirty =
+    JSON.stringify(layout.map((h) => [h.heatId, h.slots])) !==
+    JSON.stringify(originalLayout.map((h) => [h.heatId, h.slots]));
+  function reset() {
+    setBase(m);
+    setLayout(draftOf(m));
+    setPicked(null);
+    setStrategy('sequential');
+    setFeedback('Distribuzione salvata ripristinata.');
+    save.reset();
+    lock.reset();
+  }
+  function tap(index: number, slot: number) {
+    const target = layout[index]!;
+    if (target.fixed || target.locked) return;
+    const id = target.slots[slot]!;
+    if (!picked) {
+      setPicked(id);
+      return;
+    }
+    if (id === picked) {
+      setPicked(null);
+      return;
+    }
+    const from = layout.findIndex((h) => h.slots.includes(picked));
+    const position = layout[from]!.slots.indexOf(picked);
+    const next = layout.map((h) => ({ ...h, slots: [...h.slots] }));
+    next[from]!.slots[position] = id;
+    next[index]!.slots[slot] = picked;
     setLayout(next);
     setPicked(null);
+    setStrategy('custom');
+    setFeedback(
+      id
+        ? `${name(picked)} e ${name(id)} scambiati.`
+        : `${name(picked)} spostato in manche ${index + 1}, slot ${slot + 1}.`,
+    );
   }
-  function moveTo(index: number | null) {
-    if (picked === null) return;
-    const from = where(picked);
-    if (layout[from]!.locked) return;
-    const next = layout.map((h) => ({
-      ...h,
-      entryIds: h.entryIds.filter((x) => x !== picked),
-    }));
-    if (index === null) next.push({ heatId: null, entryIds: [picked], locked: false });
-    else next[index]!.entryIds.push(picked);
-    setLayout(next.filter((h) => h.entryIds.length || h.locked));
+  function reorder(index: number, direction: number) {
+    const next = [...layout];
+    [next[index], next[index + direction]] = [next[index + direction]!, next[index]!];
+    setLayout(next);
+    setStrategy('custom');
+    setFeedback('Ordine delle manche aggiornato.');
+  }
+  function distribute(value: 'sequential' | 'balanced' | 'custom' | 'random') {
+    setStrategy(value);
     setPicked(null);
+    if (value === 'custom') return;
+    const fixed = (h: DraftHeat) => h.fixed || h.locked;
+    const ids = layout
+      .filter((h) => !fixed(h))
+      .flatMap((h) => h.slots.filter((id): id is string => id !== null));
+    const parts = planHeats(ids, capacity, value).map((entryIds) =>
+      freshHeat(heatSlots({ entryIds }, capacity)),
+    );
+    const next: DraftHeat[] = [];
+    for (const [i, h] of layout.entries()) {
+      if (fixed(h)) {
+        if (next.length !== i) {
+          setFeedback(
+            'La proposta sposterebbe una manche bloccata: modifica manualmente quelle in attesa.',
+          );
+          return;
+        }
+        next.push(h);
+      } else if (parts.length) next.push(parts.shift()!);
+    }
+    next.push(...parts);
+    setLayout(next);
+    setFeedback('Proposta aggiornata. Conferma per salvarla.');
   }
-  const played = m.heats.length - editable.length;
   return (
-    <Modal title="Gestisci manche" close={close}>
+    <Modal title="Organizza manche" close={busy ? () => {} : close}>
       <p className="hint">
-        {played > 0 &&
-          `${played} ${played === 1 ? 'manche già giocata resta' : 'manche già giocate restano'} com’è. `}
-        Tocca due giocatori per scambiarli. Massimo {capacity} per manche.
+        {expected.length} partecipanti · {layout.length} manche · {assigned.length} slot assegnati
       </p>
-      <ol className="heat-editor">
-        {layout.map((h, index) => (
-          <li key={h.heatId ?? `new-${index}`} className={h.locked ? 'locked' : ''}>
-            <div className="team-head">
-              <strong>Manche {played + index + 1}</strong>
-              <small>
-                {h.entryIds.length}/{capacity}
-              </small>
-              {h.heatId && !dirty && (
-                <button
-                  type="button"
-                  className="mini"
-                  aria-pressed={h.locked}
-                  aria-label={h.locked ? 'Sblocca manche' : 'Conferma manche'}
-                  disabled={busy}
-                  onClick={() => lock.mutate({ heatId: h.heatId!, locked: !h.locked })}
-                >
-                  {h.locked ? <Lock size={16} /> : <LockOpen size={16} />}
-                </button>
-              )}
-            </div>
-            <div className="team-members">
-              {h.entryIds.map((id) => (
-                <button
-                  type="button"
-                  key={id}
-                  className="chip"
-                  aria-pressed={picked === id}
-                  disabled={busy || h.locked}
-                  onClick={() => tap(id)}
-                >
-                  {name(id)}
-                </button>
-              ))}
-              {picked &&
-                !h.locked &&
-                !h.entryIds.includes(picked) &&
-                h.entryIds.length < capacity && (
-                  <button type="button" className="chip move-here" onClick={() => moveTo(index)}>
-                    Sposta qui
+      <fieldset disabled={busy || stale} className="heat-organizer">
+        <Segmented
+          label="Distribuzione nelle manche"
+          value={strategy}
+          change={distribute}
+          options={[
+            { id: 'sequential', label: 'Riempimento' },
+            { id: 'balanced', label: 'Bilanciata' },
+            { id: 'custom', label: 'Personalizzata' },
+          ]}
+        />
+        <p className="hint">
+          Seleziona un partecipante e tocca uno slot libero per spostarlo, oppure un altro
+          partecipante per scambiarli. Le squadre occupano un solo slot.
+        </p>
+        <ol className="heat-editor">
+          {layout.map((h, index) => (
+            <li key={h.key} className={h.fixed || h.locked ? 'locked' : ''}>
+              <div className="team-head">
+                <strong>Manche {index + 1}</strong>
+                <small>
+                  {h.slots.filter(Boolean).length}/{capacity} · {heatStatusLabel[h.status]}
+                </small>
+              </div>
+              <div className="heat-slots">
+                {h.slots.map((id, slot) => (
+                  <button
+                    type="button"
+                    key={slot}
+                    className={`heat-slot ${id ? '' : 'heat-slot-empty'}`}
+                    aria-label={`Manche ${index + 1}, slot ${slot + 1}: ${id ? name(id) : 'libero'}`}
+                    aria-pressed={!!id && picked === id}
+                    disabled={h.fixed || h.locked || (!id && !picked)}
+                    onClick={() => tap(index, slot)}
+                  >
+                    <small>Slot {slot + 1}</small>
+                    <span>{id ? name(id) : 'libero'}</span>
                   </button>
+                ))}
+              </div>
+              {h.fixed ? (
+                <p className="hint">
+                  Manche avviata, chiusa o con cronologia: composizione e ordine protetti.
+                </p>
+              ) : h.locked ? (
+                <p className="hint">Manche confermata: sbloccala prima di modificarla.</p>
+              ) : null}
+              <div className="heat-actions">
+                {!h.fixed && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={`Anticipa manche ${index + 1}`}
+                      disabled={
+                        h.locked ||
+                        index === 0 ||
+                        layout[index - 1]?.fixed ||
+                        layout[index - 1]?.locked
+                      }
+                      onClick={() => reorder(index, -1)}
+                    >
+                      <ArrowUp size={16} /> Prima
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Posticipa manche ${index + 1}`}
+                      disabled={
+                        h.locked ||
+                        index === layout.length - 1 ||
+                        layout[index + 1]?.fixed ||
+                        layout[index + 1]?.locked
+                      }
+                      onClick={() => reorder(index, 1)}
+                    >
+                      <ArrowDown size={16} /> Dopo
+                    </button>
+                    {h.slots.every((id) => id === null) && (
+                      <button
+                        type="button"
+                        aria-label={`Elimina manche ${index + 1}`}
+                        onClick={() => {
+                          setLayout(layout.filter((_, i) => i !== index));
+                          setFeedback('Manche vuota rimossa.');
+                        }}
+                      >
+                        <Trash2 size={16} /> Elimina
+                      </button>
+                    )}
+                    {h.heatId && !dirty && (
+                      <button
+                        type="button"
+                        onClick={() => lock.mutate({ heatId: h.heatId!, locked: !h.locked })}
+                      >
+                        {h.locked ? <LockOpen size={16} /> : <Lock size={16} />}
+                        {h.locked ? 'Sblocca manche' : 'Blocca manche'}
+                      </button>
+                    )}
+                  </>
                 )}
-            </div>
-          </li>
-        ))}
-      </ol>
-      {picked && (
-        <button type="button" className="dashed" onClick={() => moveTo(null)}>
-          <Plus size={16} aria-hidden="true" className="accent-icon" /> Nuova manche con{' '}
-          {name(picked)}
-        </button>
-      )}
-      <ErrorMessage error={save.error ?? regenerate.error ?? lock.error} />
-      <button className="primary" disabled={busy || !dirty} onClick={() => save.mutate()}>
-        {save.isPending ? 'Salvataggio…' : 'SALVA MANCHE'}
-      </button>
-      <div className="options padded stack">
-        <div className="stack-row">
-          <span>Rigenera le manche non confermate</span>
-          <Segmented
-            label="Strategia delle manche"
-            value={strategy}
-            change={setStrategy}
-            options={[
-              { id: 'sequential', label: 'In ordine' },
-              { id: 'random', label: 'Casuale' },
-              { id: 'balanced', label: 'Bilanciata' },
-            ]}
-          />
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="heat-actions">
+          <button
+            type="button"
+            disabled={!comparableAcrossHeats(base.gameMode as GameMode) || layout.length >= 256}
+            onClick={() => {
+              setLayout([...layout, freshHeat(Array.from({ length: capacity }, () => null))]);
+              setStrategy('custom');
+              setFeedback('Nuova manche: assegna almeno un partecipante.');
+            }}
+          >
+            <Plus size={16} /> Nuova manche
+          </button>
+          <button
+            type="button"
+            onClick={() => distribute(strategy === 'custom' ? 'sequential' : strategy)}
+          >
+            <Shuffle size={16} /> Applica automatico
+          </button>
+          <button type="button" onClick={() => distribute('random')}>
+            Casuale
+          </button>
         </div>
-        <button type="button" disabled={busy || dirty} onClick={() => regenerate.mutate()}>
-          <Shuffle size={16} aria-hidden="true" /> Rigenera
-        </button>
-      </div>
+      </fieldset>
+      <p role="status" className="hint">
+        {feedback}
+      </p>
+      {invalid ? (
+        <p role="alert" className="hint">
+          {invalid}
+        </p>
+      ) : (
+        <p className="hint">Distribuzione valida · tutti i partecipanti assegnati.</p>
+      )}
+      {stale && (
+        <p role="alert">
+          La partita è cambiata in un’altra schermata. Ripristina la distribuzione per caricare i
+          dati aggiornati.
+        </p>
+      )}
+      <ErrorMessage error={save.error ?? lock.error} />
+      <button type="button" disabled={busy} onClick={reset}>
+        Ripristina distribuzione
+      </button>
+      <button
+        type="button"
+        className="primary"
+        disabled={busy || stale || !!invalid || layout.every((h) => h.fixed)}
+        onClick={() => save.mutate()}
+      >
+        {save.isPending ? 'Salvataggio…' : 'Conferma organizzazione'}
+      </button>
     </Modal>
   );
 }

@@ -12,7 +12,6 @@ import {
   effectiveScores,
   playerPerformance,
   turnIsComplete,
-  turnTotal,
   validateScore,
 } from '../scoring/high-score.js';
 import {
@@ -187,11 +186,11 @@ export function validateDefinition(t: Tournament) {
     422,
   );
   const capacity = t.tournamentConfiguration.heatCapacity;
+  const seats = Math.min(MAX_HEAT_CAPACITY, games[t.gameMode].players.max);
   ensure(
-    capacity === null ||
-      (Number.isInteger(capacity) && capacity >= 1 && capacity <= MAX_HEAT_CAPACITY),
+    capacity === null || (Number.isInteger(capacity) && capacity >= 1 && capacity <= seats),
     'INVALID_HEAT_CAPACITY',
-    `Heat capacity between 1 and ${MAX_HEAT_CAPACITY}`,
+    `Heat capacity between 1 and ${seats}`,
     422,
   );
 }

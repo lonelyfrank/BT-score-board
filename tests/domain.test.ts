@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  highScoreRule,
   validateScore,
   roundRobin,
   seededBracket,
@@ -8,23 +7,7 @@ import {
   transitionTournament,
   transitionMatch,
 } from '../packages/domain/src/index.js';
-const config = {
-  kind: 'HIGH_SCORE' as const,
-  turns: 2,
-  dartsPerTurn: 4,
-  maxDartScore: 60,
-  maxTurnScore: 240,
-};
-describe('Pure HIGH_SCORE rules', () => {
-  it('accumulates totals, best turn and completion independently of HTTP/database', () => {
-    const one = highScoreRule.apply(highScoreRule.initial(config), 180, config);
-    expect(one).toEqual({ total: 180, completedTurns: 1, bestTurn: 180 });
-    expect(highScoreRule.isComplete(one, config)).toBe(false);
-    const two = highScoreRule.apply(one, 200, config);
-    expect(two.total).toBe(380);
-    expect(highScoreRule.isComplete(two, config)).toBe(true);
-    expect(() => highScoreRule.apply(two, 0, config)).toThrow();
-  });
+describe('Score validation', () => {
   it.each([-1, 241, 1.2, NaN, Infinity])('rejects invalid score %s', (score) =>
     expect(() => validateScore(score, 240)).toThrow(),
   );

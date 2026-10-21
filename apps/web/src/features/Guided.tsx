@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { CrownIcon, PaintSplash } from '../components/BrandIcons';
 import { DartCell, DartPad } from '../components/DartPad';
-import { HeatTimeline, viewedHeat } from '../components/Heats';
+import { HeatEditor, HeatTimeline, viewedHeat } from '../components/Heats';
 import { NumberKeypad } from '../components/NumberKeypad';
 import { RotationManager } from '../components/Rounds';
 import {
@@ -40,7 +40,7 @@ import {
   type EntryMode,
   type Plan,
 } from '../services/guided';
-import { gameOf, sideOf, type GameMode } from '../services/rules';
+import { canOrganizeMatch, gameOf, seatOf, sideOf, type GameMode } from '../services/rules';
 import { tournamentPath } from '../services/session';
 import { ResultEntry } from './Result';
 import { entryName } from './Tournaments';
@@ -158,6 +158,7 @@ export function GuidedMatch({
   const t = tournament.data;
   const game = gameOf(m);
   const [params, setParams] = useSearchParams();
+  const [organizing, setOrganizing] = useState(() => params.get('organize') === '1');
   const tab = (tabs.some(([id]) => id === params.get('tab')) ? params.get('tab') : 'live') as Tab;
   const [heatChoice, setHeatChoice] = useState<string | null>(null);
   const [focus, setFocus] = useState<Slot | null>(null);
@@ -228,7 +229,29 @@ export function GuidedMatch({
           ) : undefined
         }
       />
+      {organizing && (
+        <HeatEditor
+          m={m}
+          name={(id) => (t ? entryName(t, id) : 'Giocatore')}
+          close={() => {
+            setOrganizing(false);
+            setParams(
+              (p) => {
+                const next = new URLSearchParams(p);
+                next.delete('organize');
+                return next;
+              },
+              { replace: true },
+            );
+          }}
+        />
+      )}
       <main className="guided-content">
+        {tab !== 'risultati' && t?.status === 'active' && canOrganizeMatch(m) && (
+          <button type="button" onClick={() => setOrganizing(true)}>
+            Organizza manche
+          </button>
+        )}
         {heated && tab !== 'risultati' && (
           <section className="heat-panel compact" aria-label="Manche">
             <HeatTimeline
@@ -481,12 +504,7 @@ function GuidedLive({
   const paused = m.guide?.paused ?? false;
   const leader = leaderOf(m, plan.seats, names.progress);
   const seatIndex = current ? plan.seats.indexOf(current.entryId) : -1;
-  const side = current
-    ? sideOf(
-        m.gameMode as GameMode,
-        m.participants.find((p) => p.tournamentEntryId === current.entryId)?.playingOrder ?? 1,
-      )
-    : null;
+  const side = current ? sideOf(m.gameMode as GameMode, seatOf(m, current.entryId)) : null;
 
   function confirm() {
     if (!current || !c.ok || busy || interrupted) return;
@@ -727,6 +745,7 @@ function GuidedLive({
           </h2>
           <div className="meta">
             <span>
+              {plan.heatId ? `Slot ${seatOf(m, current.entryId)} · ` : ''}
               {team
                 ? current.playerId
                   ? `Tiratore ${unit!.members.findIndex((x) => x.playerId === current.playerId) + 1} di ${unit!.members.length} · con ${unit!.members

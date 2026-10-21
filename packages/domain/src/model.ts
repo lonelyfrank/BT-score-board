@@ -52,11 +52,6 @@ export interface HighScoreConfiguration {
   maxDartScore: number;
   maxTurnScore: number;
 }
-export interface X01Configuration {
-  kind: 'X01';
-  initialScore: number;
-  doubleOut: boolean;
-}
 export interface TournamentConfiguration {
   qualifiers: number;
   groupCount: number;
@@ -167,6 +162,8 @@ export interface Heat {
   number: number;
   /** Seats on the totem, in throwing order. */
   entryIds: string[];
+  /** Optional physical positions (1-based, increasing), aligned with entryIds. Omitted = contiguous. */
+  slotPositions?: number[];
   /** pending: editable. ready: confirmed, kept by reshuffles. active: at the board. */
   status: HeatStatus;
   startedAt: string | null;

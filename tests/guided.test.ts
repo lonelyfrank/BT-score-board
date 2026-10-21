@@ -345,7 +345,7 @@ describe('Scenario F: seventeen Hi-Score entries over several heats', () => {
     const names = Array.from({ length: 17 }, (_, i) => [`P${i + 1}`]);
     let { backend, t, m, entry } = game(names, { mode: 'QUICK_HIGH_SCORE' });
     const heats = matchById(t, m).heats;
-    expect(heats.map((h) => h.entryIds.length)).toEqual([4, 4, 3, 3, 3]);
+    expect(heats.map((h) => h.entryIds.length)).toEqual([4, 4, 4, 4, 1]);
     const value = (id: string, round: number) =>
       20 + t.entries.findIndex((e) => e.id === id) + round;
     for (const heat of heats) {
