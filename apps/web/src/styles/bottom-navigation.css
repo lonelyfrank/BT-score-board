@@ -1,12 +1,14 @@
 /*
- * Liquid Glass, as in the V1.1 prototype (model: rdev/liquid-glass-react, MIT).
- * - lens: the whole surface magnifies what is behind it, one displacement per channel for the
- *   colour fringes; low blur and 140% saturation. The SVG lens is applied on Blink only
- *   (data-refraction), elsewhere the same glass is blurred 10px.
+ * Liquid Glass, as in rdev/liquid-glass-react (MIT) with its defaults: displacementScale 70,
+ * aberrationIntensity 2, blur 6px, saturation 140%.
+ * - lens: as in the library, the SVG filter is a plain `filter` on the blurred layer, so it
+ *   bends the backdrop already blurred, one displacement per channel for the colour fringes.
+ *   Applied on Blink only (data-refraction): Safari drops the glass when filter and
+ *   backdrop-filter share an element, so there and on Firefox the same glass is blurred 10px.
+ *   The filtered layer carries no shadow and is clipped to its shape (the library's overflow).
  * - two 1.5px rims at 135° (screen 20% + overlay) that turn with the finger.
  * - press: the bar follows the finger, a white overlay highlight from the top, scale(.96).
- * The container has no filter: labels stay sharp above the lens. Never filter and
- * backdrop-filter on the same element (Safari drops the glass).
+ * The container has no filter: labels stay sharp above the lens.
  */
 .bt-navigation {
   --mx: 0;
@@ -16,7 +18,7 @@
   box-sizing: border-box;
   width: min(520px, calc(100% - 2 * var(--bt-nav-inset)));
   height: var(--bt-nav-h);
-  padding: 0 7px;
+  padding: 0 6px;
   display: grid;
   grid-template-columns: repeat(var(--nav-count, 5), minmax(0, 1fr));
   border-radius: var(--bt-radius-nav);
@@ -44,6 +46,8 @@
 /* La lente */
 .bt-nav-lens {
   background: var(--bt-nav-tint);
+}
+.bt-nav-tint {
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.25),
     0 2px 8px rgba(0, 0, 0, 0.35);
@@ -54,7 +58,9 @@
     backdrop-filter: blur(10px) saturate(140%);
   }
   .bt-navigation[data-refraction] .bt-nav-lens {
-    backdrop-filter: url('#bt-warp') blur(6px) saturate(140%);
+    backdrop-filter: blur(6px) saturate(140%);
+    filter: url('#bt-warp');
+    clip-path: inset(0 round var(--bt-radius-nav));
   }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -134,10 +140,10 @@
 .bt-nav-selection {
   position: absolute;
   z-index: 1;
-  top: 7px;
-  bottom: 7px;
-  left: 7px;
-  width: calc((100% - 14px) / var(--nav-count, 5));
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: calc((100% - 12px) / var(--nav-count, 5));
   transform: translateX(calc(var(--nav-index) * 100%));
   transition: transform var(--bt-nav-duration) var(--bt-nav-easing);
   pointer-events: none;
@@ -213,7 +219,7 @@
   box-sizing: border-box;
   min-width: var(--bt-touch-min);
   min-height: var(--bt-touch-min);
-  margin: 7px 0;
+  margin: 6px 0;
   padding: 0;
   border: 0;
   border-radius: var(--bt-radius-nav);
@@ -223,9 +229,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   font-family: var(--bt-font-ui);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.2px;
   line-height: 1.2;
@@ -255,8 +261,8 @@
   transition: transform 0.2s ease-out;
 }
 .bt-navigation .bt-nav-item svg {
-  width: 23px;
-  height: 23px;
+  width: 21px;
+  height: 21px;
   flex-shrink: 0;
   fill: none;
   pointer-events: none;
@@ -316,6 +322,7 @@
     background: var(--bt-nav-fallback);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+    filter: none;
   }
   .bt-navigation .bt-nav-blob,
   .bt-navigation[data-refraction] .bt-nav-blob {

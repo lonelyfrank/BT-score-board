@@ -86,7 +86,7 @@
   /* ---- Misure ---- */
   --bt-touch-min: 44px;
   --bt-header-h: 64px; /* 68px nelle schermate con titolo singolo */
-  --bt-nav-h: 70px; /* barra flottante Liquid Glass */
+  --bt-nav-h: 62px; /* barra flottante Liquid Glass */
   --bt-nav-inset: 14px; /* margine laterale */
   --bt-nav-bottom: max(12px, env(safe-area-inset-bottom));
   --bt-nav-space: calc(var(--bt-nav-h) + var(--bt-nav-bottom)); /* schermo coperto dalla barra */

@@ -30,7 +30,10 @@ const channels = [
   ['B', '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0'],
 ] as const;
 
-/** One lens per channel, slightly different scales: the colour fringes of the glass. */
+/**
+ * One lens per channel, slightly different scales: the colour fringes of the glass
+ * (liquid-glass-react with aberrationIntensity 2: +10% per channel, blur 0.3).
+ */
 function Lens({ id, scale }: { id: string; scale: number }) {
   return (
     <filter id={id} x="-35%" y="-35%" width="170%" height="170%" colorInterpolationFilters="sRGB">
@@ -68,7 +71,7 @@ export function GlassFilters() {
   return (
     <svg width="0" height="0" className="bt-glass-filters" aria-hidden="true" focusable="false">
       <defs>
-        <Lens id="bt-warp" scale={48} />
+        <Lens id="bt-warp" scale={70} />
         <Lens id="bt-lens" scale={28} />
       </defs>
     </svg>
