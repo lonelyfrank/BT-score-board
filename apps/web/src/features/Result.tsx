@@ -34,6 +34,7 @@ import {
   Avatar,
   ErrorMessage,
   Header,
+  InBar,
   Modal,
   Switch,
   StatusChip,
@@ -738,22 +739,24 @@ export function ResultEntry({
             {!form.winner && formResult.derived && (
               <p className="hint">Dai punteggi vince {name(formResult.derived)}.</p>
             )}
-            <button
-              className="primary cta"
-              disabled={!!formResult.reason || mutation.isPending || paused}
-              onClick={() => send(formResult.input)}
-            >
-              {mutation.isPending
-                ? 'Salvataggio…'
-                : editing
-                  ? 'SALVA CORREZIONE'
-                  : 'CONFERMA RISULTATO'}
-            </button>
-            {formResult.reason && (
-              <p className="form-reason" role="status">
-                {formResult.reason}
-              </p>
-            )}
+            <InBar at="bottom">
+              <button
+                className="primary cta"
+                disabled={!!formResult.reason || mutation.isPending || paused}
+                onClick={() => send(formResult.input)}
+              >
+                {mutation.isPending
+                  ? 'Salvataggio…'
+                  : editing
+                    ? 'SALVA CORREZIONE'
+                    : 'CONFERMA RISULTATO'}
+              </button>
+              {formResult.reason && (
+                <p className="form-reason" role="status">
+                  {formResult.reason}
+                </p>
+              )}
+            </InBar>
             {editing && (
               <button onClick={() => setEditing(false)} disabled={mutation.isPending}>
                 Annulla correzione

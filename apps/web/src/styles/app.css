@@ -568,8 +568,7 @@ form > .primary {
   letter-spacing: 0.5px;
   margin: 6px 0 0;
 }
-.home-backup,
-.home-results a {
+.home-backup {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -593,39 +592,9 @@ form > .primary {
   display: flex;
   flex-direction: column;
 }
-.home-backup small,
-.home-results small {
+.home-backup small {
   color: var(--bt-text-muted);
   font-size: var(--bt-text-sm);
-}
-.home-results {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.home-results span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--bt-text-md);
-  font-weight: 600;
-}
-.home-all {
-  align-self: flex-start;
-  min-height: var(--bt-touch-min);
-  display: inline-flex;
-  align-items: center;
-  padding: 0 16px;
-  border: 1px solid var(--bt-border-default);
-  border-radius: var(--bt-radius-md);
-  background: rgba(20, 20, 22, 0.94);
-  color: var(--bt-text-primary);
-  text-decoration: none;
 }
 
 /* Avvisi di sistema: archivio locale e aggiornamenti dell'app */
@@ -6053,4 +6022,286 @@ button.warning.g-bust {
     grid-template-columns: 1fr !important;
     border-radius: var(--bt-radius-md);
   }
+}
+
+/*
+ * Shell fisso: sfondo, intestazione, comandi (.toolbar) e azione principale (.actionbar)
+ * restano al loro posto; scorre solo il contenuto (main, o la Home intera). La barra di
+ * navigazione non cambia: il contenuto e l'actionbar finiscono sopra di essa.
+ */
+.app-shell {
+  --shell-gutter: var(--bt-gutter);
+  --shell-end: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.with-nav,
+.with-nav:has(.home-page),
+.with-nav:has(.update-toast) {
+  padding-bottom: 0;
+}
+.with-nav,
+.guided-page {
+  --shell-end: calc(var(--bt-nav-space) + 20px);
+}
+.app-shell:has(.update-toast) {
+  --shell-toast: 76px;
+}
+.app-shell > .app-notice {
+  flex: none;
+}
+#main-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#main-content > :is(.live-page, .guided-page, .result-page) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+:is(#main-content, .live-page, .guided-page) > :is(.app-header, .toolbar, .actionbar) {
+  flex: none;
+  position: relative;
+  z-index: 2;
+}
+:is(#main-content, .live-page, .guided-page) > main {
+  /* Anche gli elementi assoluti (campi nascosti, decorazioni) scorrono con il contenuto. */
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: calc(var(--shell-end) + var(--shell-toast, 0px));
+  -webkit-mask-image: linear-gradient(transparent, #000 12px);
+  mask-image: linear-gradient(transparent, #000 12px);
+}
+:is(#main-content, .live-page, .guided-page) > main:has(~ .actionbar:not(:empty)) {
+  padding-bottom: 16px;
+}
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px var(--shell-gutter) 10px;
+}
+.toolbar:empty,
+.toolbar:has(> .toolbar-slot:only-child:empty) {
+  display: none;
+}
+.toolbar-slot {
+  display: contents;
+}
+.toolbar > *,
+.toolbar-slot > *,
+.toolbar .tabs,
+.toolbar .event-heading,
+.toolbar .search-field {
+  margin: 0;
+}
+.toolbar .g-mx {
+  max-height: 42dvh;
+  overflow: auto;
+}
+.actionbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px var(--shell-gutter)
+    calc(max(12px, env(safe-area-inset-bottom)) + 4px + var(--shell-toast, 0px));
+  background: var(--bt-bg-primary);
+  box-shadow: 0 -14px 14px -2px var(--bt-bg-primary);
+}
+.with-nav .actionbar,
+.guided-page > .actionbar {
+  padding-bottom: calc(var(--bt-nav-space) + 10px + var(--shell-toast, 0px));
+}
+.actionbar:empty {
+  display: none;
+}
+.actionbar > *,
+.actionbar .g-ctas > * {
+  margin: 0;
+}
+.actionbar .form-reason,
+.actionbar .stage-note {
+  text-align: center;
+}
+/* Sopra l'actionbar il velo della barra non serve: il fondo è già pieno. */
+.app-shell:has(.actionbar:not(:empty)) .nav-scrim {
+  opacity: 0;
+}
+.guided-page {
+  --shell-gutter: 12px;
+}
+@media (max-width: 699px) {
+  .app-shell {
+    --shell-gutter: 12px;
+  }
+}
+@media (max-width: 380px) {
+  .app-shell {
+    --shell-gutter: 10px;
+  }
+}
+
+/* Home a misura di schermo: il banner si adatta all'altezza, il resto entra senza scroll. */
+#main-content > .home-page {
+  flex: 1 1 auto;
+  align-self: center;
+  width: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  --hero-h: clamp(170px, calc(100dvh - 590px), 340px);
+  padding-bottom: calc(var(--shell-end) + var(--shell-toast, 0px));
+}
+.with-nav .home-page {
+  padding-bottom: calc(var(--bt-nav-space) + 16px + var(--shell-toast, 0px));
+}
+.home-hero {
+  overflow: hidden;
+  isolation: isolate;
+  background: none;
+}
+/* Il logo resta intero; ai lati una copia sfocata della stessa immagine. */
+.home-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(9, 9, 11, 0) 70%, rgba(9, 9, 11, 0.9) 100%),
+    url('/assets/bt-hero.jpg') center top / auto 100% no-repeat;
+}
+.home-hero::before {
+  content: '';
+  position: absolute;
+  inset: -24px;
+  z-index: -1;
+  background: url('/assets/bt-hero.jpg') center / cover;
+  filter: blur(14px) brightness(0.55);
+}
+.home-actions,
+.home-actions > nav {
+  gap: 8px;
+}
+.home-card {
+  min-height: 66px;
+}
+.home-card.primary {
+  min-height: 80px;
+}
+.home-extra {
+  margin-top: 12px;
+  gap: 8px;
+}
+.home-backup {
+  min-height: 52px;
+  padding-block: 6px;
+}
+.home-rhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.home-rhead h2 {
+  font: 600 17px / 1.1 var(--bt-font-display);
+  letter-spacing: 0.6px;
+  margin: 0;
+}
+.home-rhead a {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--bt-accent-soft);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+/* Risultati recenti in una fila orizzontale: la pagina non si allunga. */
+.home-strip {
+  list-style: none;
+  margin: 0 -16px;
+  padding: 0 16px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 16px;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.home-strip::-webkit-scrollbar {
+  display: none;
+}
+.home-strip li {
+  flex: 0 0 auto;
+  max-width: 78%;
+  scroll-snap-align: start;
+}
+.home-strip a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  min-height: 56px;
+  padding: 6px 12px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: var(--bt-radius-lg);
+  background: rgba(20, 20, 22, 0.94);
+  color: var(--bt-text-primary);
+  text-decoration: none;
+}
+.home-strip a > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.home-strip b {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-strip small {
+  font-size: 14px;
+  color: var(--bt-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-strip svg {
+  flex: none;
+  width: 24px;
+  height: 18px;
+}
+
+/* Live: il motivo semplice sta nel pulsante, così il tastierino resta intero sopra la barra. */
+.g-ctas .g-cta {
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.1;
+}
+.g-cta > span {
+  white-space: nowrap;
+}
+.g-cta small {
+  font: 500 14px var(--bt-font-ui);
+  letter-spacing: 0.2px;
+  opacity: 0.85;
+}
+.toolbar + main > .tournament-list:first-child,
+.toolbar + main > :is(.error, .loading) + .tournament-list {
+  margin-top: 4px;
 }

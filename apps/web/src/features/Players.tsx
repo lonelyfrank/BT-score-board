@@ -270,7 +270,7 @@ export function Players() {
         title="Giocatori"
         action={<AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />}
       />
-      <main className="content">
+      <div className="toolbar">
         <div className="search-field">
           <Search aria-hidden="true" />
           <input
@@ -297,6 +297,8 @@ export function Players() {
             { id: 'all', label: 'Tutti' },
           ]}
         />
+      </div>
+      <main className="content">
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
         <ul className="player-rows">

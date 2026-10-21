@@ -26,9 +26,12 @@ import {
   Avatar,
   ErrorMessage,
   Header,
+  InBar,
   Modal,
+  ScreenBars,
   Segmented,
   StatusChip,
+  scrollToTop,
   statusLabel,
 } from '../components/ui';
 import { api, storage, type Match, type MatchAction, type Tournament } from '../services/api';
@@ -164,6 +167,8 @@ export function GuidedMatch({
   const [focus, setFocus] = useState<Slot | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [controls, setControls] = useState(false);
+  const [top, setTop] = useState<HTMLDivElement | null>(null);
+  const [bottom, setBottom] = useState<HTMLDivElement | null>(null);
   const go = (next: Tab) => {
     setParams(
       (p) => {
@@ -173,7 +178,7 @@ export function GuidedMatch({
       },
       { replace: true },
     );
-    window.scrollTo(0, 0);
+    scrollToTop();
   };
   useEffect(() => {
     if (!toast) return;
@@ -211,125 +216,139 @@ export function GuidedMatch({
         ),
       });
     });
-  return (
-    <div className="guided-page">
-      <Header
-        title={game.label}
-        subtitle={subtitle}
-        back={back}
-        action={
-          tab === 'live' && m.status !== 'completed' && m.status !== 'cancelled' ? (
-            <button
-              className="icon-button"
-              aria-label="Controlli del turno"
-              onClick={() => setControls(true)}
-            >
-              <SlidersHorizontal />
-            </button>
-          ) : undefined
-        }
+  const heatPanel = heated && tab !== 'risultati' && (
+    <section className="heat-panel compact" aria-label="Manche">
+      <HeatTimeline
+        overview={overview}
+        viewing={heat?.heatId ?? null}
+        select={(id) => {
+          setHeatChoice(id);
+          setFocus(null);
+        }}
       />
-      {organizing && (
-        <HeatEditor
-          m={m}
-          name={(id) => (t ? entryName(t, id) : 'Giocatore')}
-          close={() => {
-            setOrganizing(false);
-            setParams(
-              (p) => {
-                const next = new URLSearchParams(p);
-                next.delete('organize');
-                return next;
-              },
-              { replace: true },
-            );
-          }}
+    </section>
+  );
+  // Matrix and board follow the heat chosen above them: the timeline stays with them.
+  const fixedHeats = tab === 'matrice' || tab === 'classifica';
+  return (
+    <ScreenBars.Provider value={{ top, bottom }}>
+      <div className="guided-page">
+        <Header
+          title={game.label}
+          subtitle={subtitle}
+          back={back}
+          action={
+            tab === 'live' && m.status !== 'completed' && m.status !== 'cancelled' ? (
+              <button
+                className="icon-button"
+                aria-label="Controlli del turno"
+                onClick={() => setControls(true)}
+              >
+                <SlidersHorizontal />
+              </button>
+            ) : undefined
+          }
         />
-      )}
-      <main className="guided-content">
-        {tab !== 'risultati' && t?.status === 'active' && canOrganizeMatch(m) && (
-          <button type="button" onClick={() => setOrganizing(true)}>
-            Organizza manche
-          </button>
-        )}
-        {heated && tab !== 'risultati' && (
-          <section className="heat-panel compact" aria-label="Manche">
-            <HeatTimeline
-              overview={overview}
-              viewing={heat?.heatId ?? null}
-              select={(id) => {
-                setHeatChoice(id);
-                setFocus(null);
-              }}
-            />
-          </section>
-        )}
-        {tab === 'live' && (
-          <GuidedLive
-            key={plan.heatId ?? 'match'}
+        {organizing && (
+          <HeatEditor
             m={m}
-            t={t}
-            plan={plan}
-            heated={heated}
-            controls={controls}
-            setControls={setControls}
-            notify={setToast}
-            go={go}
-          />
-        )}
-        {tab === 'matrice' && (
-          <RoundMatrix
-            m={m}
-            t={t}
-            plan={plan}
-            focus={focus}
-            setFocus={setFocus}
-            go={go}
-            notify={setToast}
-          />
-        )}
-        {tab === 'classifica' && (
-          <LiveBoard
-            m={m}
-            t={t}
-            plan={plan}
-            heated={heated}
-            open={(slot) => {
-              setFocus(slot);
-              go('matrice');
+            name={(id) => (t ? entryName(t, id) : 'Giocatore')}
+            close={() => {
+              setOrganizing(false);
+              setParams(
+                (p) => {
+                  const next = new URLSearchParams(p);
+                  next.delete('organize');
+                  return next;
+                },
+                { replace: true },
+              );
             }}
           />
         )}
-        {tab === 'risultati' && (
-          <GuidedResults
-            m={m}
-            t={t}
-            plan={plan}
-            query={query}
-            tournament={tournament}
-            review={(entryId) => {
-              const p = names.progress(entryId);
-              const round = p?.rounds.find((r) => r.status !== 'recorded')?.round ?? 1;
-              setFocus({ entryId, round });
-              go('matrice');
-            }}
-          />
-        )}
-        <ErrorMessage error={undo.error} />
-      </main>
-      {toast && (
-        <div className={`g-toast ${toast.tone ?? ''}`} role="status">
-          {toast.tone === 'warn' ? <Info aria-hidden="true" /> : <CircleCheck aria-hidden="true" />}
-          <span>{toast.text}</span>
-          {toast.undo && sameSlot(plan.undoable, toast.undo) && (
-            <button type="button" disabled={undo.busy} onClick={takeBack}>
-              Annulla
+        <div className="toolbar">
+          {fixedHeats && heatPanel}
+          <div className="toolbar-slot" ref={setTop} />
+        </div>
+        <main className="guided-content">
+          {tab !== 'risultati' && t?.status === 'active' && canOrganizeMatch(m) && (
+            <button type="button" onClick={() => setOrganizing(true)}>
+              Organizza manche
             </button>
           )}
-        </div>
-      )}
-      <MatchNavigation tab={tab} go={go} attention={plan.gaps.length > 0} />
-    </div>
+          {!fixedHeats && heatPanel}
+          {tab === 'live' && (
+            <GuidedLive
+              key={plan.heatId ?? 'match'}
+              m={m}
+              t={t}
+              plan={plan}
+              heated={heated}
+              controls={controls}
+              setControls={setControls}
+              notify={setToast}
+              go={go}
+            />
+          )}
+          {tab === 'matrice' && (
+            <RoundMatrix
+              m={m}
+              t={t}
+              plan={plan}
+              focus={focus}
+              setFocus={setFocus}
+              go={go}
+              notify={setToast}
+            />
+          )}
+          {tab === 'classifica' && (
+            <LiveBoard
+              m={m}
+              t={t}
+              plan={plan}
+              heated={heated}
+              open={(slot) => {
+                setFocus(slot);
+                go('matrice');
+              }}
+            />
+          )}
+          {tab === 'risultati' && (
+            <GuidedResults
+              m={m}
+              t={t}
+              plan={plan}
+              query={query}
+              tournament={tournament}
+              review={(entryId) => {
+                const p = names.progress(entryId);
+                const round = p?.rounds.find((r) => r.status !== 'recorded')?.round ?? 1;
+                setFocus({ entryId, round });
+                go('matrice');
+              }}
+            />
+          )}
+          <ErrorMessage error={undo.error} />
+        </main>
+        <div className="actionbar" ref={setBottom} />
+        {toast && (
+          <div className={`g-toast ${toast.tone ?? ''}`} role="status">
+            {toast.tone === 'warn' ? (
+              <Info aria-hidden="true" />
+            ) : (
+              <CircleCheck aria-hidden="true" />
+            )}
+            <span>{toast.text}</span>
+            {toast.undo && sameSlot(plan.undoable, toast.undo) && (
+              <button type="button" disabled={undo.busy} onClick={takeBack}>
+                Annulla
+              </button>
+            )}
+          </div>
+        )}
+        <MatchNavigation tab={tab} go={go} attention={plan.gaps.length > 0} />
+      </div>
+    </ScreenBars.Provider>
   );
 }
 
@@ -652,14 +671,16 @@ function GuidedLive({
               : `${plan.thrown} turni registrati${plan.gaps.length ? `, ${plan.gaps.length} da verificare` : ''}. Ora serve il risultato ufficiale del totem.`}
           </p>
         </section>
-        <button className="primary cta" onClick={() => go('risultati')}>
-          {m.status === 'completed' ? 'VEDI IL RISULTATO' : 'INSERISCI I RISULTATI DEL TOTEM'}
-        </button>
-        {plan.gaps.length > 0 && (
-          <button className="outline" onClick={() => go('matrice')}>
-            Rivedi i round mancanti
+        <InBar at="bottom">
+          <button className="primary cta" onClick={() => go('risultati')}>
+            {m.status === 'completed' ? 'VEDI IL RISULTATO' : 'INSERISCI I RISULTATI DEL TOTEM'}
           </button>
-        )}
+          {plan.gaps.length > 0 && (
+            <button className="outline" onClick={() => go('matrice')}>
+              Rivedi i round mancanti
+            </button>
+          )}
+        </InBar>
       </>
     );
   else if (interlude !== null && current)
@@ -672,19 +693,21 @@ function GuidedLive({
           <h2>Round {interlude} completato</h2>
           <p>{plan.seats.length} turni nel round. Si riparte dal primo di tiro.</p>
         </section>
-        <button type="button" className="g-next" onClick={() => setInterlude(null)} autoFocus>
-          <Avatar name={throwerName} />
-          <span>
-            <small>
-              Round {round}
-              {plan.rounds ? ` di ${plan.rounds}` : ''} · ora tocca a
-            </small>
-            <b>{throwerName}</b>
-          </span>
-          <span className="g-arrow">
-            <ArrowRight strokeWidth={2.6} />
-          </span>
-        </button>
+        <InBar at="bottom">
+          <button type="button" className="g-next" onClick={() => setInterlude(null)} autoFocus>
+            <Avatar name={throwerName} />
+            <span>
+              <small>
+                Round {round}
+                {plan.rounds ? ` di ${plan.rounds}` : ''} · ora tocca a
+              </small>
+              <b>{throwerName}</b>
+            </span>
+            <span className="g-arrow">
+              <ArrowRight strokeWidth={2.6} />
+            </span>
+          </button>
+        </InBar>
       </>
     );
   else if (!current)
@@ -822,37 +845,47 @@ function GuidedLive({
             BUST · il turno non conta, il residuo resta
           </button>
         )}
-        <div className="g-ctas">
-          <button className="primary cta" disabled={!c.ok || busy || interrupted} onClick={confirm}>
-            {record.busy
-              ? 'SALVATAGGIO…'
-              : c.shanghai
-                ? 'CONFERMA SHANGHAI · FINE PARTITA'
-                : `${c.bust ? 'CONFERMA BUST' : c.closed ? 'CONFERMA CHIUSURA' : 'CONFERMA ROUND'}${
-                    paused
-                      ? ''
-                      : plan.next
-                        ? ` → ${nextLabel.toUpperCase()}`
-                        : ` · ${nextLabel.toUpperCase()}`
-                  }`}
-          </button>
-          {(hint || c.why) && (
-            <p className="form-reason" role="status">
-              {hint ?? c.why}{' '}
-              {!hint && c.needsTotal && (
-                <button type="button" className="text-link" onClick={() => setMode('quick')}>
-                  Inserisci il totale
-                </button>
-              )}
-            </p>
-          )}
-          {c.ok && c.reason && (
-            <p className="form-reason warn" role="status">
-              Le freccette danno un altro totale: si salva il valore del totem, segnalato da
-              verificare.
-            </p>
-          )}
-        </div>
+        <InBar at="bottom">
+          <div className="g-ctas">
+            <button
+              className="primary cta g-cta"
+              disabled={!c.ok || busy || interrupted}
+              onClick={confirm}
+            >
+              <span>
+                {record.busy
+                  ? 'SALVATAGGIO…'
+                  : c.shanghai
+                    ? 'CONFERMA SHANGHAI · FINE PARTITA'
+                    : `${c.bust ? 'CONFERMA BUST' : c.closed ? 'CONFERMA CHIUSURA' : 'CONFERMA ROUND'}${
+                        paused
+                          ? ''
+                          : plan.next
+                            ? ` → ${nextLabel.toUpperCase()}`
+                            : ` · ${nextLabel.toUpperCase()}`
+                      }`}
+              </span>
+              {/* A plain reason fits in the button: the keypad keeps the space. */}
+              {!hint && c.why && !c.needsTotal && <small role="status">{c.why}</small>}
+            </button>
+            {(hint || (c.why && c.needsTotal)) && (
+              <p className="form-reason" role="status">
+                {hint ?? c.why}{' '}
+                {!hint && c.needsTotal && (
+                  <button type="button" className="text-link" onClick={() => setMode('quick')}>
+                    Inserisci il totale
+                  </button>
+                )}
+              </p>
+            )}
+            {c.ok && c.reason && (
+              <p className="form-reason warn" role="status">
+                Le freccette danno un altro totale: si salva il valore del totem, segnalato da
+                verificare.
+              </p>
+            )}
+          </div>
+        </InBar>
       </>
     );
 
@@ -1196,32 +1229,36 @@ function LiveBoard({
   const queue = [plan.current, plan.next].filter((x): x is NonNullable<typeof x> => !!x);
   return (
     <div className="g-rank">
-      <div className="g-info">
-        <div>
-          <b>{heated ? `Manche ${plan.heatNumber} di ${m.heatOverview.heats.length}` : g.label}</b>
-          <small>
-            {plan.seats.length} al bersaglio
-            {heated ? ` · ${m.participants.length} iscritti` : ''}
-          </small>
+      <InBar at="top">
+        <div className="g-info">
+          <div>
+            <b>
+              {heated ? `Manche ${plan.heatNumber} di ${m.heatOverview.heats.length}` : g.label}
+            </b>
+            <small>
+              {plan.seats.length} al bersaglio
+              {heated ? ` · ${m.participants.length} iscritti` : ''}
+            </small>
+          </div>
+          <div className="g-rbox">
+            <small>Round</small>
+            <b>
+              {plan.round}
+              {plan.rounds ? ` di ${plan.rounds}` : ''}
+            </b>
+          </div>
         </div>
-        <div className="g-rbox">
-          <small>Round</small>
-          <b>
-            {plan.round}
-            {plan.rounds ? ` di ${plan.rounds}` : ''}
-          </b>
-        </div>
-      </div>
-      <Segmented
-        label="Ordinamento"
-        value={sort}
-        change={setSort}
-        options={[
-          { id: 'order', label: 'Ordine' },
-          { id: 'rank', label: 'Provvisoria' },
-          { id: 'rounds', label: 'Tutti i round' },
-        ]}
-      />
+        <Segmented
+          label="Ordinamento"
+          value={sort}
+          change={setSort}
+          options={[
+            { id: 'order', label: 'Ordine' },
+            { id: 'rank', label: 'Provvisoria' },
+            { id: 'rounds', label: 'Tutti i round' },
+          ]}
+        />
+      </InBar>
       {sort === 'rounds' ? (
         <>
           <p className="hint">
@@ -1363,75 +1400,77 @@ function RoundMatrix({
   const cell = focus && plan.seats.includes(focus.entryId) && focus.round <= cols ? focus : null;
   return (
     <div className="g-matrix">
-      <div className="g-mx">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">
-                {plan.seats.some((id) => (names.entry(id)?.members.length ?? 0) > 1)
-                  ? 'Squadra'
-                  : 'Giocatore'}
-              </th>
-              {Array.from({ length: cols }, (_, r) => (
-                <th scope="col" key={r}>
-                  R{r + 1}
+      <InBar at="top">
+        <div className="g-mx">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">
+                  {plan.seats.some((id) => (names.entry(id)?.members.length ?? 0) > 1)
+                    ? 'Squadra'
+                    : 'Giocatore'}
                 </th>
-              ))}
-              <th scope="col">{x01 ? 'Res' : 'Tot'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plan.seats.map((id) => {
-              const p = names.progress(id);
-              return (
-                <tr key={id} className={plan.current?.entryId === id ? 'on' : ''}>
-                  <th scope="row">{names.name(id)}</th>
-                  {Array.from({ length: cols }, (_, r) => {
-                    const v = p?.rounds[r];
-                    const cur = sameSlot(plan.current, { entryId: id, round: r + 1 });
-                    const sel = sameSlot(cell, { entryId: id, round: r + 1 });
-                    let text = '–';
-                    let cls = 'e';
-                    if (v?.state === 'reenter') [text, cls] = ['!', 'vd'];
-                    else if (v?.state === 'partial') [text, cls] = ['?', 'vd'];
-                    else if (v?.status === 'skipped') [text, cls] = ['salt.', 'sk'];
-                    else if (v?.status === 'recorded')
-                      [text, cls] = [
-                        v.bust ? 'B' : String(v.value),
-                        `${v.darts ? 'dd' : ''} ${v.bust ? 'b' : ''} ${v.state === 'review' ? 'mis' : ''}`,
-                      ];
-                    else if (cur) [text, cls] = ['ora', 'cur'];
-                    return (
-                      <td key={r}>
-                        <button
-                          type="button"
-                          className={`${cls} ${sel ? 'sel' : ''}`}
-                          aria-label={`${names.name(id)}, round ${r + 1}: ${text}`}
-                          aria-pressed={sel}
-                          onClick={() => setFocus({ entryId: id, round: r + 1 })}
-                        >
-                          {text}
-                        </button>
-                      </td>
-                    );
-                  })}
-                  <td className="tot">{metricOf(m, p) ?? '—'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="g-legend">
-        <span>
-          <i />
-          freccette registrate
-        </span>
-        <span>B bust</span>
-        <span>salt. saltato</span>
-        <span>! da reinserire</span>
-        <span>? parziale</span>
-      </div>
+                {Array.from({ length: cols }, (_, r) => (
+                  <th scope="col" key={r}>
+                    R{r + 1}
+                  </th>
+                ))}
+                <th scope="col">{x01 ? 'Res' : 'Tot'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plan.seats.map((id) => {
+                const p = names.progress(id);
+                return (
+                  <tr key={id} className={plan.current?.entryId === id ? 'on' : ''}>
+                    <th scope="row">{names.name(id)}</th>
+                    {Array.from({ length: cols }, (_, r) => {
+                      const v = p?.rounds[r];
+                      const cur = sameSlot(plan.current, { entryId: id, round: r + 1 });
+                      const sel = sameSlot(cell, { entryId: id, round: r + 1 });
+                      let text = '–';
+                      let cls = 'e';
+                      if (v?.state === 'reenter') [text, cls] = ['!', 'vd'];
+                      else if (v?.state === 'partial') [text, cls] = ['?', 'vd'];
+                      else if (v?.status === 'skipped') [text, cls] = ['salt.', 'sk'];
+                      else if (v?.status === 'recorded')
+                        [text, cls] = [
+                          v.bust ? 'B' : String(v.value),
+                          `${v.darts ? 'dd' : ''} ${v.bust ? 'b' : ''} ${v.state === 'review' ? 'mis' : ''}`,
+                        ];
+                      else if (cur) [text, cls] = ['ora', 'cur'];
+                      return (
+                        <td key={r}>
+                          <button
+                            type="button"
+                            className={`${cls} ${sel ? 'sel' : ''}`}
+                            aria-label={`${names.name(id)}, round ${r + 1}: ${text}`}
+                            aria-pressed={sel}
+                            onClick={() => setFocus({ entryId: id, round: r + 1 })}
+                          >
+                            {text}
+                          </button>
+                        </td>
+                      );
+                    })}
+                    <td className="tot">{metricOf(m, p) ?? '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="g-legend">
+          <span>
+            <i />
+            freccette registrate
+          </span>
+          <span>B bust</span>
+          <span>salt. saltato</span>
+          <span>! da reinserire</span>
+          <span>? parziale</span>
+        </div>
+      </InBar>
       {cell ? (
         <CellPanel
           key={`${cell.entryId}:${cell.round}`}
@@ -1788,14 +1827,16 @@ function GuidedResults({
   const ended = plan.state === 'completed';
   return (
     <div className="g-results">
-      <div className="g-note">
-        <Info aria-hidden="true" />
-        <span>
-          {ended
-            ? 'Il risultato ufficiale è quello del totem. Il totale del companion serve a verificarlo, non lo sostituisce.'
-            : `Turni in corso: ${plan.expected ? `${plan.expected - plan.thrown} da registrare. ` : ''}I valori del totem si inseriscono a fine manche.`}
-        </span>
-      </div>
+      <InBar at="top">
+        <div className="g-note">
+          <Info aria-hidden="true" />
+          <span>
+            {ended
+              ? 'Il risultato ufficiale è quello del totem. Il totale del companion serve a verificarlo, non lo sostituisce.'
+              : `Turni in corso: ${plan.expected ? `${plan.expected - plan.thrown} da registrare. ` : ''}I valori del totem si inseriscono a fine manche.`}
+          </span>
+        </div>
+      </InBar>
       <ol className="g-res">
         {plan.seats.map((id) => {
           const p = names.progress(id);

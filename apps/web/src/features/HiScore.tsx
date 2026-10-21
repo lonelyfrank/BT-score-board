@@ -302,7 +302,7 @@ export function HiScoreDetail() {
           />
         }
       />
-      <main className="content tournament-page">
+      <div className="toolbar">
         <Tabs
           label="Fasi"
           tabs={[
@@ -325,6 +325,8 @@ export function HiScoreDetail() {
           </div>
           <StatusChip tone={tone}>{statusText}</StatusChip>
         </div>
+      </div>
+      <main className="content tournament-page">
         <ErrorMessage error={error} retry={retry} />
         {tab === 'qualification' && (
           <>
@@ -405,19 +407,6 @@ export function HiScoreDetail() {
             )}
             {!isDraft(t) && !direct && (
               <div className="stage-actions">
-                <button
-                  className="primary"
-                  disabled={!canFinalize || mutation.isPending}
-                  onClick={() => command('qualification/finalize')}
-                >
-                  CONFERMA QUALIFICA
-                </button>
-                <p
-                  role="status"
-                  className={`stage-note ${canFinalize || qual?.status === 'finalized' ? 'ok' : ''}`}
-                >
-                  {finalizeNote}
-                </p>
                 {qualMatch?.status === 'active' && incomplete.length > 0 && active && !results && (
                   <button onClick={() => setEarly(true)}>Chiudi qualifica in anticipo…</button>
                 )}
@@ -425,11 +414,6 @@ export function HiScoreDetail() {
                   <button onClick={() => setLeaving(stillIn[0]!.id)}>Ritira un giocatore…</button>
                 )}
               </div>
-            )}
-            {qual?.status === 'finalized' && (
-              <button className="primary cta" onClick={() => setTab('final')}>
-                VAI ALLA FINALE
-              </button>
             )}
           </>
         )}
@@ -651,6 +635,29 @@ export function HiScoreDetail() {
           </Modal>
         )}
       </main>
+      {tab === 'qualification' && !isDraft(t) && !direct && (
+        <div className="actionbar">
+          {qual?.status === 'finalized' ? (
+            <button className="primary cta" onClick={() => setTab('final')}>
+              VAI ALLA FINALE
+            </button>
+          ) : (
+            <button
+              className="primary cta"
+              disabled={!canFinalize || mutation.isPending}
+              onClick={() => command('qualification/finalize')}
+            >
+              CONFERMA QUALIFICA
+            </button>
+          )}
+          <p
+            role="status"
+            className={`stage-note ${canFinalize || qual?.status === 'finalized' ? 'ok' : ''}`}
+          >
+            {finalizeNote}
+          </p>
+        </div>
+      )}
     </>
   );
 }

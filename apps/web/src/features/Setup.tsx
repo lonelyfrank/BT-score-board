@@ -377,25 +377,6 @@ export function Setup() {
             <Link to="/tornei">Controlla la partita salvata</Link> prima di crearne una nuova.
           </p>
         )}
-        <div className="cta-block">
-          <button
-            className="primary cta"
-            disabled={
-              !!reason ||
-              create.isPending ||
-              (!draft && create.error instanceof ApiError && create.error.uncertain)
-            }
-            onClick={() => setConfirm(true)}
-          >
-            <DartIcon className="cta-icon" strokeWidth={2} fill="none" />
-            {create.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'INIZIA PARTITA'}
-          </button>
-          {reason && (
-            <p className="form-reason" role="status">
-              {reason}
-            </p>
-          )}
-        </div>
         {picker && (
           <AddPlayerSheet
             excluded={selected.map((p) => p.id)}
@@ -436,6 +417,25 @@ export function Setup() {
           </Modal>
         )}
       </main>
+      <div className="actionbar">
+        <button
+          className="primary cta"
+          disabled={
+            !!reason ||
+            create.isPending ||
+            (!draft && create.error instanceof ApiError && create.error.uncertain)
+          }
+          onClick={() => setConfirm(true)}
+        >
+          <DartIcon className="cta-icon" strokeWidth={2} fill="none" />
+          {create.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'INIZIA PARTITA'}
+        </button>
+        {reason && (
+          <p className="form-reason" role="status">
+            {reason}
+          </p>
+        )}
+      </div>
     </>
   );
 }

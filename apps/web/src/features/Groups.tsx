@@ -321,7 +321,7 @@ export function GroupsDetail() {
           />
         }
       />
-      <main className="content tournament-page">
+      <div className="toolbar">
         <Tabs
           label="Sezioni torneo"
           tabs={[
@@ -333,6 +333,8 @@ export function GroupsDetail() {
           value={tab}
           change={setTab}
         />
+      </div>
+      <main className="content tournament-page">
         <div className="event-heading">
           <TrophyEmblem />
           <div>

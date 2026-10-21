@@ -50,7 +50,7 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
   return (
     <>
       <Header title={highscore ? 'Hi-Score Nights' : 'Tornei'} />
-      <main className="content with-graffiti">
+      <div className="toolbar">
         <Link className="primary button cta" to="/tornei/nuovo">
           <Trophy className="cta-icon" fill="currentColor" /> NUOVO TORNEO
         </Link>
@@ -64,6 +64,8 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
             { id: 'done', label: 'Archivio' },
           ]}
         />
+      </div>
+      <main className="content with-graffiti">
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
         <div className="tournament-list">

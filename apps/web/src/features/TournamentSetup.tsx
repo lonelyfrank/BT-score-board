@@ -650,23 +650,6 @@ export function TournamentSetup() {
         )}
         <div className="cta-block">
           <button
-            className="primary cta"
-            disabled={
-              !!reason ||
-              save.isPending ||
-              (!draft && save.error instanceof ApiError && save.error.uncertain)
-            }
-            onClick={() => save.mutate(true)}
-          >
-            <Trophy className="cta-icon" fill="currentColor" />
-            {save.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'AVVIA TORNEO'}
-          </button>
-          {reason && (
-            <p className="form-reason" role="status">
-              {reason}
-            </p>
-          )}
-          <button
             disabled={!name.trim() || save.isPending || !!draft}
             onClick={() => save.mutate(false)}
           >
@@ -690,6 +673,25 @@ export function TournamentSetup() {
           />
         )}
       </main>
+      <div className="actionbar">
+        <button
+          className="primary cta"
+          disabled={
+            !!reason ||
+            save.isPending ||
+            (!draft && save.error instanceof ApiError && save.error.uncertain)
+          }
+          onClick={() => save.mutate(true)}
+        >
+          <Trophy className="cta-icon" fill="currentColor" />
+          {save.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'AVVIA TORNEO'}
+        </button>
+        {reason && (
+          <p className="form-reason" role="status">
+            {reason}
+          </p>
+        )}
+      </div>
     </>
   );
 }

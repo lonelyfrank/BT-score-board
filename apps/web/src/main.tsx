@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { BottomNavigation, Empty } from './components/ui';
+import { BottomNavigation, Empty, scrollToTop } from './components/ui';
 import { AppStatus } from './components/AppStatus';
 import { dataMode, localData } from './services/api';
 import { registerPwa } from './services/pwa';
@@ -33,7 +33,7 @@ function App() {
   const hideNav = pathname.startsWith('/partite/') && pathname !== '/partite/nuova';
   const queries = useQueryClient();
   useEffect(() => {
-    window.scrollTo(0, 0);
+    scrollToTop();
   }, [pathname]);
   // Commands update the screens through invalidation; other tabs and imports notify here.
   useEffect(

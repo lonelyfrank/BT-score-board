@@ -1,6 +1,28 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, Crosshair, X, Minus, Plus, Pause, Play } from 'lucide-react';
+
+/**
+ * Fixed regions of a screen around its scrolling `main`: commands under the header
+ * (`top`) and the main action above the bar (`bottom`). Screens whose parts live in nested
+ * components provide the two containers; elsewhere `InBar` renders in place.
+ */
+export const ScreenBars = createContext<{
+  top: HTMLElement | null;
+  bottom: HTMLElement | null;
+} | null>(null);
+export function InBar({ at, children }: { at: 'top' | 'bottom'; children: ReactNode }) {
+  const bars = useContext(ScreenBars);
+  if (!bars) return <>{children}</>;
+  const target = bars[at];
+  return target ? createPortal(children, target) : null;
+}
+/** Back to the top of the screen: only `main` scrolls, the window stays still. */
+export function scrollToTop() {
+  document.querySelector('#main-content main')?.scrollTo(0, 0);
+  window.scrollTo(0, 0);
+}
 
 export function Header({
   title,

@@ -8,7 +8,7 @@ import {
   HardDriveDownload,
   Lock,
 } from 'lucide-react';
-import { CheersIcon, CrossedDarts, CrowdIcon } from '../components/BrandIcons';
+import { CheersIcon, CrossedDarts, CrowdIcon, CrownIcon } from '../components/BrandIcons';
 import { api, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
@@ -128,21 +128,23 @@ export function Home() {
           )}
           {!!recent.data?.length && (
             <>
-              <h2>Risultati recenti</h2>
-              <ul className="home-results">
+              <div className="home-rhead">
+                <h2>Risultati recenti</h2>
+                <Link to="/tornei">Tutti</Link>
+              </div>
+              <ul className="home-strip" aria-label="Risultati recenti">
                 {recent.data.map(({ summary, winner }) => (
                   <li key={summary.id}>
                     <Link to={resultsPath(summary)}>
-                      <span>{summary.name}</span>
-                      <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
-                      <ChevronRight aria-hidden="true" />
+                      <CrownIcon aria-hidden="true" />
+                      <span>
+                        <b>{summary.name}</b>
+                        <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
+                      </span>
                     </Link>
                   </li>
                 ))}
               </ul>
-              <Link className="home-all" to="/tornei">
-                Tutti i tornei
-              </Link>
             </>
           )}
         </section>

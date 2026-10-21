@@ -29,15 +29,18 @@ function audit(page: Page) {
         if (label.scrollWidth > link.clientWidth + 1)
           problems.push(`nav label cut: ${label.textContent}`);
       }
-      // At the bottom of the page the content ends above the bar, never under it. The Home is
-      // the one exception of V1.1: its decorative footer runs under the glass, its controls do not.
-      window.scrollTo(0, root.scrollHeight);
-      const top = nav.getBoundingClientRect().top;
+      // Only the content scrolls. At its end the content stays above the bar, never under it.
+      // The Home is the one exception of V1.1: its decorative footer runs under the glass, its
+      // controls do not.
       const main = document.querySelector('#main-content')!;
-      if (!main.querySelector('.home-page')) {
-        const bottom = main.getBoundingClientRect().bottom;
-        if (bottom > top + 1) problems.push(`content under the bar: ${bottom} > ${top}`);
-      }
+      const scroller = main.querySelector<HTMLElement>(':scope > main, :scope > .home-page');
+      if (root.scrollHeight > window.innerHeight + 1)
+        problems.push(`page scrolls: ${root.scrollHeight} > ${window.innerHeight}`);
+      scroller?.scrollTo(0, scroller.scrollHeight);
+      const top = nav.getBoundingClientRect().top;
+      const last = scroller?.lastElementChild?.getBoundingClientRect();
+      if (scroller?.matches('main') && last && last.bottom > top + 1)
+        problems.push(`content under the bar: ${last.bottom} > ${top}`);
       const controls = [
         ...main.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary'),
       ].filter((e) => {
@@ -49,7 +52,7 @@ function audit(page: Page) {
         if (r.bottom > top + 1 && r.top < window.innerHeight)
           problems.push(`covered by the bar: ${control.textContent?.trim() || control.tagName}`);
       }
-      window.scrollTo(0, 0);
+      scroller?.scrollTo(0, 0);
     }
     return problems;
   });
