@@ -1,19 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-  addEntrants,
   addPlayers,
   banner,
   chooseTracking,
   enterScore,
   freeMatch,
   guardNetwork,
+  newTournament,
 } from './helpers';
 
 // V1.2 operational readiness: the evenings of the acceptance checklist, end to end.
 
 const names = (prefix: string, n: number) =>
   Array.from({ length: n }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
-const confirmKey = (page: Page) => page.locator('.keypad .confirm-key');
+const confirmKey = (page: Page) => page.locator('.actionbar .btn.cta');
+const finalists = (page: Page) => page.locator('.result-rows .rk .nm b');
+const totals = (page: Page) => page.locator('.result-rows .rk strong');
 /** Final of a Hi-Score: enters whoever the screen asks for, with the score of that player. */
 async function enterAsked(page: Page, scores: Record<string, number>, count: number) {
   for (let i = 0; i < count; i++) {
@@ -21,14 +23,12 @@ async function enterAsked(page: Page, scores: Record<string, number>, count: num
     await enterScore(page, text, scores[text]!);
   }
 }
+/** A Hi-Score night recording final totals: it opens on the qualification match. */
 async function newHiScoreTournament(page: Page, players: string[]) {
-  await page.goto('/tornei/nuovo');
-  await page.getByRole('radio', { name: 'Hi-Score rapido' }).click();
-  await addEntrants(page, players);
-  await chooseTracking(page, 'Solo finale');
-  await page.getByRole('button', { name: 'AVVIA TORNEO' }).click();
-  await expect(page).toHaveURL(/\/hiscore\//);
-  return page.url();
+  await newTournament(page, { format: 'Hi-Score rapido', players, tracking: 'Solo finale' });
+  await expect(page).toHaveURL(/\/partite\//);
+  const back = await page.getByRole('link', { name: 'Indietro' }).getAttribute('href');
+  return new URL(back!, page.url()).href;
 }
 
 test('Hi-Score night of 19 over five heats: reload between heats, late entry, top 4 and a correction', async ({
@@ -41,7 +41,6 @@ test('Hi-Score night of 19 over five heats: reload between heats, late entry, to
   const scores = Object.fromEntries(players.map((p, i) => [p, 300 + i]));
   Object.assign(scores, { G02: 650, G07: 700, G18: 690, G11: 600 });
   const tournamentUrl = await newHiScoreTournament(page, players);
-  await page.getByRole('link', { name: 'Gioca l’incontro' }).click();
   const qualificationUrl = page.url();
   await expect(page.getByRole('radio', { name: /^M\d/ })).toHaveCount(5);
 
@@ -83,7 +82,7 @@ test('Hi-Score night of 19 over five heats: reload between heats, late entry, to
   await page.getByRole('button', { name: 'GENERA FINALE' }).click();
   await page.getByRole('link', { name: 'GIOCA LA FINALE' }).click();
   // Finalists throw in registration order (the default playing order).
-  await expect(page.locator('.score-card .player-name')).toHaveText(['G02', 'G07', 'G11', 'G18']);
+  await expect(finalists(page)).toHaveText(['G02', 'G07', 'G11', 'G18']);
   await enterScore(page, 'G02', 410);
 
   // A correction of the qualification lists what it invalidates before anything changes.
@@ -104,13 +103,13 @@ test('Hi-Score night of 19 over five heats: reload between heats, late entry, to
   await page.getByRole('button', { name: 'GENERA FINALE' }).click();
   await page.getByRole('link', { name: 'GIOCA LA FINALE' }).click();
   // The new final starts from zero with the corrected qualifier in it.
-  await expect(page.locator('.score-card .player-name')).toHaveText(['G02', 'G07', 'G18', 'G19']);
-  await expect(page.locator('.score-card strong')).toHaveText(['—', '—', '—', '—']);
+  await expect(finalists(page)).toHaveText(['G02', 'G07', 'G18', 'G19']);
+  await expect(totals(page)).toHaveText(['—', '—', '—', '—']);
   await enterAsked(page, { G19: 500, G07: 640, G18: 380, G02: 610 }, 4);
   await page.getByRole('link', { name: 'VAI AL TORNEO' }).click();
   await page.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
   await page.getByRole('tab', { name: 'Risultati' }).click();
-  await expect(page.locator('.place-1')).toContainText('G07');
+  await expect(page.locator('.pod .p1')).toContainText('G07');
   expect(guard.api).toEqual([]);
   expect(guard.errors).toEqual([]);
 });
@@ -120,32 +119,32 @@ test('seven players in uneven teams: rotation kept through an annulled round, ra
 }) => {
   const guard = guardNetwork(page);
   await page.goto('/partite/nuova');
+  await chooseTracking(page, 'Flessibile');
+  await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, ['Ada', 'Bea', 'Ciro', 'Dino', 'Elio', 'Fede', 'Gino']);
   await page.getByRole('radio', { name: 'Squadre' }).click();
   await page.getByRole('radio', { name: 'In ordine' }).click();
   await page.getByRole('button', { name: 'Genera squadre' }).click();
   await expect(page.getByLabel('Componenti squadra 4')).toHaveText(/Gino/);
   await page.getByText(/^Squadre disomogenee \(2 · 2 · 2 · 1 giocatori\)/).click();
-  await page.getByText(/^Opzioni avanzate/).click();
-  await page.getByRole('radio', { name: 'Flessibile' }).click();
-  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
-  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
+  await page.getByRole('button', { name: 'Avvia partita' }).click();
   await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
   // Four units on four seats: one session, no heats.
-  await expect(page.locator('.heat-timeline')).toHaveCount(0);
+  await expect(page.locator('.htabs')).toHaveCount(0);
 
   // Guided turns: Ada throws for her pair, her round taken back and entered again.
-  const now = page.locator('.g-now');
+  const now = page.locator('.now');
+  const confirm = page.getByRole('button', { name: /^Conferma il turno di/ });
   await expect(now.locator('h2')).toHaveText('Ada');
-  await expect(now).toContainText('Tiratore 1 di 2 · con Bea');
+  await expect(now).toContainText('Ada + Bea · tiratore 1 di 2');
   await page.getByRole('radio', { name: 'Totale' }).click();
   await page.keyboard.type('60');
-  await page.locator('.g-ctas .cta').click();
+  await confirm.click();
   await expect(now.locator('h2')).toHaveText('Ciro');
-  await page.locator('.g-toast').getByRole('button', { name: 'Annulla' }).click();
+  await page.locator('.toast').getByRole('button', { name: 'Annulla' }).click();
   await expect(now.locator('h2')).toHaveText('Ada');
   await page.keyboard.type('50');
-  await page.locator('.g-ctas .cta').click();
+  await confirm.click();
   for (const [name, value] of [
     ['Ciro', '40'],
     ['Elio', '30'],
@@ -153,10 +152,9 @@ test('seven players in uneven teams: rotation kept through an annulled round, ra
   ]) {
     await expect(now.locator('h2')).toHaveText(name);
     await page.keyboard.type(value);
-    await page.locator('.g-ctas .cta').click();
+    await confirm.click();
   }
   // Round 2: the rotation moved once, to Bea; a double tap on «next thrower» moves it once.
-  await page.locator('.g-next').click();
   await expect(now.locator('h2')).toHaveText('Bea');
   await page.getByRole('button', { name: 'Controlli del turno' }).click();
   const rotation = page.getByLabel('Rotazione della squadra');
@@ -176,14 +174,14 @@ test('seven players in uneven teams: rotation kept through an annulled round, ra
   ] as const)
     await enterScore(page, unit, total);
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
-  await expect(page.locator('.final-rows li')).toHaveText([
-    /Ciro \+ Dino.*420/,
-    /Gino.*350/,
-    /Ada \+ Bea.*310/,
-    /Elio \+ Fede.*280/,
-  ]);
+  // Ranked by totals: Ciro + Dino, Gino, Ada + Bea on the podium, then Elio + Fede.
+  await expect(page.locator('.result-head')).toContainText('Vince Ciro + Dino!');
+  await expect(page.locator('.pod .p1')).toContainText(/Ciro \+ Dino.*420/);
+  await expect(page.locator('.pod .p2')).toContainText(/Gino.*350/);
+  await expect(page.locator('.pod .p3')).toContainText(/Ada \+ Bea.*310/);
+  await expect(page.locator('.result-done .list .rk')).toContainText(/Elio \+ Fede.*280/);
   await page.reload();
-  await expect(page.locator('.final-rows li.first')).toContainText('Ciro + Dino');
+  await expect(page.locator('.pod .p1')).toContainText('Ciro + Dino');
   expect(guard.api).toEqual([]);
   expect(guard.errors).toEqual([]);
 });
@@ -206,16 +204,16 @@ test('recovery: a reload keeps the score and the digits of the right player, a d
   await expect(page.getByLabel('Punteggio finale da confermare')).toHaveText('35');
   // Choosing someone else drops them.
   await page.getByRole('radio', { name: /Sara/ }).click();
-  await expect(page.getByLabel('Punteggio finale da confermare')).toHaveText('0');
+  await expect(page.getByLabel('Punteggio finale da confermare')).toHaveText('–');
   await page.getByRole('radio', { name: /Sara/ }).click();
   await page.keyboard.type('350');
-  await confirmKey(page).dblclick();
+  await page.getByRole('button', { name: 'Conferma il punteggio di Sara' }).dblclick();
   await expect(banner(page)).toHaveText('PUNTEGGIO DI Tino');
   await expect(page.locator('.paper-tag')).toContainText('Salvato: Sara 350');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.goto('/');
   await page.getByRole('link', { name: /RIPRENDI/ }).click();
-  await expect(page.locator('.score-card strong')).toHaveText(['600', '350', '—']);
+  await expect(totals(page)).toHaveText(['600', '350', '—']);
 });
 
 test('backup transfer of a 12-player tournament in progress, then the evening goes on', async ({
@@ -226,11 +224,10 @@ test('backup transfer of a 12-player tournament in progress, then the evening go
   const players = names('B', 12);
   const scores = Object.fromEntries(players.map((p, i) => [p, 400 + i * 11]));
   await newHiScoreTournament(page, players);
-  await page.getByRole('link', { name: 'Gioca l’incontro' }).click();
   for (const p of players.slice(0, 4)) await enterScore(page, p, scores[p]!);
   await page.getByRole('button', { name: 'AVVIA MANCHE 2' }).click();
   for (const p of players.slice(4, 6)) await enterScore(page, p, scores[p]!);
-  const recorded = await page.locator('.score-card strong').allTextContents();
+  const recorded = await totals(page).allTextContents();
 
   await page.goto('/impostazioni');
   const download = page.waitForEvent('download');
@@ -255,7 +252,7 @@ test('backup transfer of a 12-player tournament in progress, then the evening go
   await expect(
     other.getByRole('radio', { name: /M2.*al bersaglio · 2 da inserire/ }),
   ).toBeChecked();
-  await expect(other.locator('.score-card strong')).toHaveText(recorded);
+  await expect(totals(other)).toHaveText(recorded);
   await expect(banner(other)).toHaveText('PUNTEGGIO DI B07');
   for (const p of players.slice(6, 8)) await enterScore(other, p, scores[p]!);
   await other.getByRole('button', { name: 'AVVIA MANCHE 3' }).click();
@@ -265,12 +262,12 @@ test('backup transfer of a 12-player tournament in progress, then the evening go
   await other.getByRole('button', { name: 'VAI ALLA FINALE' }).click();
   await other.getByRole('button', { name: 'GENERA FINALE' }).click();
   await other.getByRole('link', { name: 'GIOCA LA FINALE' }).click();
-  await expect(other.locator('.score-card .player-name')).toHaveText(['B09', 'B10', 'B11', 'B12']);
+  await expect(finalists(other)).toHaveText(['B09', 'B10', 'B11', 'B12']);
   await enterAsked(other, { B12: 500, B11: 520, B10: 610, B09: 480 }, 4);
   await other.getByRole('link', { name: 'VAI AL TORNEO' }).click();
   await other.getByRole('button', { name: 'CONFERMA RISULTATO FINALE' }).click();
   await other.getByRole('tab', { name: 'Risultati' }).click();
-  await expect(other.locator('.place-1')).toContainText('B10');
+  await expect(other.locator('.pod .p1')).toContainText('B10');
   expect(guard.api).toEqual([]);
   expect(guard.errors).toEqual([]);
   await device.close();

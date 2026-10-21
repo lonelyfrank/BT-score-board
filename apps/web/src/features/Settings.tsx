@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Lock } from 'lucide-react';
 import { ApiError, appVersion, localData, sharedApi } from '../services/api';
 import type { BackupFile, BackupSummary } from '../../../../packages/local-store/src/index.js';
 import {
@@ -35,20 +35,20 @@ export function Settings() {
   }, [hash]);
   return (
     <>
-      <Header title="Impostazioni" />
-      <main className="content">
+      <Header
+        title="Impostazioni"
+        subtitle={localData ? 'Dati, backup e app' : 'Accesso, server e app'}
+        back="/"
+        backLabel="Indietro alla Home"
+      />
+      <main className="settings">
         {localData ? <DeviceData /> : <OrganizerAccess />}
         <AppSection />
-        <section className="panel">
-          <h2>Modalità disponibili</h2>
-          <p>
-            Gli otto giochi del totem Pub Time Darts:{' '}
-            {gameModes.map((id) => games[id].label).join(', ')}. Partite singole, tornei a gironi
-            con eliminazione diretta e Hi-Score Nights (qualifica e finale dei migliori). Il totem
-            calcola i punti: l’app registra solo i risultati finali, senza alcun collegamento alla
-            macchina.
-          </p>
-        </section>
+        <p className="hint">
+          Gli otto giochi del totem Pub Time Darts:{' '}
+          {gameModes.map((id) => games[id].label).join(', ')}. Il totem calcola i punti: l’app
+          registra i risultati, senza alcun collegamento alla macchina.
+        </p>
       </main>
     </>
   );
@@ -111,88 +111,48 @@ function DeviceData() {
   const info = storage.data;
   return (
     <>
-      <section className="panel" aria-labelledby="device-title">
-        <h2 id="device-title">Dati su questo dispositivo</h2>
-        <p>
-          Giocatori, partite e tornei sono salvati soltanto in questo browser, senza server né
-          cloud. Funziona anche senza connessione.
-        </p>
-        <ErrorMessage error={status.error} retry={() => void status.refetch()} />
+      <section
+        className={`card pad backup ${s?.backupRecommended ? 'warn' : ''}`}
+        id="backup"
+        aria-labelledby="backup-title"
+      >
+        <div className="sec-h">
+          <h2 id="backup-title">Backup</h2>
+          {s?.backupRecommended ? (
+            <span className="chip warn">CONSIGLIATO</span>
+          ) : (
+            s && <span className="chip ok">AGGIORNATO</span>
+          )}
+        </div>
         {s && (
-          <div className="data-rows">
-            <div className="settings-row">
-              <span>Giocatori · tornei</span>
-              <strong>
-                {s.counts.players} · {s.counts.tournaments}
-              </strong>
+          <div className="backup-facts">
+            <div>
+              <span className="field-l">Ultimo backup</span>
+              <b>{dateTime(s.meta.lastBackupAt)}</b>
             </div>
-            <div className="settings-row">
-              <span>Ultimo backup</span>
-              <strong>{dateTime(s.meta.lastBackupAt)}</strong>
-            </div>
-            <div className="settings-row">
-              <span>Modifiche dopo il backup</span>
-              <strong className={s.backupRecommended ? 'warning-text' : ''}>
+            <div>
+              <span className="field-l">Modifiche dopo</span>
+              <strong className={s.backupRecommended ? 'warn' : ''}>
                 {s.meta.changesSinceBackup}
               </strong>
             </div>
-            <div className="settings-row">
-              <span>Archiviazione persistente</span>
-              <strong className={info?.persisted ? '' : 'warning-text'}>
-                {info?.persisted ? 'Attiva' : info?.persisted === false ? 'Non garantita' : '—'}
-              </strong>
-            </div>
-            {info?.usage != null && info.quota != null && (
-              <div className="settings-row">
-                <span>Spazio usato</span>
-                <strong>
-                  {formatBytes(info.usage)} di {formatBytes(info.quota)}
-                </strong>
-              </div>
-            )}
           </div>
         )}
-        {info?.persisted === false && (
-          <>
-            <p className="hint">
-              Il browser potrebbe cancellare i dati se lo spazio scarseggia. Installare l’app sulla
-              schermata Home aiuta; il backup resta comunque la protezione principale.
-            </p>
-            <button disabled={persist.isPending} onClick={() => persist.mutate()}>
-              Richiedi archiviazione persistente
-            </button>
-          </>
-        )}
-        {persist.data === false && (
-          <p className="hint" role="status">
-            Il browser non ha concesso l’archiviazione persistente.
-          </p>
-        )}
-      </section>
-      <section className="panel" id="backup" aria-labelledby="backup-title">
-        <h2 id="backup-title">Backup</h2>
-        <p>
-          Esporta un backup prima e dopo ogni serata e conservalo fuori dal telefono (email, Drive,
-          computer). Cancellare i dati del browser o cambiare telefono elimina l’archivio locale.
-        </p>
-        <div className="data-actions">
+        <div className="backup-actions">
           <button
-            className="primary"
+            type="button"
+            className="btn cta"
             disabled={exportBackup.isPending}
             onClick={() => exportBackup.mutate('download')}
           >
             {exportBackup.isPending ? 'Preparazione…' : 'Esporta backup'}
           </button>
-          {canShareFiles() && (
-            <button disabled={exportBackup.isPending} onClick={() => exportBackup.mutate('share')}>
-              Condividi backup
-            </button>
-          )}
-          <label className="button file-button">
-            Importa backup
+          <label className="btn file-button">
+            Ripristina
             <input
               ref={fileInput}
               type="file"
+              aria-label="Importa backup"
               accept="application/json,.json"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -201,40 +161,147 @@ function DeviceData() {
             />
           </label>
         </div>
+        {canShareFiles() && (
+          <button
+            type="button"
+            className="btn sm ghost"
+            disabled={exportBackup.isPending}
+            onClick={() => exportBackup.mutate('share')}
+          >
+            Condividi backup
+          </button>
+        )}
+        <p className="hint">
+          Esporta prima e dopo ogni serata e conserva il file fuori dal telefono. Cancellare i dati
+          del browser o cambiare telefono elimina l’archivio locale.
+        </p>
         {message && (
-          <p className="success" role="status">
+          <p className="form-reason ok" role="status">
             {message}
           </p>
         )}
         <ErrorMessage error={exportBackup.error ?? readFile.error} />
       </section>
+      <h2 className="set-h" id="device-title">
+        Dati su questo dispositivo
+      </h2>
+      <ErrorMessage error={status.error} retry={() => void status.refetch()} />
+      <div className="card" aria-labelledby="device-title">
+        <div className="row">
+          <span className="k">Archiviazione persistente</span>
+          {info?.persisted ? (
+            <span className="chip ok">ATTIVA</span>
+          ) : info?.persisted === false ? (
+            <span className="chip warn">NON GARANTITA</span>
+          ) : (
+            <span className="v">—</span>
+          )}
+        </div>
+        {s && (
+          <div className="row">
+            <span className="k">Giocatori · tornei</span>
+            <span className="v">
+              {s.counts.players} · {s.counts.tournaments}
+            </span>
+          </div>
+        )}
+        {info?.usage != null && info.quota != null && (
+          <div className="row">
+            <span className="k">Spazio usato</span>
+            <span className="v">
+              {formatBytes(info.usage)} di {formatBytes(info.quota)}
+            </span>
+          </div>
+        )}
+      </div>
+      {info?.persisted === false && (
+        <>
+          <p className="hint">
+            Il browser potrebbe cancellare i dati se lo spazio scarseggia. Installare l’app sulla
+            schermata Home aiuta; il backup resta comunque la protezione principale.
+          </p>
+          <button
+            type="button"
+            className="btn"
+            disabled={persist.isPending}
+            onClick={() => persist.mutate()}
+          >
+            Richiedi archiviazione persistente
+          </button>
+        </>
+      )}
+      {persist.data === false && (
+        <p className="hint" role="status">
+          Il browser non ha concesso l’archiviazione persistente.
+        </p>
+      )}
+      <h2 className="set-h">Server del locale</h2>
+      <div className="card">
+        <div className="row">
+          <span>
+            <b className="row-title">Modalità condivisa</b>
+            <small className="hint">Non configurata · i dati restano sul telefono</small>
+          </span>
+        </div>
+      </div>
       {preview && (
         <Modal
           title="Ripristinare questo backup?"
+          subtitle={`Backup del ${dateTime(preview.summary.exportedAt)}`}
           close={() => !importBackup.isPending && setPreview(undefined)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={importBackup.isPending}
+                onClick={() => setPreview(undefined)}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                className="btn cta"
+                disabled={importBackup.isPending}
+                onClick={() => importBackup.mutate()}
+              >
+                {importBackup.isPending
+                  ? 'Ripristino…'
+                  : hasData
+                    ? 'Sostituisci i dati'
+                    : 'Importa'}
+              </button>
+            </>
+          }
         >
           <p>
-            Backup del <strong>{dateTime(preview.summary.exportedAt)}</strong>:{' '}
             {count(preview.summary.counts.players, 'giocatore', 'giocatori')},{' '}
             {count(preview.summary.counts.tournaments, 'torneo', 'tornei')}.
           </p>
           {preview.summary.tournaments.length > 0 && (
-            <ul>
+            <ul className="list">
               {preview.summary.tournaments.map((t) => (
-                <li key={t.createdAt + t.name}>
-                  {t.name} · {new Date(t.createdAt).toLocaleDateString('it-IT')}
+                <li key={t.createdAt + t.name} className="mrow">
+                  <span>{t.name}</span>
+                  <small>{new Date(t.createdAt).toLocaleDateString('it-IT')}</small>
                 </li>
               ))}
             </ul>
           )}
           {hasData ? (
             <>
-              <p className="warning-text">
-                Sostituirà tutti i dati attuali di questo dispositivo (
-                {count(counts.players, 'giocatore', 'giocatori')},{' '}
-                {count(counts.tournaments, 'torneo', 'tornei')}). L’operazione non si può annullare.
+              <p className="note warn">
+                <AlertTriangle aria-hidden="true" />
+                <span>
+                  Sostituirà tutti i dati attuali di questo dispositivo (
+                  {count(counts.players, 'giocatore', 'giocatori')},{' '}
+                  {count(counts.tournaments, 'torneo', 'tornei')}). L’operazione non si può
+                  annullare.
+                </span>
               </p>
               <button
+                type="button"
+                className="btn"
                 disabled={exportBackup.isPending}
                 onClick={() => exportBackup.mutate('download')}
               >
@@ -242,16 +309,9 @@ function DeviceData() {
               </button>
             </>
           ) : (
-            <p>Il dispositivo non contiene dati: il backup verrà importato.</p>
+            <p className="hint">Il dispositivo non contiene dati: il backup verrà importato.</p>
           )}
           <ErrorMessage error={importBackup.error} />
-          <button
-            className="primary"
-            disabled={importBackup.isPending}
-            onClick={() => importBackup.mutate()}
-          >
-            {importBackup.isPending ? 'Ripristino…' : hasData ? 'Sostituisci i dati' : 'Importa'}
-          </button>
         </Modal>
       )}
     </>
@@ -261,31 +321,48 @@ function DeviceData() {
 function AppSection() {
   const pwa = usePwa();
   return (
-    <section className="panel" aria-labelledby="app-title">
-      <h2 id="app-title">App</h2>
-      <div className="data-rows">
-        <div className="settings-row">
-          <span>Versione</span>
-          <strong>{appVersion}</strong>
+    <>
+      <h2 className="set-h" id="app-title">
+        App
+      </h2>
+      <div className="card" aria-labelledby="app-title">
+        <div className="row">
+          <span className="k">Versione</span>
+          <span className="v">{appVersion}</span>
+        </div>
+        <div className="row">
+          <span className="k">Modalità</span>
+          <span className="v">
+            {localData ? 'Standalone · PWA' : 'Condivisa · server del locale'}
+          </span>
         </div>
         {pwa.supported && (
-          <div className="settings-row">
-            <span>Uso senza connessione</span>
-            <strong className={pwa.offlineReady ? '' : 'warning-text'}>
-              {pwa.offlineReady ? 'Pronta' : 'In preparazione'}
-            </strong>
+          <div className="row">
+            <span className="k">Uso senza connessione</span>
+            {pwa.offlineReady ? (
+              <span className="chip ok">PRONTO</span>
+            ) : (
+              <span className="chip warn">IN PREPARAZIONE</span>
+            )}
           </div>
         )}
       </div>
       {pwa.updateAvailable && (
         <>
-          <p>È disponibile una nuova versione. Aggiorna quando nessuna partita è in corso.</p>
-          <button className="primary" disabled={!pwa.canApply} onClick={pwa.applyUpdate}>
+          <p className="hint">
+            È disponibile una nuova versione. Aggiorna quando nessuna partita è in corso.
+          </p>
+          <button
+            type="button"
+            className="btn cta"
+            disabled={!pwa.canApply}
+            onClick={pwa.applyUpdate}
+          >
             Aggiorna ora
           </button>
         </>
       )}
-    </section>
+    </>
   );
 }
 
@@ -301,7 +378,10 @@ function OrganizerAccess() {
   const server = useQuery({ queryKey: ['server-info'], queryFn: () => api.serverInfo() });
   return (
     <>
-      <section className={`panel access ${connected ? 'on' : ''}`} aria-labelledby="access-title">
+      <section
+        className={`card pad access ${connected ? 'on' : 'warn'}`}
+        aria-labelledby="access-title"
+      >
         <div className="access-head">
           <span className="access-icon" aria-hidden="true">
             <Lock />
@@ -330,11 +410,12 @@ function OrganizerAccess() {
               <dt>Validità</dt>
               <dd>fino alla chiusura della scheda</dd>
             </dl>
-            <Link to="/" className="button">
+            <Link to="/" className="btn">
               Torna alla Home
             </Link>
             <button
-              className="outline"
+              type="button"
+              className="btn ghost"
               onClick={async () => {
                 await client.cancelQueries();
                 api.setToken('');
@@ -400,7 +481,7 @@ function OrganizerAccess() {
               />
               <button
                 type="button"
-                className="icon-button"
+                className="ibtn box"
                 aria-label={visible ? 'Nascondi token' : 'Mostra token'}
                 onClick={() => setVisible(!visible)}
               >
@@ -411,21 +492,23 @@ function OrganizerAccess() {
               Resta solo in questa scheda del browser. Non viene salvato nell’app né nell’URL.
             </small>
             {error && (
-              <p className="error" role="alert">
+              <p className="form-reason" role="alert">
                 {error}
               </p>
             )}
-            <button className="primary" disabled={busy || !token.trim()}>
+            <button className="btn cta" disabled={busy || !token.trim()}>
               {busy ? 'Verifica…' : 'VERIFICA E USA'}
             </button>
           </form>
         )}
       </section>
-      <section className="panel rows-panel" aria-labelledby="server-title">
-        <h2 id="server-title">Server del locale</h2>
-        <div className="settings-row">
-          <span>Stato</span>
-          <strong className="dot-label">
+      <h2 className="set-h" id="server-title">
+        Server del locale
+      </h2>
+      <section className="card" aria-labelledby="server-title">
+        <div className="row">
+          <span className="k">Stato</span>
+          <strong className="v dot-label">
             <span
               aria-hidden="true"
               className={server.data?.reachable ? 'dot ok' : server.data ? 'dot off' : 'dot'}
@@ -437,20 +520,20 @@ function OrganizerAccess() {
                 : 'Non raggiungibile'}
           </strong>
         </div>
-        <div className="settings-row">
-          <span>Indirizzo</span>
-          <code>{window.location.host}</code>
+        <div className="row">
+          <span className="k">Indirizzo</span>
+          <code className="v">{window.location.host}</code>
         </div>
-        <div className="settings-row">
-          <span>API</span>
-          <strong>v1</strong>
+        <div className="row">
+          <span className="k">API</span>
+          <strong className="v">v1</strong>
         </div>
-        <div className="settings-row">
-          <span className="row-label">
-            <span>Letture pubbliche</span>
-            <small>Classifiche visibili senza token</small>
+        <div className="row">
+          <span>
+            <span className="k">Letture pubbliche</span>
+            <small className="hint"> · classifiche visibili senza token</small>
           </span>
-          <span className="tag-box">
+          <span className="v">
             {server.data?.publicReads == null
               ? '—'
               : server.data.publicReads

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { api, nickname, type Player } from '../services/api';
 import { Avatar, ErrorMessage, Loading, Modal } from './ui';
 
@@ -45,8 +45,23 @@ export function AddPlayerSheet({
   });
   const name = q.trim();
   return (
-    <Modal title="Aggiungi giocatore" close={close}>
+    <Modal
+      title="Aggiungi giocatore"
+      subtitle={
+        remaining < 256
+          ? `${remaining} ${remaining === 1 ? 'posto libero' : 'posti liberi'}`
+          : undefined
+      }
+      close={close}
+      tall
+      footer={
+        <button className="btn" form="add-player" disabled={!name || create.isPending}>
+          {name ? `Crea “${name}” e aggiungi` : 'Scrivi un nome per creare un giocatore'}
+        </button>
+      }
+    >
       <form
+        id="add-player"
         className="sheet-form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -56,37 +71,37 @@ export function AddPlayerSheet({
           else create.mutate();
         }}
       >
-        <label className="field">
-          Cerca tra i giocatori del locale
+        <label className="search">
+          <Search aria-hidden="true" />
+          <span className="visually-hidden">Cerca tra i giocatori del locale</span>
           <input
             ref={field}
             value={q}
             maxLength={120}
             autoCapitalize="words"
             enterKeyHint="done"
-            placeholder="Nome o soprannome"
+            placeholder="Cerca o aggiungi"
             onChange={(e) => setQ(e.target.value)}
           />
         </label>
-        <div className="pick-list">
-          {pool.map((p) => (
-            <button type="button" className="pick-row" key={p.id} onClick={() => taken(p)}>
-              <Avatar name={p.displayName} />
-              <span>
-                <span>{p.displayName}</span>
-                <small>{nickname(p) || 'Attivo'}</small>
-              </span>
-              <Plus aria-hidden="true" className="accent-icon" />
-            </button>
-          ))}
-          {query.isPending && <Loading />}
-          {query.data && !pool.length && <p className="hint">Nessun giocatore trovato.</p>}
-        </div>
-        <ErrorMessage error={query.error ?? create.error} />
-        <button className="outline" disabled={!name || create.isPending}>
-          {name ? `Crea “${name}” e aggiungi` : 'Scrivi un nome per creare un giocatore'}
-        </button>
       </form>
+      <div className="roster">
+        {pool.map((p) => (
+          <button type="button" className="pl" key={p.id} onClick={() => taken(p)}>
+            <Avatar name={p.displayName} avatar={p.avatar} />
+            <span>
+              <b>{p.displayName}</b>
+              {nickname(p) && <small>{nickname(p)}</small>}
+            </span>
+            <span className="chk add" aria-hidden="true">
+              <Plus />
+            </span>
+          </button>
+        ))}
+        {query.isPending && <Loading />}
+        {query.data && !pool.length && <p className="hint">Nessun giocatore trovato.</p>}
+      </div>
+      <ErrorMessage error={query.error ?? create.error} />
     </Modal>
   );
 }
@@ -124,8 +139,23 @@ export function NewPlayerSheet({
     },
   });
   return (
-    <Modal title="Nuovo giocatore" close={close}>
+    <Modal
+      title="Nuovo giocatore"
+      subtitle={keepOpen ? 'Invio crea e prepara il prossimo' : undefined}
+      close={close}
+      footer={
+        <>
+          <button type="button" className="btn ghost" onClick={close}>
+            {keepOpen ? 'Fatto' : 'Annulla'}
+          </button>
+          <button className="btn cta" form="new-player" disabled={!name.trim() || create.isPending}>
+            CREA GIOCATORE
+          </button>
+        </>
+      }
+    >
       <form
+        id="new-player"
         className="sheet-form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -148,17 +178,11 @@ export function NewPlayerSheet({
           <input value={nick} maxLength={120} onChange={(e) => setNick(e.target.value)} />
         </label>
         {homonym && (
-          <p className="warning-text" role="status">
+          <p className="form-reason warn" role="status">
             Esiste già un “{name.trim()}”: aggiungi un soprannome per distinguerli.
           </p>
         )}
         <ErrorMessage error={create.error} />
-        <button className="primary" disabled={!name.trim() || create.isPending}>
-          CREA GIOCATORE
-        </button>
-        <button type="button" onClick={close}>
-          {keepOpen ? 'Fatto' : 'Annulla'}
-        </button>
       </form>
     </Modal>
   );

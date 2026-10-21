@@ -30,7 +30,7 @@ export function MatchScreen() {
     return (
       <>
         <Header title="Partita" />
-        <main className="content">
+        <main>
           <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         </main>
       </>

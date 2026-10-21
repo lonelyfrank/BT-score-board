@@ -82,15 +82,19 @@ export function groupSteps(t: Tournament): Step[] {
 
 export function StageTimeline({ steps }: { steps: Step[] }) {
   return (
-    <ol className="timeline" aria-label="Fasi del torneo">
+    <ol
+      className="tl"
+      aria-label="Fasi del torneo"
+      style={{ gridTemplateColumns: `repeat(${Math.min(steps.length, 4)}, minmax(0, 1fr))` }}
+    >
       {steps.map((s, i) => (
-        <li key={`${s.title}-${i}`} className={`step-${s.state}`}>
-          <span className="timeline-dot">{i + 1}</span>
-          <span className="timeline-text">
-            <strong>{s.title}</strong>
-            <span>{s.sub}</span>
-          </span>
-          <span className="timeline-tag">{tag[s.state]}</span>
+        <li
+          key={`${s.title}-${i}`}
+          className={s.state === 'done' ? 'done' : s.state === 'active' ? 'on' : ''}
+          aria-label={`${s.title}: ${tag[s.state].toLowerCase()} · ${s.sub}`}
+        >
+          <b>{s.title}</b>
+          <small>{s.state === 'locked' ? 'in attesa' : s.sub}</small>
         </li>
       ))}
     </ol>

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, History, Pause } from 'lucide-react';
-import { CrownIcon, DartIcon, PaintSplash } from '../components/BrandIcons';
+import { AlertTriangle, History, Pause, Undo2 } from 'lucide-react';
+import { CrownIcon, DartIcon } from '../components/BrandIcons';
 import {
   api,
   entryMode,
@@ -15,12 +15,18 @@ import {
   type TurnInput,
 } from '../services/api';
 import { tournamentPath } from '../services/session';
-import { Avatar, ErrorMessage, Header, Loading, Modal, statusLabel } from '../components/ui';
+import {
+  Avatar,
+  ErrorMessage,
+  Header,
+  Loading,
+  Modal,
+  Segmented,
+  statusLabel,
+} from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
 
 const undoReasons = ['Punteggio errato', 'Giocatore sbagliato', 'Inserito per errore'];
-const quickTotals = [20, 40, 60, 80, 100, 120, 140, 180];
-const quickDarts = [0, 5, 20, 25, 40, 50, 57, 60];
 type Draft = { turnId?: string; value: string; darts: number[] };
 type Action =
   | { type: 'score'; input: TurnInput }
@@ -143,7 +149,7 @@ export function Live() {
     return (
       <>
         <Header title="Partita" />
-        <main className="content">
+        <main>
           <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         </main>
       </>
@@ -234,14 +240,15 @@ export function Live() {
     fix.values.reduce((n, v) => n + Number(v), 0) > config.maxTurnScore;
 
   return (
-    <div className="live-page">
+    <div className="screen legacy-screen">
       <Header
         title="Hi-Score"
         subtitle={subtitle}
         back={back}
         action={
           <button
-            className="icon-button"
+            type="button"
+            className="ibtn box"
             aria-label="Cronologia e opzioni incontro"
             onClick={() => {
               setEditing(null);
@@ -252,179 +259,147 @@ export function Live() {
           </button>
         }
       />
-      <main className="live-content">
-        <div
-          className="scoreboard"
-          role="list"
-          aria-label="Punteggi totali"
-          style={{
-            gridTemplateColumns: `repeat(${m.participants.length}, minmax(var(--bt-card-min), 1fr))`,
-          }}
-        >
+      <main className="legacy-main">
+        <ol className="list" aria-label="Punteggi totali">
           {order.map((p) => {
             const current = live && turn?.participantId === p.tournamentEntryId;
             const row = m.scoreboard.find((s) => s.tournamentEntryId === p.tournamentEntryId);
             return (
-              <article
-                role="listitem"
-                className={`score-card ${current ? 'selected' : ''}`}
+              <li
+                className={`rk ${current ? 'me' : ''}`}
                 aria-current={current ? 'true' : undefined}
                 key={p.tournamentEntryId}
               >
-                {top > 0 && row?.total === top && (
-                  <CrownIcon className="card-crown" role="img" aria-label="In testa" />
-                )}
-                <Avatar name={name(p.tournamentEntryId)} />
-                <span className="player-name">{name(p.tournamentEntryId)}</span>
-                <strong>{row?.total ?? 0}</strong>
-                <span className={`card-tag ${current ? 'on' : ''}`}>
-                  {current ? 'AL TIRO' : `${row?.turns ?? 0}/${config.turns} TURNI`}
+                <span className="n">{p.playingOrder}</span>
+                <Avatar name={name(p.tournamentEntryId)} size="md" />
+                <span className="nm">
+                  <b>
+                    {name(p.tournamentEntryId)}
+                    {top > 0 && row?.total === top && (
+                      <CrownIcon className="inline-crown" role="img" aria-label="In testa" />
+                    )}
+                  </b>
+                  <small>{current ? 'AL TIRO' : `${row?.turns ?? 0}/${config.turns} TURNI`}</small>
                 </span>
-              </article>
+                <strong>{row?.total ?? 0}</strong>
+              </li>
             );
           })}
-        </div>
+        </ol>
         {tournamentPaused && (
-          <p className="live-warning" role="status">
-            Torneo in pausa: riprendilo dalla pagina del torneo per registrare punteggi.
+          <p className="note warn" role="status">
+            <AlertTriangle aria-hidden="true" />
+            <span>
+              Torneo in pausa: riprendilo dalla pagina del torneo per registrare punteggi.
+            </span>
           </p>
         )}
         {live && (
           <>
-            <div className="score-center">
-              <div className="score-stage">
-                <div className="turn-row">
-                  <div className="turn-banner" aria-live="polite">
-                    <DartIcon />
-                    <span>TURNO DI {turn ? name(turn.participantId) : '—'}</span>
-                  </div>
+            <p className="turn-banner eb" aria-live="polite">
+              TURNO DI {turn ? name(turn.participantId) : '—'}
+            </p>
+            <div className="legacy-entry">
+              <Segmented
+                label="Modo di inserimento"
+                small
+                value={dartMode ? 'dart' : 'total'}
+                change={(id) => {
+                  setMode(id);
+                  entryMode.set(id);
+                  change('');
+                }}
+                options={[
+                  {
+                    id: 'total',
+                    label: 'Totale turno',
+                    disabled: darts.length > 0 || recovering || mutation.isPending,
+                  },
+                  {
+                    id: 'dart',
+                    label: `Per freccetta ×${config.dartsPerTurn}`,
+                    disabled: darts.length > 0 || recovering || mutation.isPending,
+                  },
+                ]}
+              />
+              <dl className="card stat3">
+                <div>
+                  <dt>MEDIA</dt>
+                  <dd>{active?.turns ? active.average.toFixed(1) : '—'}</dd>
                 </div>
-                <div className="paper-area">
-                  <PaintSplash className="paper-splash" />
-                  <div
-                    className={`score-paper ${dartMode ? 'darts' : ''} ${input ? '' : 'is-empty'}`}
-                  >
-                    <output
-                      aria-live="polite"
-                      aria-label={
-                        dartMode
-                          ? `Freccetta ${darts.length + 1} da confermare`
-                          : 'Totale turno da confermare'
-                      }
-                    >
-                      {shown}
-                    </output>
-                    {dartMode ? (
-                      <div className="dart-slots">
-                        {Array.from({ length: config.dartsPerTurn }, (_, k) => {
-                          const done = k < darts.length;
-                          const current = k === darts.length;
-                          return (
-                            <span key={k} className={done ? 'done' : current ? 'cur' : ''}>
-                              <small>F{k + 1}</small>
-                              {done ? darts[k] : current ? input || '·' : '–'}
-                            </span>
-                          );
-                        })}
-                        <b>= {darts.reduce((n, d) => n + d, 0) + Number(input || 0)}</b>
-                      </div>
-                    ) : (
-                      <span className="paper-caption">
-                        TOTALE TURNO · MAX {config.maxTurnScore}
-                      </span>
-                    )}
-                  </div>
-                  {recovering ? (
-                    <div className="recover" role="alert">
-                      <AlertTriangle aria-hidden="true" />
-                      <span>
-                        Invio non confermato
-                        {pendingValue !== null && (
-                          <>
-                            : <strong>{pendingValue}</strong>
-                          </>
-                        )}{' '}
-                        a {turn ? name(turn.participantId) : '—'}. Riprova con la stessa richiesta.
-                      </span>
-                    </div>
-                  ) : (
-                    <p
-                      className={`paper-tag ${flash || mutation.isPending ? 'shown' : ''} ${flash?.ok ? 'ok' : ''}`}
-                      role="status"
-                    >
-                      {mutation.isPending ? 'Salvataggio…' : flash?.text}
-                    </p>
-                  )}
+                <div>
+                  <dt>TURNI</dt>
+                  <dd>
+                    {active?.turns ?? 0}/{config.turns}
+                  </dd>
                 </div>
-              </div>
-              <div className="side-col">
-                <div className="entry-toggle" role="radiogroup" aria-label="Modo di inserimento">
-                  {(['total', 'dart'] as const).map((id) => (
-                    <button
-                      key={id}
-                      role="radio"
-                      aria-checked={(id === 'dart') === dartMode}
-                      aria-label={id === 'total' ? 'Totale turno' : 'Per freccetta'}
-                      disabled={darts.length > 0 || recovering || mutation.isPending}
-                      onClick={() => {
-                        setMode(id);
-                        entryMode.set(id);
-                        change('');
-                      }}
-                    >
-                      {id === 'total' ? 'TOT' : `×${config.dartsPerTurn}`}
-                    </button>
-                  ))}
+                <div>
+                  <dt>MIGLIOR GIRO</dt>
+                  <dd>{active?.turns ? active.bestTurn : '—'}</dd>
                 </div>
-                <dl className="stats">
-                  <div>
-                    <dt>MEDIA</dt>
-                    <dd>{active?.turns ? active.average.toFixed(1) : '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>TURNI</dt>
-                    <dd>
-                      {active?.turns ?? 0}/{config.turns}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>MIGLIOR GIRO</dt>
-                    <dd>{active?.turns ? active.bestTurn : '—'}</dd>
-                  </div>
-                </dl>
+              </dl>
+            </div>
+            <div className="paper">
+              <div>
+                <output
+                  aria-live="polite"
+                  aria-label={
+                    dartMode
+                      ? `Freccetta ${darts.length + 1} da confermare`
+                      : 'Totale turno da confermare'
+                  }
+                >
+                  {shown}
+                </output>
+                {dartMode ? (
+                  <small>
+                    {Array.from({ length: config.dartsPerTurn }, (_, k) =>
+                      k < darts.length ? darts[k] : k === darts.length ? input || '·' : '–',
+                    ).join(' + ')}{' '}
+                    = {darts.reduce((n, d) => n + d, 0) + Number(input || 0)}
+                  </small>
+                ) : (
+                  <small>TOTALE TURNO · MAX {config.maxTurnScore}</small>
+                )}
               </div>
             </div>
+            {recovering ? (
+              <p className="note warn" role="alert">
+                <AlertTriangle aria-hidden="true" />
+                <span>
+                  Invio non confermato
+                  {pendingValue !== null && (
+                    <>
+                      : <strong>{pendingValue}</strong>
+                    </>
+                  )}{' '}
+                  a {turn ? name(turn.participantId) : '—'}. Riprova con la stessa richiesta.
+                </span>
+              </p>
+            ) : (
+              <p
+                className={`paper-tag ${flash || mutation.isPending ? 'shown' : ''} ${flash?.ok ? 'ok' : ''}`}
+                role="status"
+              >
+                {mutation.isPending ? 'Salvataggio…' : flash?.text}
+              </p>
+            )}
             <NumberKeypad
               value={recovering ? '' : input}
               change={change}
               submit={confirm}
-              undo={askUndo}
               busy={busy}
-              canUndo={localDarts.length > 0 || undoable.length > 0}
               maximum={limit}
               locked={recovering}
               notify={(text) => setFlash({ text, ok: false })}
-              quick={dartMode ? quickDarts : quickTotals}
-              quickLabel={dartMode ? 'FRECCETTA' : 'COLPI RAPIDI'}
               limitLabel={`Massimo ${limit} ${dartMode ? 'per freccetta' : 'per turno'}`}
-              okLabel={
-                recovering
-                  ? 'Riprova invio'
-                  : dartMode
-                    ? lastDart
-                      ? 'Conferma ultima freccetta e chiudi il turno'
-                      : `Conferma freccetta ${darts.length + 1}`
-                    : 'Conferma totale e chiudi il turno'
-              }
             />
           </>
         )}
         {m.status === 'completed' && (
-          <section className="match-panel done">
+          <section className="card pad">
             <div className="panel-head">
-              <span className="panel-icon">
-                <CrownIcon />
-              </span>
+              <CrownIcon />
               <div>
                 <h2>Incontro terminato</h2>
                 <p>
@@ -432,11 +407,16 @@ export function Live() {
                 </p>
               </div>
             </div>
-            <ol className="final-rows" aria-label="Classifica dell’incontro">
+            <ol className="list" aria-label="Classifica dell’incontro">
               {ranked.map((p, i) => (
-                <li key={p.tournamentEntryId} className={i === 0 ? 'first' : ''}>
-                  <span>{p.placement ?? i + 1}</span>
-                  <span>{name(p.tournamentEntryId)}</span>
+                <li key={p.tournamentEntryId} className={`rk ${i === 0 ? 'gold' : ''}`}>
+                  <span className={`n r${Math.min(4, p.placement ?? i + 1)}`}>
+                    {p.placement ?? i + 1}
+                  </span>
+                  <Avatar name={name(p.tournamentEntryId)} size="md" />
+                  <span className="nm">
+                    <b>{name(p.tournamentEntryId)}</b>
+                  </span>
                   <strong>{p.finalScore ?? 0}</strong>
                 </li>
               ))}
@@ -445,11 +425,13 @@ export function Live() {
               Risultato dell’incontro. Qualificazione e vincitore ufficiale si confermano nel
               torneo.
             </p>
-            <Link className="primary button" to={back}>
+            <Link className="btn cta" to={back}>
               VAI ALLA CLASSIFICA
             </Link>
             <div className="pair">
               <button
+                type="button"
+                className="btn"
                 disabled={mutation.isPending || !undoable.length}
                 onClick={() => {
                   setReason('');
@@ -458,18 +440,16 @@ export function Live() {
               >
                 Annulla ultimo turno
               </button>
-              <Link className="button" to="/partite/nuova">
+              <Link className="btn" to="/partite/nuova">
                 Nuova partita
               </Link>
             </div>
           </section>
         )}
         {m.status === 'paused' && (
-          <section className="match-panel">
+          <section className="card pad">
             <div className="panel-head">
-              <span className="panel-icon warning">
-                <Pause fill="currentColor" />
-              </span>
+              <Pause fill="currentColor" className="warning-icon" />
               <div>
                 <h2>Incontro in pausa</h2>
                 <p>
@@ -482,7 +462,8 @@ export function Live() {
               può registrare finché l’incontro è in pausa.
             </p>
             <button
-              className="primary"
+              type="button"
+              className="btn cta"
               disabled={mutation.isPending || tournamentPaused}
               onClick={() => run({ type: 'resume' })}
             >
@@ -491,11 +472,9 @@ export function Live() {
           </section>
         )}
         {['ready', 'scheduled'].includes(m.status) && (
-          <section className="match-panel">
+          <section className="card pad">
             <div className="panel-head">
-              <span className="panel-icon">
-                <DartIcon />
-              </span>
+              <DartIcon />
               <div>
                 <h2>Incontro pronto</h2>
                 <p>
@@ -509,7 +488,8 @@ export function Live() {
               bersaglio è libero.
             </p>
             <button
-              className="primary"
+              type="button"
+              className="btn cta"
               disabled={mutation.isPending || tournamentPaused}
               onClick={() => run({ type: 'start' })}
             >
@@ -519,12 +499,14 @@ export function Live() {
         )}
         <ErrorMessage error={query.error ?? mutation.error} />
         {!live && flash && (
-          <p className="live-feedback" role="status">
+          <p className="hint" role="status">
             {flash.text}
           </p>
         )}
         <section className="recent" aria-labelledby="recent-title">
-          <h2 id="recent-title">ULTIMI PUNTEGGI</h2>
+          <h2 id="recent-title" className="set-h">
+            Ultimi punteggi
+          </h2>
           <ol>
             {Array.from({ length: 5 }, (_, index) => {
               const x = recent[index];
@@ -544,8 +526,10 @@ export function Live() {
           </ol>
         </section>
         {live && recovering && sharedApi && (
-          <div className="recover-actions">
+          <div className="pair">
             <button
+              type="button"
+              className="btn"
               disabled={mutation.isPending}
               onClick={async () => {
                 // The server is the reference: re-read it, then forget the unconfirmed send.
@@ -559,22 +543,83 @@ export function Live() {
             >
               Ricarica stato
             </button>
-            <button className="warning" disabled={mutation.isPending} onClick={confirm}>
+            <button
+              type="button"
+              className="btn warn"
+              disabled={mutation.isPending}
+              onClick={confirm}
+            >
               RIPROVA INVIO
             </button>
           </div>
         )}
       </main>
+      {live && (
+        <div className="actionbar">
+          <div className="acts pair">
+            <button
+              type="button"
+              className="btn undo"
+              aria-label="Annulla ultimo punteggio"
+              disabled={busy || !(localDarts.length > 0 || undoable.length > 0)}
+              onClick={askUndo}
+            >
+              <Undo2 aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn cta"
+              disabled={busy || (input === '' && !recovering)}
+              aria-label={
+                recovering
+                  ? 'Riprova invio'
+                  : dartMode
+                    ? lastDart
+                      ? 'Conferma ultima freccetta e chiudi il turno'
+                      : `Conferma freccetta ${darts.length + 1}`
+                    : 'Conferma totale e chiudi il turno'
+              }
+              onClick={confirm}
+            >
+              {recovering
+                ? 'Riprova invio'
+                : dartMode
+                  ? lastDart
+                    ? 'Chiudi il turno'
+                    : `Freccetta ${darts.length + 1}`
+                  : 'Conferma totale'}
+            </button>
+          </div>
+        </div>
+      )}
       {undoOpen && (
-        <Modal title="Annullare l’ultimo punteggio?" close={() => setUndoOpen(false)}>
+        <Modal
+          title="Annullare l’ultimo punteggio?"
+          close={() => setUndoOpen(false)}
+          footer={
+            <>
+              <button type="button" className="btn ghost" onClick={() => setUndoOpen(false)}>
+                Lascia com’è
+              </button>
+              <button
+                type="button"
+                className="btn cta"
+                disabled={!reason || !undoTarget || mutation.isPending}
+                onClick={() => run({ type: 'undo', reason })}
+              >
+                ANNULLA E RIAPRI IL TURNO
+              </button>
+            </>
+          }
+        >
           <p>
             {undoTarget
               ? `Verranno rimossi ${undoTarget.total} punti di ${name(undoTarget.turn.participantId)} e il suo turno sarà riaperto.`
               : 'Nessun punteggio da annullare.'}
           </p>
           <fieldset className="reasons">
-            <legend>Motivo (obbligatorio, resta nello storico)</legend>
-            <div>
+            <legend className="field-l">Motivo (obbligatorio, resta nello storico)</legend>
+            <div className="chips">
               {undoReasons.map((r) => (
                 <button
                   key={r}
@@ -589,14 +634,6 @@ export function Live() {
             </div>
           </fieldset>
           <ErrorMessage error={mutation.error} />
-          <button
-            className="primary"
-            disabled={!reason || !undoTarget || mutation.isPending}
-            onClick={() => run({ type: 'undo', reason })}
-          >
-            ANNULLA E RIAPRI IL TURNO
-          </button>
-          <button onClick={() => setUndoOpen(false)}>Lascia com’è</button>
         </Modal>
       )}
       {historyOpen && (
@@ -619,7 +656,8 @@ export function Live() {
                     </span>
                     <strong>{x.total}</strong>
                     <button
-                      className="small"
+                      type="button"
+                      className="btn sm"
                       onClick={() => {
                         setEditing(open ? null : x.turn.id);
                         setFix({ values: x.scores.map((s) => String(s.score)), reason: '' });
@@ -662,7 +700,7 @@ export function Live() {
                         value={fix.reason}
                         onChange={(e) => setFix({ ...fix, reason: e.target.value })}
                       />
-                      <button className="save" disabled={fixInvalid || mutation.isPending}>
+                      <button className="btn sm cta" disabled={fixInvalid || mutation.isPending}>
                         Salva
                       </button>
                     </form>
@@ -679,7 +717,8 @@ export function Live() {
           </p>
           {live && (
             <button
-              className="warning-outline"
+              type="button"
+              className="btn warn-outline"
               disabled={mutation.isPending}
               onClick={() => run({ type: 'pause' })}
             >

@@ -9,6 +9,8 @@ async function controlled(page: Page) {
 /** A two-player Hi-Score match, left with the first player's total saved. */
 async function matchInProgress(page: Page, names: [string, string]) {
   await page.goto('/partite/nuova');
+  await chooseTracking(page, 'Solo finale');
+  await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await page.getByRole('button', { name: 'Aggiungi giocatore' }).click();
   const field = page.getByLabel('Cerca tra i giocatori del locale');
   for (const name of names) {
@@ -17,9 +19,7 @@ async function matchInProgress(page: Page, names: [string, string]) {
     await expect(field).toHaveValue('');
   }
   await page.getByRole('button', { name: 'Chiudi', exact: true }).click();
-  await chooseTracking(page, 'Solo finale');
-  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
-  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
+  await page.getByRole('button', { name: 'Avvia partita' }).click();
   await score(page, names[0], 620);
   await expect(banner(page)).toHaveText(`PUNTEGGIO DI ${names[1]}`);
   return page.url();
@@ -28,9 +28,11 @@ async function score(page: Page, player: string, value: number) {
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeEnabled();
   await page.keyboard.type(String(value));
   await page.getByRole('button', { name: `Conferma il punteggio di ${player}` }).click();
-  await expect(page.locator('.score-card').filter({ hasText: player })).toContainText(
-    String(value),
-  );
+  const row = page
+    .locator('.result-rows .rk, .result-done .rk, .pod li')
+    .filter({ has: page.getByText(player, { exact: true }) })
+    .first();
+  await expect(row.locator(':scope > strong, :scope > b')).toHaveText(String(value));
 }
 
 test('starts, navigates and saves scores offline after the first visit', async ({
@@ -43,9 +45,7 @@ test('starts, navigates and saves scores offline after the first visit', async (
   await controlled(page);
   const matchUrl = await matchInProgress(page, ['Ugo', 'Vera']);
   await page.goto('/impostazioni');
-  await expect(page.locator('.settings-row', { hasText: 'Uso senza connessione' })).toContainText(
-    'Pronta',
-  );
+  await expect(page.locator('.row', { hasText: 'Uso senza connessione' })).toContainText('PRONTO');
 
   await context.setOffline(true);
   await page.reload();
@@ -57,13 +57,13 @@ test('starts, navigates and saves scores offline after the first visit', async (
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
-  await expect(page.locator('.final-rows li.first')).toContainText('Ugo');
+  await expect(page.locator('.result-head')).toContainText('Vince Ugo!');
   // In-app navigation and further deep links, still offline.
   await page.getByRole('link', { name: 'Indietro' }).click();
   await page.getByRole('link', { name: 'Giocatori' }).click();
   await expect(page.getByRole('button', { name: /Vera/ })).toBeVisible();
   await page.goto('/tornei');
-  await expect(page.getByRole('link', { name: /Partita libera/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Hi-Score ·/ })).toBeVisible();
   await page.goto('/pagina-che-non-esiste');
   await expect(page.getByRole('heading', { name: 'Pagina non trovata' })).toBeVisible();
   // The backup is exported without network too, and holds the match just played.
@@ -132,8 +132,8 @@ test('a new version waits for a safe moment and keeps the data', async ({ page }
     const reloaded = page.waitForEvent('load');
     await notice.getByRole('button', { name: 'Aggiorna' }).click();
     await reloaded;
-    await expect(page.getByRole('link', { name: /Partita libera/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Partita libera/ })).toContainText('CONCLUSO');
+    await expect(page.getByRole('link', { name: /Hi-Score ·/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Hi-Score ·/ })).toContainText('CONCLUSO');
     await expect(page.getByText('Nuova versione disponibile')).toHaveCount(0);
     expect(
       await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting),

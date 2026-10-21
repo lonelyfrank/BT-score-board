@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangle, Pause, Play, SkipForward, Undo2 } from 'lucide-react';
+import { Pause, Play, SkipForward, Undo2 } from 'lucide-react';
 import { ErrorMessage, Modal } from './ui';
 import { api, type Match } from '../services/api';
 
@@ -46,7 +46,7 @@ export function RotationManager({
     rotate.mutate(action);
   };
   return (
-    <div className="rotation-bar" aria-label="Rotazione della squadra">
+    <div className="rotation" aria-label="Rotazione della squadra">
       <span className="rotation-now">
         {view.paused ? (
           'Rotazione libera'
@@ -114,8 +114,29 @@ export function ScoreReconciliation({
 }) {
   const [reason, setReason] = useState('');
   return (
-    <Modal variant="dialog" tone="warning" alert title="Risultato diverso dai round" close={close}>
-      <AlertTriangle aria-hidden="true" className="warning-icon" />
+    <Modal
+      variant="dialog"
+      tone="warning"
+      alert
+      title="Risultato diverso dai round"
+      close={close}
+      footer={
+        <>
+          <button
+            className="btn cta"
+            disabled={busy || !reason.trim()}
+            onClick={() =>
+              confirm(Object.fromEntries(differences.map((d) => [d.entryId, reason.trim()])))
+            }
+          >
+            CONFERMA IL VALORE DEL TOTEM
+          </button>
+          <button className="btn" disabled={busy} onClick={review}>
+            Rivedi i round
+          </button>
+        </>
+      }
+    >
       <ul className="consequences">
         {differences.map((d) => (
           <li key={d.entryId}>
@@ -138,18 +159,6 @@ export function ScoreReconciliation({
         />
       </label>
       <ErrorMessage error={error} />
-      <button
-        className="primary"
-        disabled={busy || !reason.trim()}
-        onClick={() =>
-          confirm(Object.fromEntries(differences.map((d) => [d.entryId, reason.trim()])))
-        }
-      >
-        CONFERMA IL VALORE DEL TOTEM
-      </button>
-      <button disabled={busy} onClick={review}>
-        Rivedi i round
-      </button>
     </Modal>
   );
 }

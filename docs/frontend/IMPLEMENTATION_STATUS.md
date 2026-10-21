@@ -1,5 +1,7 @@
 # Stato integrazione frontend — aggiornato alla V1.2 (20 ottobre 2026)
 
+> **V1.4 Mobile-first (21 ottobre 2026):** l'interfaccia segue il canvas «BT Darts V1.4 · Mobile-first» (una schermata, un'attività; wizard del torneo a 5 passi, Nuova partita in 2 passi, Regole del totem). Dettagli, scelte e verifiche: [report V1.4](../release/V1_4_MOBILE_FIRST.md). Le descrizioni delle schermate più sotto restano lo storico delle versioni precedenti.
+
 Il frontend usa il motore reale (locale o server); nessun risultato simulato. Dalla Fase 2 l'app registra i risultati finali degli otto giochi del totem Pub Time Darts; non conta dardi né turni. Le sezioni datate più sotto sono lo storico delle fasi precedenti: dove contraddicono questa, vale questa.
 
 ## Stato V1.2 — Operational Readiness

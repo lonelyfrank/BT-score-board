@@ -15,7 +15,7 @@ export function TournamentDetail() {
     return (
       <>
         <Header title="Torneo" back="/tornei" />
-        <main className="content">
+        <main>
           <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         </main>
       </>

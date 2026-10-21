@@ -1,0 +1,335 @@
+/* Giocatori, Game Night, Impostazioni e Regole del totem. */
+
+/* ---- Regole del totem ---- */
+.rule-games {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.rule-games .htab {
+  min-height: 52px;
+}
+main.rules {
+  padding-top: 2px;
+}
+.rule-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rule-steps li {
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--bt-text-soft);
+}
+.rule-steps li > span:first-child {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--bt-radius-sm);
+  background: var(--bt-accent-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bt-accent-bright);
+  font: 17px var(--bt-font-score);
+}
+.lights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.lights li {
+  padding: 10px;
+  border: 1px solid #8a2028;
+  border-radius: var(--bt-radius-md);
+  background: #3a0d12;
+}
+.lights b {
+  display: block;
+  font: 600 16px var(--bt-font-display);
+  color: #ff9aa2;
+}
+.lights small {
+  font-size: 14px;
+  color: var(--bt-text-muted);
+}
+.lights .green {
+  border-color: #12735a;
+  background: #0a2a22;
+}
+.lights .green b {
+  color: #6ff0c6;
+}
+.lights .gold {
+  border-color: #a8701a;
+  background: #2e1d06;
+}
+.lights .gold b {
+  color: #ffc65c;
+}
+dl.card {
+  margin: 0;
+}
+dl.card dd {
+  margin: 0;
+}
+.rule-card {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rule-card header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rule-card header > span {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--bt-radius-lg);
+  background: var(--bt-accent-primary);
+  box-shadow: var(--bt-glow-cta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font: 24px var(--bt-font-score);
+}
+.rule-card h2 {
+  font: 500 26px/1.1 var(--bt-font-display);
+}
+.rule-card > p {
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--bt-text-soft);
+}
+.rule-box {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 35, 139, 0.35);
+  border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-selected);
+}
+.rule-box b {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  color: var(--bt-accent-soft);
+}
+.rule-box span {
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--bt-text-soft);
+}
+
+/* ---- Giocatori ---- */
+.pl.off {
+  opacity: 0.6;
+}
+.pl > svg:last-child {
+  justify-self: end;
+  width: 18px;
+  height: 18px;
+  color: var(--bt-text-secondary);
+}
+.avatar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatches button {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+}
+.swatches button[aria-checked='true'] {
+  border-color: #fff;
+}
+.swatches .auto {
+  background: var(--bt-surface-card);
+  color: var(--bt-text-secondary);
+  font: 600 13px var(--bt-font-display);
+}
+.stat3 strong.gold {
+  color: var(--bt-warning);
+}
+.mode-stats strong {
+  color: var(--bt-warning);
+}
+.sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---- Game Night ---- */
+.event.live {
+  border-color: var(--bt-accent-primary);
+}
+.event-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.date-tile {
+  width: 52px;
+  flex: none;
+  padding: 6px 0;
+  border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.date-tile small {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--bt-accent-soft);
+}
+.date-tile strong {
+  font: 26px/1 var(--bt-font-score);
+}
+.event-title {
+  flex: 1;
+  min-width: 0;
+}
+.event-title h2 {
+  font: 500 20px/1.15 var(--bt-font-display);
+}
+
+/* ---- Impostazioni ---- */
+main.settings {
+  padding-top: 4px;
+}
+.backup.warn {
+  border-color: var(--bt-warning);
+}
+.backup .sec-h h2 {
+  font-size: 21px;
+}
+.backup-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.backup-facts .field-l {
+  display: block;
+  font-size: 11px;
+}
+.backup-facts b {
+  font-size: 18px;
+  font-weight: 600;
+}
+.backup-facts strong {
+  font: 22px var(--bt-font-score);
+}
+.backup-facts strong.warn {
+  color: var(--bt-warning);
+}
+.backup-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.backup-actions .btn {
+  min-height: 48px;
+  font-size: 18px;
+}
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.row-title {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+}
+.row .hint {
+  display: block;
+}
+.access.on {
+  border-color: rgba(0, 185, 135, 0.5);
+}
+.access-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.access-head h2 {
+  font: 500 21px var(--bt-font-display);
+}
+.access-head span[role='status'] {
+  font-size: 15px;
+  color: var(--bt-text-secondary);
+}
+.access-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bt-warning);
+}
+.access.on .access-icon {
+  color: var(--bt-success-bright);
+}
+.access-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 16px;
+}
+.access-facts dt {
+  color: var(--bt-text-secondary);
+}
+.access-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+.token-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+}
+.dot-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bt-text-disabled);
+}
+.dot.ok {
+  background: var(--bt-success-bright);
+}
+.dot.off {
+  background: var(--bt-accent-primary);
+}

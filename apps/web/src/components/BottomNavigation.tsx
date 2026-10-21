@@ -1,18 +1,31 @@
 import { Fragment, useLayoutEffect, useRef } from 'react';
 import type { CSSProperties, PointerEvent, ReactNode } from 'react';
-import { matchPath, NavLink, useLocation } from 'react-router-dom';
-import { ChartNoAxesColumnIncreasing, Home, Trophy, Users } from 'lucide-react';
-import { DartIcon } from './BrandIcons';
+import { Link, useLocation } from 'react-router-dom';
+import { ChartNoAxesColumnIncreasing, Crosshair, Home, Trophy, Users } from 'lucide-react';
 import { glassMap } from './glass-map';
 import '../styles/bottom-navigation.css';
 
 export const navigationDestinations = [
   ['/', 'Home', Home],
-  ['/partite/nuova', 'Partite', DartIcon],
+  ['/partite/nuova', 'Partite', Crosshair],
   ['/tornei', 'Tornei', Trophy],
   ['/hiscore', 'Hi-Score', ChartNoAxesColumnIncreasing],
   ['/giocatori', 'Giocatori', Users],
 ] as const;
+/** Sections of each destination: the pages opened from Home belong to Home. */
+const sections = [
+  ['/', '/regole', '/serate', '/impostazioni'],
+  ['/partite'],
+  ['/tornei'],
+  ['/hiscore'],
+  ['/giocatori'],
+];
+const sectionOf = (pathname: string) =>
+  sections.findIndex((paths) =>
+    paths.some((p) =>
+      p === '/' ? pathname === '/' : pathname === p || pathname.startsWith(`${p}/`),
+    ),
+  );
 
 /*
  * CSS.supports checks syntax, not SVG backdrop compositing: Safari (iOS Chrome included) and
@@ -146,7 +159,7 @@ export function NavigationSurface({
         const nav = e.currentTarget;
         nav.classList.add('pressed');
         follow(nav, e);
-        if (item.matches('[aria-current="page"], [aria-pressed="true"]'))
+        if (item.matches('[aria-current], [aria-pressed="true"]'))
           blob.current?.classList.add('bloom');
         else item.classList.add('is-pressed');
       }}
@@ -173,25 +186,24 @@ export function NavigationSurface({
 
 export function BottomNavigation() {
   const { pathname } = useLocation();
-  const current = navigationDestinations.findIndex(([path]) =>
-    matchPath({ path, end: path === '/' }, pathname),
-  );
+  const current = sectionOf(pathname);
   return (
     <>
       <GlassFilters />
       <div className="nav-scrim" aria-hidden="true" />
       <NavigationSurface current={current} className="bottom-nav">
-        {navigationDestinations.map(([url, name, Icon]) => (
-          <NavLink
+        {navigationDestinations.map(([url, name, Icon], i) => (
+          <Link
             className="bt-nav-item"
             key={url}
             to={url}
-            end={url === '/'}
+            // The destination itself, or a page inside its section.
+            aria-current={i !== current ? undefined : pathname === url ? 'page' : 'location'}
             onClick={() => navigator.vibrate?.(8)}
           >
             <Icon aria-hidden="true" strokeWidth={Icon === ChartNoAxesColumnIncreasing ? 2.4 : 2} />
             <span>{name}</span>
-          </NavLink>
+          </Link>
         ))}
       </NavigationSurface>
     </>

@@ -1,20 +1,33 @@
 import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Trophy, ChevronRight, ChevronUp, AlertTriangle, Plus, X } from 'lucide-react';
-import { CrownIcon, TrophyEmblem } from '../components/BrandIcons';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ChartNoAxesColumnIncreasing,
+  ChevronRight,
+  ChevronUp,
+  Grid2x2Plus,
+  HardDriveDownload,
+  MoreHorizontal,
+  Play,
+  Plus,
+  Target,
+  X,
+} from 'lucide-react';
 import {
   api,
   localData,
   pollInterval,
   type Player,
   type Standings,
+  type Summary,
   type Tournament,
   type TournamentAction,
 } from '../services/api';
-import { tournamentPath } from '../services/session';
+import { activeSession, recentResults, tournamentPath } from '../services/session';
 import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
+  AddButton,
   Avatar,
   Empty,
   ErrorMessage,
@@ -25,6 +38,7 @@ import {
   StatusChip,
   statusLabel,
   tournamentTone,
+  type Tone,
 } from '../components/ui';
 import { AddPlayerSheet } from '../components/PlayerSheets';
 
@@ -34,30 +48,90 @@ export type TMatch = Tournament['matches'][number];
 
 type Archive = 'all' | 'open' | 'done';
 const isOpen = (status: string) => !['completed', 'cancelled'].includes(status);
+const dateOf = (iso: string) =>
+  new Date(iso).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
 
+/** Tornei, or with `highscore` the Hi-Score Nights: tonight's first, then the archive. */
 export function TournamentList({ highscore = false }: { highscore?: boolean }) {
+  const [params, setParams] = useSearchParams();
   const [offset, setOffset] = useState(0);
-  const [archive, setArchive] = useState<Archive>('all');
+  const filter =
+    (['all', 'open', 'done'] as const).find((f) => f === params.get('filtro')) ?? 'all';
+  const setFilter = (f: Archive) => setParams(f === 'all' ? {} : { filtro: f }, { replace: true });
   const query = useQuery({
     queryKey: ['tournaments', offset],
     queryFn: () => api.tournaments(offset),
   });
-  const items = query.data?.items.filter(
-    (t) =>
-      (!highscore || t.mode === 'QUICK_HIGH_SCORE') &&
-      (archive === 'all' || (archive === 'open') === isOpen(t.status)),
-  );
+  const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
+  const recent = useQuery({ queryKey: ['recent-results'], queryFn: () => recentResults(api) });
+  const live = session.data?.tournament;
+  const all = (query.data?.items ?? []).filter((t) => !highscore || t.mode === 'QUICK_HIGH_SCORE');
+  const items = all.filter((t) => filter === 'all' || (filter === 'open') === isOpen(t.status));
+  const winner = (id: string) => recent.data?.find((r) => r.summary.id === id)?.winner;
+  const groupOf = (t: Summary) =>
+    t.id === live?.id
+      ? highscore
+        ? 'Stasera'
+        : 'Al bersaglio'
+      : isDraft(t as Tournament)
+        ? 'Iscrizioni aperte'
+        : isOpen(t.status)
+          ? 'In corso'
+          : highscore
+            ? 'Concluse'
+            : 'Archivio';
+  const order = highscore
+    ? ['Stasera', 'In corso', 'Iscrizioni aperte', 'Concluse']
+    : ['Al bersaglio', 'In corso', 'Iscrizioni aperte', 'Archivio'];
+  const groups = order
+    .map((label) => ({ label, items: items.filter((t) => groupOf(t) === label) }))
+    .filter((g) => g.items.length);
+  const open = all.filter((t) => isOpen(t.status)).length;
+  const sub = (t: Summary) => {
+    if (t.id === live?.id && session.data) {
+      const s = session.data;
+      return [
+        formatLabel(t.mode),
+        s.next?.heat ? `Manche ${s.next.heat.number} di ${s.next.heat.of}` : null,
+        `${s.playersIn} giocatori`,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+    }
+    const w = winner(t.id);
+    if (w) return `Vince ${w} · ${gameOf(t).label}`;
+    return `${dateOf(t.createdAt)} · ${gameOf(t).label} · ${formatLabel(t.mode)}`;
+  };
+  const chip = (t: Summary): [string, Tone] =>
+    t.id === live?.id && t.status === 'active'
+      ? ['LIVE', 'live']
+      : isDraft(t as Tournament)
+        ? ['BOZZA', 'neutral']
+        : t.status === 'completed'
+          ? [highscore ? 'CONCLUSA' : 'CONCLUSO', 'success']
+          : [statusLabel(t.status).toUpperCase(), tournamentTone(t.status)];
   return (
     <>
-      <Header title={highscore ? 'Hi-Score Nights' : 'Tornei'} />
+      <Header
+        title={highscore ? 'Hi-Score Nights' : 'Tornei'}
+        subtitle={
+          highscore
+            ? 'Qualifica a manche + finale'
+            : `${open} in corso · ${all.length - open} conclusi`
+        }
+        back={null}
+        action={
+          <AddButton
+            label={highscore ? 'Nuova Hi-Score Night' : 'Nuovo torneo'}
+            to="/tornei/nuovo"
+          />
+        }
+      />
       <div className="toolbar">
-        <Link className="primary button cta" to="/tornei/nuovo">
-          <Trophy className="cta-icon" fill="currentColor" /> NUOVO TORNEO
-        </Link>
         <Segmented
-          label="Archivio"
-          value={archive}
-          change={setArchive}
+          label={highscore ? 'Filtro serate' : 'Filtro tornei'}
+          value={filter}
+          change={setFilter}
           options={[
             { id: 'all', label: 'Tutti' },
             { id: 'open', label: 'In corso' },
@@ -65,47 +139,81 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
           ]}
         />
       </div>
-      <main className="content with-graffiti">
+      <main className="lists">
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
-        <div className="tournament-list">
-          {items?.map((t) => (
-            <Link className="event-card" key={t.id} to={tournamentPath(t)}>
-              <TrophyEmblem />
-              <div>
-                <div className="ec-top">
-                  <h2>{t.name}</h2>
-                  <StatusChip tone={tournamentTone(t.status)}>
-                    {statusLabel(t.status).toUpperCase()}
-                  </StatusChip>
+        {groups.map((g) => (
+          <section key={g.label} className="list" aria-labelledby={`g-${g.label}`}>
+            <h2 className="group-l" id={`g-${g.label}`}>
+              {g.label}
+            </h2>
+            {g.items.map((t) => {
+              const [label, tone] = chip(t);
+              const isLive = t.id === live?.id;
+              return (
+                <div key={t.id} className="list">
+                  <Link className={`tcard ${isLive ? 'live' : ''}`} to={tournamentPath(t)}>
+                    <span className="ti" aria-hidden="true">
+                      {t.mode === 'QUICK_HIGH_SCORE' ? (
+                        <ChartNoAxesColumnIncreasing />
+                      ) : t.mode === 'GROUPS' ? (
+                        <Grid2x2Plus />
+                      ) : (
+                        <Target />
+                      )}
+                    </span>
+                    <span className="body">
+                      <span className="top">
+                        <h3>{t.name}</h3>
+                        <StatusChip tone={tone}>{label}</StatusChip>
+                      </span>
+                      <p>{sub(t)}</p>
+                      {isLive && highscore && session.data?.next?.heat && (
+                        <span className="pips" aria-hidden="true">
+                          {Array.from({ length: session.data.next.heat.of }, (_, i) => (
+                            <i
+                              key={i}
+                              className={
+                                i + 1 < session.data!.next!.heat!.number
+                                  ? 'done'
+                                  : i + 1 === session.data!.next!.heat!.number
+                                    ? 'on'
+                                    : ''
+                              }
+                            />
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronRight aria-hidden="true" />
+                  </Link>
+                  {isLive && highscore && <TonightStats t={live!} />}
                 </div>
-                <p>
-                  {new Date(t.createdAt).toLocaleDateString('it-IT', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}{' '}
-                  · {gameOf(t).label} · {formatLabel(t.mode)}
-                </p>
-              </div>
-              <ChevronRight />
-            </Link>
-          ))}
-        </div>
-        {items && !items.length && (
+              );
+            })}
+          </section>
+        ))}
+        {query.data && !items.length && (
           <Empty title="Il bersaglio vi aspetta">
             <p>
-              Nessun torneo {highscore ? 'Hi-Score ' : ''}in questa pagina. Crea il prossimo evento
-              del locale.
+              Nessun {highscore ? 'Hi-Score Night' : 'torneo'} in questa vista. Crea il prossimo
+              evento del locale.
             </p>
           </Empty>
         )}
         {query.data && query.data.total > 100 && (
-          <div className="pagination">
-            <button disabled={!offset} onClick={() => setOffset(offset - 100)}>
+          <div className="pair">
+            <button
+              type="button"
+              className="btn"
+              disabled={!offset}
+              onClick={() => setOffset(offset - 100)}
+            >
               Precedenti
             </button>
             <button
+              type="button"
+              className="btn"
               disabled={offset + 100 >= query.data.total}
               onClick={() => setOffset(offset + 100)}
             >
@@ -115,6 +223,45 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
         )}
       </main>
     </>
+  );
+}
+
+/** Tonight's Hi-Score Night: who leads, the score that gets into the final, what is left. */
+function TonightStats({ t }: { t: Tournament }) {
+  const standings = useQuery({ queryKey: ['standings', t.id], queryFn: () => api.standings(t.id) });
+  const qual = t.stages.find((s) => s.kind === 'qualification' && s.status !== 'invalidated');
+  const match = t.matches.find((m) => m.stageId === qual?.id && m.matchType === 'qualification');
+  const table = standings.data?.find((r) => r.targetId === match?.id);
+  const rows = (table?.rows ?? []).filter((r) => r.recorded);
+  const cut = t.tournamentConfiguration.qualifiers;
+  const heats = match?.heats.filter((h) => h.status !== 'cancelled') ?? [];
+  const left = heats.filter((h) => h.status !== 'completed');
+  const waiting = heats
+    .filter((h) => h.status === 'pending' || h.status === 'ready')
+    .reduce((n, h) => n + h.entryIds.length, 0);
+  if (!table) return null;
+  return (
+    <div className="card stat3">
+      <div>
+        <small>In testa</small>
+        <span className="name">{rows[0] ? entryName(t, rows[0].tournamentEntryId) : '—'}</span>
+        <strong>{rows[0]?.total ?? '—'}</strong>
+      </div>
+      <div>
+        <small>Soglia top {cut}</small>
+        <span className="name">
+          {rows[cut - 1] ? entryName(t, rows[cut - 1]!.tournamentEntryId) : '—'}
+        </span>
+        <strong className="accent">{rows[cut - 1]?.total ?? '—'}</strong>
+      </div>
+      <div>
+        <small>Mancano</small>
+        <span className="name">
+          {left.length} {left.length === 1 ? 'manche' : 'manche'}
+        </span>
+        <strong className="muted">{waiting}</strong>
+      </div>
+    </div>
   );
 }
 
@@ -193,21 +340,33 @@ export function blockingTies(rows: Row[], cut: number, withinCut = false) {
 export function Podium({ t }: { t: Tournament }) {
   const placed = [...t.results].sort((a, b) => a.finalPlacement - b.finalPlacement);
   const order = [placed[1], placed[0], placed[2]];
+  const first = placed[0];
+  const value = (r: (typeof placed)[number]) =>
+    t.gameMode === 'HI_SCORE' ? r.points : `${r.finalPlacement}°`;
   return (
-    <section className="podium" aria-labelledby="podium-title">
-      <h2 id="podium-title">Risultato ufficiale</h2>
-      <ol>
+    <section className="result-done" aria-labelledby="podium-title">
+      <div className="result-head">
+        <span className="marker">
+          {first ? `Vince ${entryName(t, first.tournamentEntryId).split(' ')[0]}!` : 'Risultato'}
+        </span>
+        <StatusChip tone="success">RISULTATO UFFICIALE</StatusChip>
+      </div>
+      <h2 id="podium-title" className="visually-hidden">
+        Risultato ufficiale
+      </h2>
+      <ol className="pod" aria-label="Podio">
         {order.map(
-          (r) =>
+          (r, i) =>
             r && (
-              <li key={r.tournamentEntryId} className={`place-${r.finalPlacement}`}>
-                {r.finalPlacement === 1 && <CrownIcon className="podium-crown" />}
-                <Avatar name={entryName(t, r.tournamentEntryId)} />
+              <li key={r.tournamentEntryId} className={`p${[2, 1, 3][i]}`}>
+                <Avatar
+                  name={entryName(t, r.tournamentEntryId)}
+                  size={i === 1 ? undefined : 'sm'}
+                  className={i === 1 ? 'gold' : ''}
+                />
                 <span>{entryName(t, r.tournamentEntryId)}</span>
-                {t.gameMode === 'HI_SCORE' && <small>{r.points} pt</small>}
-                <span className="podium-step" aria-label={`${r.finalPlacement}° posto`}>
-                  {r.finalPlacement}
-                </span>
+                <b>{value(r)}</b>
+                <small aria-label={`${r.finalPlacement}° posto`}>{r.finalPlacement}°</small>
               </li>
             ),
         )}
@@ -216,84 +375,48 @@ export function Podium({ t }: { t: Tournament }) {
   );
 }
 
-/** Official placements with the statistics of each player's last match. */
+/** Official placements; Hi-Score with the score of each player's last match. */
 export function ResultsTable({ t }: { t: Tournament }) {
   const placed = [...t.results].sort((a, b) => a.finalPlacement - b.finalPlacement);
-  if (isResultRecording(t))
-    return (
-      <div className="table-scroll">
-        <table>
-          <caption>
-            Piazzamenti finali{t.gameMode === 'HI_SCORE' ? ' · punteggio dell’ultima partita' : ''}
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Pos</th>
-              <th scope="col">Giocatore</th>
-              {t.gameMode === 'HI_SCORE' && (
-                <th scope="col" className="num">
-                  Punti
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {placed.map((r) => (
-              <tr key={r.tournamentEntryId} className={`rank-${r.finalPlacement}`}>
-                <td className="pos">{r.finalPlacement}</td>
-                <td>
-                  {entryName(t, r.tournamentEntryId)}
-                  {t.entries.find((e) => e.id === r.tournamentEntryId)?.status === 'withdrawn' && (
-                    <small className="tie-tag">RITIRATO</small>
-                  )}
-                </td>
-                {t.gameMode === 'HI_SCORE' && <td className="num strong">{r.points}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
+  const results = isResultRecording(t);
   return (
-    <div className="table-scroll">
-      <table>
-        <caption>Piazzamenti finali · statistiche dell’ultima prova</caption>
-        <thead>
-          <tr>
-            <th scope="col">Pos</th>
-            <th scope="col">Giocatore</th>
-            <th scope="col" className="num">
-              Punti
-            </th>
-            <th scope="col" className="num">
-              Media
-            </th>
-            <th scope="col" className="num">
-              Best
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {placed.map((r) => (
-            <tr key={r.tournamentEntryId} className={`rank-${r.finalPlacement}`}>
-              <td className="pos">{r.finalPlacement}</td>
-              <td>{entryName(t, r.tournamentEntryId)}</td>
-              <td className="num strong">{r.points}</td>
-              <td className="num muted">{r.statistics.average.toFixed(1)}</td>
-              <td className="num muted">{r.statistics.bestTurn}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ol className="list" aria-label="Piazzamenti finali">
+      {placed.map((r) => (
+        <li key={r.tournamentEntryId} className="rk">
+          <span className={`n ${r.finalPlacement <= 4 ? `r${r.finalPlacement}` : ''}`}>
+            {r.finalPlacement}
+          </span>
+          <Avatar name={entryName(t, r.tournamentEntryId)} size="md" />
+          <span className="nm">
+            <b>
+              {entryName(t, r.tournamentEntryId)}
+              {t.entries.find((e) => e.id === r.tournamentEntryId)?.status === 'withdrawn' && (
+                <span className="tag">RITIRATO</span>
+              )}
+            </b>
+            {!results && (
+              <small>
+                media {r.statistics.average.toFixed(1)} · best {r.statistics.bestTurn}
+              </small>
+            )}
+          </span>
+          <strong>{t.gameMode === 'HI_SCORE' || !results ? r.points : ''}</strong>
+        </li>
+      ))}
+    </ol>
   );
 }
 
 /** Standalone mode: the night's results live only on this phone until exported. */
 export function BackupLink() {
   return localData ? (
-    <Link className="button" to="/impostazioni#backup">
-      Salva un backup della serata
+    <Link className="mrow" to="/impostazioni#backup">
+      <span>
+        Salva un backup della serata
+        <br />
+        <small>I risultati restano solo su questo telefono finché non li esporti</small>
+      </span>
+      <HardDriveDownload aria-hidden="true" />
     </Link>
   ) : null;
 }
@@ -325,13 +448,19 @@ export function DraftPanel({
     onSuccess: (fresh) => client.setQueryData(['tournament', t.id], fresh),
   });
   return (
-    <section className="panel" aria-labelledby="draft-title">
-      <h2 id="draft-title">Iscrizioni aperte</h2>
-      <ol className="entry-list">
+    <section className="card pad" aria-labelledby="draft-title">
+      <div className="sec-h">
+        <h2 id="draft-title">Iscrizioni aperte</h2>
+        <span>
+          {t.entries.length} {t.entries.length === 1 ? 'iscritto' : 'iscritti'}
+        </span>
+      </div>
+      <ol className="list">
         {t.entries.map((e, i) => (
-          <li key={e.id}>
-            <span className="seed">{e.seed ?? i + 1}</span>
-            {e.displayNameAtRegistration}
+          <li key={e.id} className="mv">
+            <span className="pos">{e.seed ?? i + 1}</span>
+            <Avatar name={e.displayNameAtRegistration} size="sm" />
+            <b>{e.displayNameAtRegistration}</b>
             <button
               type="button"
               className="mini"
@@ -339,22 +468,28 @@ export function DraftPanel({
               disabled={remove.isPending || busy}
               onClick={() => remove.mutate(e.id)}
             >
-              <X size={16} className="accent-soft" />
+              <X />
             </button>
           </li>
         ))}
       </ol>
       {!t.entries.length && <p className="hint">Nessun iscritto.</p>}
-      <button className="dashed" disabled={register.isPending} onClick={() => setPicker(true)}>
-        <Plus aria-hidden="true" className="accent-icon" /> Iscrivi giocatore
+      <button
+        type="button"
+        className="btn dashed"
+        disabled={register.isPending}
+        onClick={() => setPicker(true)}
+      >
+        <Plus aria-hidden="true" /> Iscrivi giocatore
       </button>
       <ErrorMessage error={register.error ?? remove.error} />
       <button
-        className="primary cta"
+        type="button"
+        className="btn cta"
         disabled={busy || register.isPending || t.entries.length < 2}
         onClick={() => command('start')}
       >
-        AVVIA TORNEO
+        <Play aria-hidden="true" fill="currentColor" /> AVVIA TORNEO
       </button>
       {picker && (
         <AddPlayerSheet
@@ -368,7 +503,7 @@ export function DraftPanel({
   );
 }
 
-/** Amber notice for a tie that only a playoff on the board can decide. */
+/** Amber notice for a tie that only a playoff on the board, or the organizer, can decide. */
 export function TieAlert({
   children,
   action,
@@ -385,15 +520,29 @@ export function TieAlert({
         <AlertTriangle aria-hidden="true" />
         <span>{children}</span>
       </p>
-      {action && (
-        <button disabled={action.disabled} onClick={action.run}>
-          {action.label}
-        </button>
-      )}
-      {secondary && (
-        <button className="tie-secondary" disabled={secondary.disabled} onClick={secondary.run}>
-          {secondary.label}
-        </button>
+      {(action || secondary) && (
+        <div className="tie-actions">
+          {action && (
+            <button
+              type="button"
+              className="btn sm"
+              disabled={action.disabled}
+              onClick={action.run}
+            >
+              {action.label}
+            </button>
+          )}
+          {secondary && (
+            <button
+              type="button"
+              className="btn sm"
+              disabled={secondary.disabled}
+              onClick={secondary.run}
+            >
+              {secondary.label}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -435,17 +584,33 @@ export function DecisionSheet({
     setOrder(next);
   };
   return (
-    <Modal title={title} close={close} tone="warning">
-      <p>
-        Metti in ordine i giocatori a pari merito, dal migliore. La decisione resta nello storico.
-      </p>
-      <ol className="order-list">
+    <Modal
+      title={title}
+      subtitle="Dal migliore: la decisione resta nello storico"
+      close={close}
+      tone="warning"
+      footer={
+        <>
+          <button type="button" className="btn ghost" onClick={close}>
+            Annulla
+          </button>
+          <button
+            type="button"
+            className="btn cta"
+            disabled={!reason.trim() || decide.isPending}
+            onClick={() => decide.mutate()}
+          >
+            CONFERMA DECISIONE
+          </button>
+        </>
+      }
+    >
+      <ol className="list">
         {order.map((id, i) => (
-          <li key={id}>
-            <span className={`order ${i === 0 ? 'first' : ''}`}>{i + 1}</span>
-            <span className="order-name">
-              <span>{entryName(t, id)}</span>
-            </span>
+          <li key={id} className="mv big">
+            <span className={`pos ${i === 0 ? 'first' : ''}`}>{i + 1}</span>
+            <Avatar name={entryName(t, id)} size="md" />
+            <b>{entryName(t, id)}</b>
             <button
               type="button"
               className="mini"
@@ -453,7 +618,7 @@ export function DecisionSheet({
               disabled={i === 0 || decide.isPending}
               onClick={() => move(i)}
             >
-              <ChevronUp size={18} />
+              <ChevronUp />
             </button>
           </li>
         ))}
@@ -468,14 +633,6 @@ export function DecisionSheet({
         />
       </label>
       <ErrorMessage error={decide.error} />
-      <button
-        className="primary"
-        disabled={!reason.trim() || decide.isPending}
-        onClick={() => decide.mutate()}
-      >
-        CONFERMA DECISIONE
-      </button>
-      <button onClick={close}>Annulla</button>
     </Modal>
   );
 }
@@ -515,15 +672,36 @@ export function TieSheet({
   const first = group[0]!.placement;
   const rows = table.rows.filter((r) => Math.abs(r.placement - first) <= group.length);
   return (
-    <Modal title={title} close={close} tone="warning">
-      <p>
-        Seleziona l’intero gruppo a pari merito. Il risultato sarà deciso sul bersaglio in{' '}
-        {t.tournamentConfiguration.tieBreakTurns}{' '}
-        {t.tournamentConfiguration.tieBreakTurns === 1 ? 'turno' : 'turni'}.
-      </p>
-      <div className="check-list">
+    <Modal
+      title={title}
+      subtitle={`Si decide sul bersaglio in ${t.tournamentConfiguration.tieBreakTurns} ${t.tournamentConfiguration.tieBreakTurns === 1 ? 'turno' : 'turni'}`}
+      close={close}
+      tone="warning"
+      footer={
+        <>
+          <button type="button" className="btn ghost" onClick={close}>
+            Annulla
+          </button>
+          <button
+            type="button"
+            className="btn cta"
+            disabled={!!invalid || busy}
+            onClick={() => create(selected)}
+          >
+            CREA INCONTRO DI SPAREGGIO
+          </button>
+          {invalid && (
+            <p className="form-reason" role="alert">
+              {invalid}
+            </p>
+          )}
+        </>
+      }
+    >
+      <p className="hint">Seleziona l’intero gruppo a pari merito.</p>
+      <div className="list">
         {rows.map((r) => (
-          <label className="check-row" key={r.tournamentEntryId}>
+          <label className="check-row card pick" key={r.tournamentEntryId}>
             <input
               type="checkbox"
               checked={selected.includes(r.tournamentEntryId)}
@@ -542,16 +720,7 @@ export function TieSheet({
           </label>
         ))}
       </div>
-      {invalid && (
-        <p className="form-reason" role="alert">
-          {invalid}
-        </p>
-      )}
       <ErrorMessage error={error} />
-      <button className="primary" disabled={!!invalid || busy} onClick={() => create(selected)}>
-        CREA INCONTRO DI SPAREGGIO
-      </button>
-      <button onClick={close}>Annulla</button>
     </Modal>
   );
 }
@@ -567,37 +736,99 @@ export function BoardCard({ t, match, title }: { t: Tournament; match: TMatch; t
           .filter((s) => !s.voided && s.tournamentEntryId === p.tournamentEntryId)
           .reduce((n, s) => n + s.score, 0))
       : 0;
+  // Over several heats the board holds one heat: the one playing, else the next.
+  const heats = match.heats.filter((h) => h.status !== 'cancelled');
+  const heat =
+    heats.length > 1
+      ? (heats.find((h) => h.status === 'active') ??
+        heats.find((h) => h.status === 'pending' || h.status === 'ready'))
+      : undefined;
   return (
-    <section className="board-section" aria-labelledby="board-title">
-      <h2 id="board-title">Al bersaglio</h2>
-      <article className={`board-card ${live ? 'live' : ''}`}>
-        <div className="board-meta">
+    <section className={`now board ${live ? '' : 'ready'}`} aria-labelledby="board-title">
+      <div className="board-head">
+        <span id="board-title" className="field-l">
+          {live ? 'Al bersaglio' : 'Prossimo'} · {title}
+          {heat ? ` · Manche ${heat.number} di ${heats.length}` : ''}
+        </span>
+        {live ? (
+          <StatusChip tone="live">{match.status === 'paused' ? 'IN PAUSA' : 'LIVE'}</StatusChip>
+        ) : (
+          <StatusChip tone="neutral">PRONTO</StatusChip>
+        )}
+      </div>
+      {heat ? (
+        <p className="board-players">{heat.entryIds.map((id) => entryName(t, id)).join(' · ')}</p>
+      ) : match.participants.length === 2 ? (
+        <div className="vs">
           <span>
-            #{match.sequence} · {title}
+            <Avatar name={entryName(t, a!.tournamentEntryId)} />
+            <span className="nm">{entryName(t, a!.tournamentEntryId)}</span>
+            {live && isResultRecording(t) === false && <b>{score(a)}</b>}
           </span>
-          <span className={live ? 'accent-soft' : ''}>
-            {live ? statusLabel(match.status).toUpperCase() : 'PRONTO'}
+          <i>VS</i>
+          <span>
+            {live && isResultRecording(t) === false && <b>{score(b)}</b>}
+            <span className="nm">{entryName(t, b!.tournamentEntryId)}</span>
+            <Avatar name={entryName(t, b!.tournamentEntryId)} />
           </span>
         </div>
-        {match.participants.length === 2 ? (
-          <div className="versus">
-            <span>
-              {entryName(t, a!.tournamentEntryId)} {live && <b>{score(a)}</b>}
-            </span>
-            <span className="marker">VS</span>
-            <span>
-              {live && <b>{score(b)}</b>} {entryName(t, b!.tournamentEntryId)}
-            </span>
-          </div>
-        ) : (
-          <p className="board-players">
-            {match.participants.map((p) => entryName(t, p.tournamentEntryId)).join(' · ')}
-          </p>
-        )}
-        <Link className="primary button" to={`/partite/${match.id}`}>
-          {live ? 'Riprendi incontro' : 'Gioca l’incontro'}
-        </Link>
-      </article>
+      ) : (
+        <p className="board-players">
+          {match.participants.map((p) => entryName(t, p.tournamentEntryId)).join(' · ')}
+        </p>
+      )}
+      <Link className="btn cta" to={`/partite/${match.id}`}>
+        {live ? 'Apri il Live' : 'Gioca l’incontro'}
+      </Link>
     </section>
+  );
+}
+
+export type MenuAction = {
+  icon: ReactNode;
+  label: string;
+  hint: string;
+  run: () => void;
+  disabled?: boolean;
+};
+/** The less frequent commands of a tournament, behind one header button. */
+export function ActionsMenu({ actions }: { actions: MenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  if (!actions.length) return null;
+  return (
+    <>
+      <button
+        type="button"
+        className="ibtn box"
+        aria-label="Altre azioni del torneo"
+        onClick={() => setOpen(true)}
+      >
+        <MoreHorizontal />
+      </button>
+      {open && (
+        <Modal title="Azioni del torneo" close={() => setOpen(false)}>
+          <div className="list">
+            {actions.map((a) => (
+              <button
+                type="button"
+                key={a.label}
+                className="act"
+                disabled={a.disabled}
+                onClick={() => {
+                  setOpen(false);
+                  a.run();
+                }}
+              >
+                {a.icon}
+                <span>
+                  <b>{a.label}</b>
+                  <small>{a.hint}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

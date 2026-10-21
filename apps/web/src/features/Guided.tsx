@@ -2,13 +2,16 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowRight,
   Check,
+  ChevronRight,
   CircleCheck,
   ClipboardCheck,
   Info,
   LayoutGrid,
   ListOrdered,
+  MoveRight,
   Pause,
   Play,
   SkipForward,
@@ -17,10 +20,10 @@ import {
   Undo2,
   Users,
 } from 'lucide-react';
-import { CrownIcon, PaintSplash } from '../components/BrandIcons';
+import { CrownIcon } from '../components/BrandIcons';
 import { GlassFilters, NavigationSurface } from '../components/BottomNavigation';
 import { DartCell, DartPad } from '../components/DartPad';
-import { HeatEditor, HeatTimeline, viewedHeat } from '../components/Heats';
+import { HeatEditor, HeatTabs, viewedHeat } from '../components/Heats';
 import { NumberKeypad } from '../components/NumberKeypad';
 import { RotationManager } from '../components/Rounds';
 import {
@@ -54,6 +57,7 @@ type Slot = { entryId: string; round: number };
 type Progress = Match['progress'][number];
 type RoundView = Progress['rounds'][number];
 type Toast = { text: ReactNode; undo?: Slot; tone?: 'warn' };
+type HeatRow = Match['heatOverview']['heats'][number];
 
 const tabs: [Tab, string, typeof Target][] = [
   ['live', 'Live', Target],
@@ -70,6 +74,10 @@ const vibrate = (ms = 12) => {
 };
 const sameSlot = (a: Slot | null | undefined, b: Slot | null | undefined) =>
   !!a && !!b && a.entryId === b.entryId && a.round === b.round;
+/** Short label in tight rows: the first name, a team's name whole. */
+const first = (name: string) => (name.includes(' + ') ? name : (name.split(' ')[0] ?? name));
+const planOf = (m: Match, heatId: string | null | undefined) =>
+  m.turnPlans.find((p) => p.heatId === (heatId ?? null)) ?? m.turnPlans[0]!;
 
 /** One command on the match at a time: a second tap while the first is saving is ignored. */
 function useMatchCommand(m: Match, done?: (fresh: Match) => void) {
@@ -124,6 +132,12 @@ function metricOf(m: Match, p: Progress | undefined) {
   if (p?.partialValue != null) return p.partialValue;
   return g.scoring === 'remaining' ? g.startingScore : null;
 }
+/** Better first: most points, or fewest left in X01. */
+function byValue(m: Match) {
+  const lower = gameOf(m).scoring === 'remaining';
+  return (a: number | null, b: number | null) =>
+    a === null ? (b === null ? 0 : 1) : b === null ? -1 : lower ? a - b : b - a;
+}
 /** Leader of the seats, by the provisional values (never official). */
 function leaderOf(m: Match, seats: string[], progress: (id: string) => Progress | undefined) {
   const g = gameOf(m);
@@ -145,10 +159,16 @@ function leaderOf(m: Match, seats: string[], progress: (id: string) => Progress 
   // Level at the top: no crown.
   return tied ? null : best;
 }
+/** Columns of the round matrix: the rounds of the game, or as many as were played. */
+function columnsOf(plan: Plan, progress: (id: string) => Progress | undefined) {
+  return (
+    plan.rounds ?? Math.max(plan.round, ...plan.seats.map((id) => progress(id)?.rounds.length ?? 0))
+  );
+}
 
 /**
- * The match screen with progressive tracking: the guided turn at the board (Live), the round
- * matrix, the live board and the official results, under the match's own floating bar. The
+ * The match screen with progressive tracking: the turn at the board (Live), the round matrix,
+ * the provisional ranking and the official results, under the match's own floating bar. The
  * global navigation stays out of the match, so it never competes with the keypad.
  */
 export function GuidedMatch({
@@ -175,6 +195,7 @@ export function GuidedMatch({
       (p) => {
         const n = new URLSearchParams(p);
         n.set('tab', next);
+        n.delete('organize');
         return n;
       },
       { replace: true },
@@ -188,24 +209,37 @@ export function GuidedMatch({
   }, [toast]);
   const overview = m.heatOverview;
   const heated = overview.heats.filter((h) => h.status !== 'cancelled').length > 1;
-  const heat = heated ? viewedHeat(overview, heatChoice) : null;
-  const plan = m.turnPlans.find((p) => p.heatId === (heat?.heatId ?? null)) ?? m.turnPlans[0]!;
+  // Live follows the heat at the board; matrix and ranking the heat chosen in their tabs.
+  const liveHeat = heated ? viewedHeat(overview, null) : null;
+  const heat = heated ? (tab === 'live' ? liveHeat : viewedHeat(overview, heatChoice)) : null;
+  const plan = planOf(m, heat?.heatId);
   const undo = useMatchCommand(m);
   const names = useNames(m, t);
   const single = t?.mode === 'SINGLE_MATCH';
-  const isFinal = t?.stages.find((s) => s.id === m.stageId)?.kind === 'final';
+  const stage = t?.stages.find((s) => s.id === m.stageId);
+  const isFinal = stage?.kind === 'final';
   const back = !t
     ? '/'
     : single
       ? '/tornei'
       : `${tournamentPath(t)}${t.mode === 'QUICK_HIGH_SCORE' && isFinal ? '?tab=final' : ''}`;
-  const subtitle = [
-    single ? 'Partita singola' : statusLabel(m.matchType),
-    heat ? `Manche ${heat.number} di ${overview.heats.length}` : null,
-    m.status === 'completed' ? 'risultato registrato' : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const stageLabel = single ? 'Partita singola' : statusLabel(m.matchType);
+  const title =
+    tab === 'matrice' ? 'Matrice' : tab === 'classifica' ? 'Classifica' : (t?.name ?? game.label);
+  const subtitle =
+    tab === 'matrice'
+      ? `${stageLabel} · ${m.participants.length} ${m.participants.length === 1 ? 'giocatore' : 'giocatori'}${heated ? ` in ${overview.heats.length} manche` : ''}`
+      : tab === 'classifica'
+        ? `${stageLabel} · aggiornata a ogni turno`
+        : [
+            single ? game.label : stageLabel,
+            liveHeat && tab === 'live'
+              ? `Manche ${liveHeat.number} di ${overview.heats.length}`
+              : null,
+            m.status === 'completed' ? 'risultato registrato' : null,
+          ]
+            .filter(Boolean)
+            .join(' · ');
   const takeBack = () =>
     undo.run('turns/guide', { action: 'undo', heatId: plan.heatId }, (fresh) => {
       const freshPlan = fresh.turnPlans.find((p) => p.heatId === plan.heatId);
@@ -217,31 +251,20 @@ export function GuidedMatch({
         ),
       });
     });
-  const heatPanel = heated && tab !== 'risultati' && (
-    <section className="heat-panel compact" aria-label="Manche">
-      <HeatTimeline
-        overview={overview}
-        viewing={heat?.heatId ?? null}
-        select={(id) => {
-          setHeatChoice(id);
-          setFocus(null);
-        }}
-      />
-    </section>
-  );
-  // Matrix and board follow the heat chosen above them: the timeline stays with them.
-  const fixedHeats = tab === 'matrice' || tab === 'classifica';
+  const canOrganize = t?.status === 'active' && canOrganizeMatch(m);
   return (
     <ScreenBars.Provider value={{ top, bottom }}>
-      <div className="guided-page">
+      <div className="screen match-screen">
         <Header
-          title={game.label}
+          title={title}
           subtitle={subtitle}
           back={back}
+          backLabel="Indietro al torneo"
           action={
             tab === 'live' && m.status !== 'completed' && m.status !== 'cancelled' ? (
               <button
-                className="icon-button"
+                type="button"
+                className="ibtn box"
                 aria-label="Controlli del turno"
                 onClick={() => setControls(true)}
               >
@@ -267,17 +290,8 @@ export function GuidedMatch({
             }}
           />
         )}
-        <div className="toolbar">
-          {fixedHeats && heatPanel}
-          <div className="toolbar-slot" ref={setTop} />
-        </div>
-        <main className="guided-content">
-          {tab !== 'risultati' && t?.status === 'active' && canOrganizeMatch(m) && (
-            <button type="button" onClick={() => setOrganizing(true)}>
-              Organizza manche
-            </button>
-          )}
-          {!fixedHeats && heatPanel}
+        <div className="toolbar" ref={setTop} />
+        <main className={`match-main tab-${tab}`}>
           {tab === 'live' && (
             <GuidedLive
               key={plan.heatId ?? 'match'}
@@ -289,6 +303,11 @@ export function GuidedMatch({
               setControls={setControls}
               notify={setToast}
               go={go}
+              review={(heatId) => {
+                setHeatChoice(heatId);
+                go('matrice');
+              }}
+              organize={canOrganize ? () => setOrganizing(true) : undefined}
             />
           )}
           {tab === 'matrice' && (
@@ -296,23 +315,15 @@ export function GuidedMatch({
               m={m}
               t={t}
               plan={plan}
-              focus={focus}
-              setFocus={setFocus}
-              go={go}
-              notify={setToast}
+              heat={heat}
+              heated={heated}
+              selectHeat={(id) => setHeatChoice(id)}
+              open={setFocus}
+              organize={canOrganize ? () => setOrganizing(true) : undefined}
             />
           )}
           {tab === 'classifica' && (
-            <LiveBoard
-              m={m}
-              t={t}
-              plan={plan}
-              heated={heated}
-              open={(slot) => {
-                setFocus(slot);
-                go('matrice');
-              }}
-            />
+            <LiveBoard m={m} t={t} plan={plan} heated={heated} heat={heat} />
           )}
           {tab === 'risultati' && (
             <GuidedResults
@@ -332,8 +343,23 @@ export function GuidedMatch({
           <ErrorMessage error={undo.error} />
         </main>
         <div className="actionbar" ref={setBottom} />
+        {focus && tab === 'matrice' && (
+          <CellSheet
+            key={`${focus.entryId}:${focus.round}`}
+            m={m}
+            t={t}
+            plan={planOf(m, heat?.heatId)}
+            slot={focus}
+            close={() => setFocus(null)}
+            go={(next) => {
+              setFocus(null);
+              go(next);
+            }}
+            notify={setToast}
+          />
+        )}
         {toast && (
-          <div className={`g-toast ${toast.tone ?? ''}`} role="status">
+          <div className={`toast ${toast.tone ?? ''}`} role="status">
             {toast.tone === 'warn' ? (
               <Info aria-hidden="true" />
             ) : (
@@ -398,6 +424,16 @@ function MatchNavigation({
   );
 }
 
+/** Heats whose end was acknowledged: "Inizia manche" was tapped, the call screen is gone. */
+const calledKey = (m: Match) => `bt-heat-called:${m.id}`;
+function calledHeats(m: Match): string[] {
+  try {
+    return JSON.parse(storage.get(calledKey(m)) ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+}
+
 /** Guided entry of the turn at the board: who throws, three darts or the total, confirm. */
 function GuidedLive({
   m,
@@ -408,6 +444,8 @@ function GuidedLive({
   setControls,
   notify,
   go,
+  review,
+  organize,
 }: {
   m: Match;
   t: Tournament | undefined;
@@ -417,6 +455,8 @@ function GuidedLive({
   setControls: (open: boolean) => void;
   notify: (toast: Toast) => void;
   go: (tab: Tab) => void;
+  review: (heatId: string | null) => void;
+  organize?: () => void;
 }) {
   const game = gameOf(m);
   const spec = m.trackingSpec;
@@ -450,8 +490,8 @@ function GuidedLive({
   });
   const [quick, setQuick] = useState(() => draftFor(current)?.quick ?? '');
   const [hint, setHint] = useState<string | null>(null);
-  const [interlude, setInterlude] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
+  const [called, setCalled] = useState(() => calledHeats(m));
   const setMode = (next: EntryMode) => {
     setModeState(next);
     storage.set(modeKey, next);
@@ -512,18 +552,11 @@ function GuidedLive({
   const unit = current ? names.entry(current.entryId) : undefined;
   const team = (unit?.members.length ?? 0) > 1;
   const throwerName = names.thrower(current);
-  const nextName = plan.next ? names.thrower(plan.next) : null;
-  const nextLabel = !plan.next
-    ? heated
-      ? 'fine manche'
-      : 'fine partita'
-    : plan.next.round > round
-      ? `R${plan.next.round} · ${nextName}`
-      : nextName!;
   const paused = m.guide?.paused ?? false;
   const leader = leaderOf(m, plan.seats, names.progress);
-  const seatIndex = current ? plan.seats.indexOf(current.entryId) : -1;
   const side = current ? sideOf(m.gameMode as GameMode, seatOf(m, current.entryId)) : null;
+  const overview = m.heatOverview;
+  const heatRow = overview.heats.find((h) => h.heatId === plan.heatId);
 
   function confirm() {
     if (!current || !c.ok || busy || interrupted) return;
@@ -563,7 +596,7 @@ function GuidedLive({
                     ? `numero ${view.value}`
                     : spec.kind === 'remaining'
                       ? `restano ${view.value}`
-                      : `${view.value} punti`}
+                      : `${view.value} registrato`}
               {after != null && !progressKind && spec.kind !== 'remaining'
                 ? ` · ${x01 ? 'residuo' : 'totale'} ${after}`
                 : ''}
@@ -571,19 +604,8 @@ function GuidedLive({
           ),
           undo: { entryId: saving.entryId, round: saving.round },
         });
-        roundDone(fresh, saving);
       },
     );
-  }
-  /** The turn just saved closed its round: a short pause before the next one starts. */
-  function roundDone(fresh: Match, saving: Slot) {
-    const freshPlan = fresh.turnPlans.find((p) => p.heatId === plan.heatId);
-    if (
-      freshPlan?.current &&
-      freshPlan.current.round > saving.round &&
-      freshPlan.state === 'in_progress'
-    )
-      setInterlude(saving.round);
   }
   const command = (body: Record<string, unknown>, text?: ReactNode) =>
     guide.run('turns/guide', { heatId: plan.heatId, ...body }, () => {
@@ -598,8 +620,7 @@ function GuidedLive({
     record.run(
       'turns/record',
       { entryId: saving.entryId, round: saving.round, value: null },
-      (fresh) => {
-        roundDone(fresh, saving);
+      () => {
         setControls(false);
         setInput(emptyInput());
         setQuick('');
@@ -619,25 +640,20 @@ function GuidedLive({
     if (!current || busy || interrupted) return;
     const who = throwerName;
     const saving = current;
-    record.run(
-      'turns/record',
-      { entryId: saving.entryId, round: saving.round, bust: true },
-      (fresh) => {
-        vibrate();
-        roundDone(fresh, saving);
-        storage.remove(draftKey);
-        setInput(emptyInput());
-        setQuick('');
-        notify({
-          text: (
-            <>
-              <b>{who}</b> · bust, il turno vale 0
-            </>
-          ),
-          undo: saving,
-        });
-      },
-    );
+    record.run('turns/record', { entryId: saving.entryId, round: saving.round, bust: true }, () => {
+      vibrate();
+      storage.remove(draftKey);
+      setInput(emptyInput());
+      setQuick('');
+      notify({
+        text: (
+          <>
+            <b>{who}</b> · bust, il turno vale 0
+          </>
+        ),
+        undo: saving,
+      });
+    });
   };
   const undoable = plan.undoable;
   const undoName = undoable
@@ -646,14 +662,59 @@ function GuidedLive({
         playerId: names.progress(undoable.entryId)?.rounds[undoable.round - 1]?.playerId ?? null,
       })
     : null;
+  const takeBack = () =>
+    undoable &&
+    command(
+      { action: 'undo' },
+      <>
+        Avanzamento annullato: torna <b>{undoName}</b>
+      </>,
+    );
   const closed = plan.closed.filter((s) => plan.seats.includes(s.entryId));
 
-  let body: ReactNode;
+  // The heat at the board has thrown every turn, or the next heat waits to be called.
+  const previous =
+    heated && heatRow && (heatRow.status === 'pending' || heatRow.status === 'ready')
+      ? [...overview.heats]
+          .filter((h) => h.status === 'completed' && h.number < heatRow.number)
+          .sort((a, b) => b.number - a.number)[0]
+      : undefined;
+  const endOfHeat =
+    heated && m.status !== 'completed' && heatRow
+      ? plan.state === 'completed'
+        ? {
+            heat: heatRow,
+            plan,
+            next: overview.heats.find((h) => h.heatId === overview.nextHeatId),
+          }
+        : previous && !called.includes(previous.heatId)
+          ? { heat: previous, plan: planOf(m, previous.heatId), next: heatRow }
+          : null
+      : null;
+
+  if (endOfHeat)
+    return (
+      <HeatEnd
+        m={m}
+        t={t}
+        heat={endOfHeat.heat}
+        plan={endOfHeat.plan}
+        next={endOfHeat.next}
+        go={go}
+        review={() => review(endOfHeat.heat.heatId)}
+        organize={organize}
+        call={() => {
+          const list = [...called, endOfHeat.heat.heatId];
+          storage.set(calledKey(m), JSON.stringify(list));
+          setCalled(list);
+        }}
+      />
+    );
   if (m.status === 'completed' || plan.state === 'completed')
-    body = (
+    return (
       <>
-        <section className="g-done">
-          <span className="g-check">
+        <section className="done-card">
+          <span className="done-check" aria-hidden="true">
             <Check strokeWidth={3} />
           </span>
           <h2>
@@ -661,60 +722,70 @@ function GuidedLive({
               ? `Shanghai di ${names.name(plan.shanghai.entryId)}!`
               : m.status === 'completed'
                 ? 'Risultato registrato'
-                : heated
-                  ? `Manche ${plan.heatNumber} completata`
-                  : 'Partita completata'}
+                : 'Partita completata'}
           </h2>
-          <p>
+          <p className="hint">
             {m.status === 'completed'
               ? 'Il risultato ufficiale del totem è salvato.'
               : `${plan.thrown} turni registrati${plan.gaps.length ? `, ${plan.gaps.length} da verificare` : ''}. Ora serve il risultato ufficiale del totem.`}
           </p>
         </section>
         <InBar at="bottom">
-          <button className="primary cta" onClick={() => go('risultati')}>
-            {m.status === 'completed' ? 'VEDI IL RISULTATO' : 'INSERISCI I RISULTATI DEL TOTEM'}
-          </button>
-          {plan.gaps.length > 0 && (
-            <button className="outline" onClick={() => go('matrice')}>
-              Rivedi i round mancanti
+          <div className="acts">
+            {plan.gaps.length > 0 && (
+              <button type="button" className="btn" onClick={() => go('matrice')}>
+                Rivedi i round
+              </button>
+            )}
+            <button type="button" className="btn cta" onClick={() => go('risultati')}>
+              {m.status === 'completed' ? 'Vedi il risultato' : 'Inserisci i risultati del totem'}
             </button>
-          )}
+          </div>
         </InBar>
       </>
     );
-  else if (interlude !== null && current)
-    body = (
-      <>
-        <section className="g-done">
-          <span className="g-check">
-            <Check strokeWidth={3} />
+
+  const strip = (
+    <InBar at="top">
+      <div className="strip">
+        <span className="rd">
+          Round <em>{round}</em>
+          {plan.rounds ? `/${plan.rounds}` : ''}
+        </span>
+        {plan.rounds ? (
+          <span className="pips" aria-hidden="true">
+            {Array.from({ length: plan.rounds }, (_, r) => (
+              <i key={r} className={r + 1 < round ? 'done' : r + 1 === round ? 'on' : ''} />
+            ))}
           </span>
-          <h2>Round {interlude} completato</h2>
-          <p>{plan.seats.length} turni nel round. Si riparte dal primo di tiro.</p>
-        </section>
-        <InBar at="bottom">
-          <button type="button" className="g-next" onClick={() => setInterlude(null)} autoFocus>
-            <Avatar name={throwerName} />
-            <span>
-              <small>
-                Round {round}
-                {plan.rounds ? ` di ${plan.rounds}` : ''} · ora tocca a
-              </small>
-              <b>{throwerName}</b>
-            </span>
-            <span className="g-arrow">
-              <ArrowRight strokeWidth={2.6} />
-            </span>
-          </button>
-        </InBar>
-      </>
-    );
-  else if (!current)
-    body = (
+        ) : (
+          <span className="pips" aria-hidden="true">
+            <i className="on" style={{ flex: 'none', width: 24 }} />
+          </span>
+        )}
+        {!progressKind && (
+          <Segmented
+            label="Registrazione"
+            small
+            className="strip-seg"
+            value={mode}
+            change={setMode}
+            options={[
+              { id: 'detail', label: 'Freccette' },
+              { id: 'quick', label: 'Totale' },
+            ]}
+          />
+        )}
+      </div>
+    </InBar>
+  );
+
+  if (!current)
+    return (
       <>
-        <section className="g-now paused" aria-live="polite">
-          <span className="eyebrow">Rotazione in pausa</span>
+        {strip}
+        <section className="now paused" aria-live="polite">
+          <span className="eb">Rotazione in pausa</span>
           <h2>Chi è al bersaglio?</h2>
         </section>
         <SeatPicker
@@ -724,180 +795,90 @@ function GuidedLive({
           busy={busy}
           pick={(id) => command({ action: 'pick', entryId: id })}
         />
-        <button onClick={() => command({ action: 'resume' })} disabled={busy}>
-          <Play size={18} aria-hidden="true" /> Riprendi la rotazione
+        <button
+          type="button"
+          className="btn"
+          onClick={() => command({ action: 'resume' })}
+          disabled={busy}
+        >
+          <Play aria-hidden="true" /> Riprendi la rotazione
         </button>
-      </>
-    );
-  else
-    body = (
-      <>
-        <div className="g-round">
-          <b>
-            Round <em>{round}</em>
-            {plan.rounds ? ` di ${plan.rounds}` : ''}
-          </b>
-          {plan.expected ? (
-            <span className="g-progress" title={`${plan.thrown} di ${plan.expected} turni`}>
-              <i style={{ width: `${(plan.thrown / plan.expected) * 100}%` }} />
-            </span>
-          ) : (
-            <span className="g-spacer" />
-          )}
-          {!progressKind && (
-            <Segmented
-              label="Registrazione"
-              value={mode}
-              change={setMode}
-              options={[
-                { id: 'detail', label: 'Freccette' },
-                { id: 'quick', label: 'Totale' },
-              ]}
-            />
-          )}
-        </div>
-        <section className={`g-now ${paused ? 'paused' : ''}`} aria-live="polite">
-          <Avatar name={throwerName} active />
-          <span className="eyebrow">
-            {paused ? 'Scelto a mano · rotazione in pausa' : 'Ora al bersaglio'}
-            {team ? ` · ${names.name(current.entryId)}` : ''}
-          </span>
-          <h2>
-            {throwerName}
-            {leader === current.entryId && <CrownIcon role="img" aria-label="In testa" />}
-          </h2>
-          <div className="meta">
-            <span>
-              {plan.heatId ? `Slot ${seatOf(m, current.entryId)} · ` : ''}
-              {team
-                ? current.playerId
-                  ? `Tiratore ${unit!.members.findIndex((x) => x.playerId === current.playerId) + 1} di ${unit!.members.length} · con ${unit!.members
-                      .filter((x) => x.playerId !== current.playerId)
-                      .map((x) => x.displayName)
-                      .join(', ')}`
-                  : 'Rotazione libera: tira chiunque della squadra'
-                : `Turno ${seatIndex + 1} di ${plan.seats.length}`}
-              {game.specialWin === 'SHANGHAI' ? ` · bersaglio ${round}` : ''}
-              {side ? ` · ${side}` : ''}
-              {game.target && m.result?.targetScore ? ` · obiettivo ${m.result.targetScore}` : ''}
-            </span>
-            <span>
-              Dopo: <b>{paused ? 'scelta a mano' : nextLabel}</b>
-            </span>
-          </div>
-        </section>
-        {mode === 'detail' && !progressKind ? (
-          <DartPad
-            input={input}
-            change={setInput}
-            ctx={ctx}
-            notify={setHint}
-            disabled={busy || interrupted}
-            submit={confirm}
-          />
-        ) : (
-          <div className="paper-area g-quick">
-            <PaintSplash className="paper-splash" />
-            <div className={`score-paper ${quick ? '' : 'is-empty'}`}>
-              <output aria-live="polite" aria-label="Valore del turno da confermare">
-                {quick || '0'}
-              </output>
-              <span className="paper-caption">
-                {progressKind
-                  ? 'NUMERO RAGGIUNTO SUL TOTEM'
-                  : spec.kind === 'remaining'
-                    ? 'PUNTI RIMASTI SUL TOTEM'
-                    : c.darts
-                      ? 'TOTALE DEL TOTEM · CON LE FRECCETTE INSERITE'
-                      : 'PUNTI DEL TURNO · FRECCETTE NON REGISTRATE'}
-              </span>
-            </div>
-          </div>
-        )}
-        <TurnSummary m={m} plan={plan} c={c} x01={x01} progressKind={progressKind} mode={mode} />
-        {(mode === 'quick' || progressKind) && (
-          <NumberKeypad
-            value={quick}
-            change={setQuick}
-            submit={confirm}
-            undo={() => undoable && command({ action: 'undo' }, <>Avanzamento annullato</>)}
-            busy={busy || interrupted}
-            canUndo={!!undoable}
-            maximum={max}
-            notify={setHint}
-            quick={
-              spec.kind === 'points'
-                ? [0, 26, 45, 60, 81, 100, 140, 180].filter((v) => v <= max)
-                : []
-            }
-            quickLabel="COLPI"
-            limitLabel={`Massimo ${max}`}
-            okLabel={`Conferma il turno di ${throwerName}`}
-          />
-        )}
-        {mode === 'quick' && x01 && (
-          <button
-            type="button"
-            className="warning g-bust"
-            disabled={busy || interrupted}
-            onClick={declareBust}
-          >
-            BUST · il turno non conta, il residuo resta
-          </button>
-        )}
-        <InBar at="bottom">
-          <div className="g-ctas">
-            <button
-              className="primary cta g-cta"
-              disabled={!c.ok || busy || interrupted}
-              onClick={confirm}
-            >
-              <span>
-                {record.busy
-                  ? 'SALVATAGGIO…'
-                  : c.shanghai
-                    ? 'CONFERMA SHANGHAI · FINE PARTITA'
-                    : `${c.bust ? 'CONFERMA BUST' : c.closed ? 'CONFERMA CHIUSURA' : 'CONFERMA ROUND'}${
-                        paused
-                          ? ''
-                          : plan.next
-                            ? ` → ${nextLabel.toUpperCase()}`
-                            : ` · ${nextLabel.toUpperCase()}`
-                      }`}
-              </span>
-              {/* A plain reason fits in the button: the keypad keeps the space. */}
-              {!hint && c.why && !c.needsTotal && <small role="status">{c.why}</small>}
-            </button>
-            {(hint || (c.why && c.needsTotal)) && (
-              <p className="form-reason" role="status">
-                {hint ?? c.why}{' '}
-                {!hint && c.needsTotal && (
-                  <button type="button" className="text-link" onClick={() => setMode('quick')}>
-                    Inserisci il totale
-                  </button>
-                )}
-              </p>
-            )}
-            {c.ok && c.reason && (
-              <p className="form-reason warn" role="status">
-                Le freccette danno un altro totale: si salva il valore del totem, segnalato da
-                verificare.
-              </p>
-            )}
-          </div>
-        </InBar>
+        <ErrorMessage error={record.error ?? guide.error} />
       </>
     );
 
+  // Who throws in this round, in order: done, at the board, next, then the next round.
+  const roundOrder = plan.seats.map((id) => {
+    const v = names.progress(id)?.rounds[round - 1];
+    const state =
+      id === current.entryId
+        ? 'cur'
+        : v && v.status !== 'missing'
+          ? 'done'
+          : plan.next?.entryId === id && plan.next.round === round
+            ? 'next'
+            : '';
+    return { id, state };
+  });
+  const after = !plan.next
+    ? heated
+      ? overview.nextHeatId && overview.nextHeatId !== plan.heatId
+        ? `poi Manche ${overview.heats.find((h) => h.heatId === overview.nextHeatId)?.number}`
+        : 'fine qualifica'
+      : 'fine partita'
+    : plan.next.round > round
+      ? `poi Round ${plan.next.round}`
+      : '';
+  const lastTurn = !plan.next;
+  const value = metricOf(m, names.progress(current.entryId));
+  const meta = [
+    // Physical seat on the totem: heats keep their gaps.
+    plan.heatId ? `posto ${seatOf(m, current.entryId)}` : null,
+    team
+      ? current.playerId
+        ? `${names.name(current.entryId)} · tiratore ${unit!.members.findIndex((x) => x.playerId === current.playerId) + 1} di ${unit!.members.length}`
+        : `${names.name(current.entryId)} · rotazione libera`
+      : null,
+    game.specialWin === 'SHANGHAI' ? `bersaglio ${round}` : null,
+    side,
+    game.target && m.result?.targetScore ? `obiettivo ${m.result.targetScore}` : null,
+  ].filter(Boolean);
+  const chip = c.bust ? (
+    <StatusChip tone="warning">BUST</StatusChip>
+  ) : c.shanghai ? (
+    <StatusChip tone="success">SHANGHAI</StatusChip>
+  ) : c.closed ? (
+    <StatusChip tone="success">CHIUSURA</StatusChip>
+  ) : c.needsTotal ? (
+    <StatusChip tone="neutral">DA LEGGERE SUL TOTEM</StatusChip>
+  ) : null;
+  const ctaLabel = record.busy
+    ? 'Salvataggio…'
+    : c.shanghai
+      ? 'Conferma Shanghai'
+      : c.bust
+        ? 'Conferma bust'
+        : c.closed
+          ? 'Conferma chiusura'
+          : lastTurn
+            ? heated
+              ? 'Conferma e chiudi manche'
+              : 'Conferma e chiudi partita'
+            : c.points !== null && (mode === 'quick' || c.ok)
+              ? `Conferma ${c.points}`
+              : 'Conferma';
+
   return (
-    <div className="g-live">
+    <>
+      {strip}
       {interrupted && (
-        <p className="live-warning" role="status">
-          Torneo o incontro in pausa: riprendilo per registrare i turni.
+        <p className="note warn" role="status">
+          <AlertTriangle aria-hidden="true" />
+          <span>Torneo o incontro in pausa: riprendilo per registrare i turni.</span>
         </p>
       )}
-      {closed.length > 0 && plan.state !== 'completed' && (
-        <p className="g-note">
+      {closed.length > 0 && (
+        <p className="note">
           <Info aria-hidden="true" />
           <span>
             {closed.map((s) => names.name(s.entryId)).join(', ')} ha chiuso. Se il totem ha finito
@@ -909,18 +890,154 @@ function GuidedLive({
           </span>
         </p>
       )}
-      {body}
-      <ErrorMessage error={record.error ?? guide.error} />
-      <section className="section" aria-label="Riepilogo della manche">
-        <div className="section-head">
-          <h2>{heated ? `Manche ${plan.heatNumber}` : 'Giocatori'}</h2>
-          <span>ordine di tiro</span>
+      <section
+        className={`now ${paused ? 'paused' : ''}`}
+        aria-label="Al bersaglio"
+        aria-live="polite"
+      >
+        <div className="now-top">
+          <Avatar name={throwerName} size="lg" active />
+          <div className="who">
+            <div className="eb">
+              {paused
+                ? 'Scelto a mano · rotazione in pausa'
+                : lastTurn && heated
+                  ? 'Ultimo turno della manche'
+                  : 'Al bersaglio'}
+            </div>
+            <h2>
+              {throwerName}
+              {leader === current.entryId && <CrownIcon role="img" aria-label="In testa" />}
+            </h2>
+            {meta.length > 0 && <small>{meta.join(' · ')}</small>}
+          </div>
+          <div className="tot">
+            <small>{progressKind ? 'NUMERO' : x01 ? 'RESIDUO' : 'TOTALE'}</small>
+            <strong>{value ?? 0}</strong>
+          </div>
         </div>
-        <Board m={m} t={t} plan={plan} sort="order" compact />
+        <div className="order" aria-label="Ordine di tiro del round">
+          {roundOrder.map(({ id, state }) => (
+            <span key={id} className={`sq ${state}`}>
+              {state === 'done' ? (
+                <Check aria-hidden="true" strokeWidth={3} />
+              ) : (
+                <Avatar name={names.name(id)} size="xs" />
+              )}
+              {first(state === 'cur' ? throwerName : names.name(id))}
+            </span>
+          ))}
+          {after && <span className="more">{after}</span>}
+        </div>
       </section>
+      {mode === 'detail' && !progressKind ? (
+        <DartPad
+          input={input}
+          change={setInput}
+          ctx={ctx}
+          notify={setHint}
+          disabled={busy || interrupted}
+          submit={confirm}
+          summary={
+            <div className="tally">
+              <span>
+                Turno<b>{c.points ?? (c.needsTotal ? '?' : 0)}</b>
+              </span>
+              {chip}
+              <span>
+                {x01 ? 'Residuo' : 'Nuovo totale'}
+                <b className={c.bust ? 'warn' : ''}>{c.after ?? '—'}</b>
+              </span>
+            </div>
+          }
+        />
+      ) : (
+        <>
+          <div className="paper" aria-live="polite">
+            <div>
+              <output aria-label="Valore del turno da confermare">{quick || '–'}</output>
+              <small>
+                {progressKind
+                  ? 'NUMERO RAGGIUNTO SUL TOTEM'
+                  : spec.kind === 'remaining'
+                    ? 'PUNTI RIMASTI SUL TOTEM'
+                    : quick === ''
+                      ? `PUNTI DEL TURNO · MAX ${max}`
+                      : c.after !== null
+                        ? `${x01 ? 'RESIDUO' : 'NUOVO TOTALE'} ${c.after}`
+                        : 'PUNTI DEL TURNO'}
+              </small>
+            </div>
+          </div>
+          {x01 && (
+            <button
+              type="button"
+              className="btn sm warn-outline"
+              disabled={busy || interrupted}
+              onClick={declareBust}
+            >
+              BUST · il turno non conta, il residuo resta
+            </button>
+          )}
+          <NumberKeypad
+            value={quick}
+            change={setQuick}
+            submit={confirm}
+            busy={busy || interrupted}
+            maximum={max}
+            notify={setHint}
+            limitLabel={`Massimo ${max}`}
+          />
+        </>
+      )}
+      <ErrorMessage error={record.error ?? guide.error} />
+      <InBar at="bottom">
+        <div className="acts pair">
+          <button
+            type="button"
+            className="btn undo"
+            aria-label={
+              undoable ? `Riapri il turno precedente (${undoName})` : 'Nessun turno da riaprire'
+            }
+            disabled={!undoable || busy}
+            onClick={takeBack}
+          >
+            <Undo2 aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="btn cta"
+            aria-label={`Conferma il turno di ${throwerName}`}
+            disabled={!c.ok || busy || interrupted}
+            onClick={confirm}
+          >
+            <span>
+              {ctaLabel} {!lastTurn && !record.busy && <ArrowRight aria-hidden="true" />}
+            </span>
+            {/* A plain reason fits in the button: the keypad keeps the space. */}
+            {!hint && c.why && !c.needsTotal && <small role="status">{c.why}</small>}
+          </button>
+        </div>
+        {(hint || (c.why && c.needsTotal)) && (
+          <p className="form-reason" role="status">
+            {hint ?? c.why}{' '}
+            {!hint && c.needsTotal && (
+              <button type="button" className="text-link" onClick={() => setMode('quick')}>
+                Inserisci il totale
+              </button>
+            )}
+          </p>
+        )}
+        {c.ok && c.reason && (
+          <p className="form-reason warn" role="status">
+            Le freccette danno un altro totale: si salva il valore del totem, da verificare.
+          </p>
+        )}
+      </InBar>
       {controls && (
         <Modal
           title={picking ? 'Chi è al bersaglio?' : 'Controlli del turno'}
+          subtitle={picking ? undefined : `${throwerName} · round ${round}`}
           close={() => {
             setControls(false);
             setPicking(false);
@@ -942,17 +1059,17 @@ function GuidedLive({
               }
             />
           ) : (
-            <div className="g-acts">
-              <button type="button" className="g-act" disabled={!current || busy} onClick={skip}>
+            <div className="list">
+              <button type="button" className="act" disabled={busy} onClick={skip}>
                 <SkipForward aria-hidden="true" />
                 <span>
-                  <b>Salta il turno{current ? ` di ${throwerName}` : ''}</b>
+                  <b>Salta il turno di {throwerName}</b>
                   <small>Resta non osservato, non vale zero</small>
                 </span>
               </button>
               <button
                 type="button"
-                className="g-act"
+                className="act"
                 disabled={busy}
                 onClick={() => setPicking(true)}
               >
@@ -962,8 +1079,8 @@ function GuidedLive({
                   <small>Cambia turno senza registrare punti</small>
                 </span>
               </button>
-              {current && team && (
-                <div className="g-act static">
+              {team && (
+                <div className="act static">
                   <Users aria-hidden="true" />
                   <span>
                     <b>Tiratore di {names.name(current.entryId)}</b>
@@ -977,19 +1094,7 @@ function GuidedLive({
                   </span>
                 </div>
               )}
-              <button
-                type="button"
-                className="g-act"
-                disabled={!undoable || busy}
-                onClick={() =>
-                  command(
-                    { action: 'undo' },
-                    <>
-                      Avanzamento annullato: torna <b>{undoName}</b>
-                    </>,
-                  )
-                }
-              >
+              <button type="button" className="act" disabled={!undoable || busy} onClick={takeBack}>
                 <Undo2 aria-hidden="true" />
                 <span>
                   <b>Annulla l’ultimo avanzamento</b>
@@ -1002,7 +1107,7 @@ function GuidedLive({
               </button>
               <button
                 type="button"
-                className="g-act"
+                className="act"
                 disabled={busy}
                 onClick={() => command({ action: paused ? 'resume' : 'pause' })}
               >
@@ -1016,14 +1121,150 @@ function GuidedLive({
                   </small>
                 </span>
               </button>
+              {organize && (
+                <button
+                  type="button"
+                  className="act"
+                  onClick={() => {
+                    setControls(false);
+                    organize();
+                  }}
+                >
+                  <ListOrdered aria-hidden="true" />
+                  <span>
+                    <b>Organizza manche</b>
+                    <small>Ordine e composizione delle manche in attesa</small>
+                  </span>
+                </button>
+              )}
               <ErrorMessage error={guide.error ?? record.error} />
             </div>
           )}
         </Modal>
       )}
-    </div>
+    </>
   );
 }
+
+/**
+ * A heat has thrown every turn: its provisional ranking, who to call to the totem next. The
+ * next heat starts once the totem's totals of this one are recorded (they are the official
+ * values); the organizer can still change the next heat before calling it.
+ */
+function HeatEnd({
+  m,
+  t,
+  heat,
+  plan,
+  next,
+  go,
+  review,
+  organize,
+  call,
+}: {
+  m: Match;
+  t: Tournament | undefined;
+  heat: HeatRow;
+  plan: Plan;
+  next: HeatRow | undefined;
+  go: (tab: Tab) => void;
+  review: () => void;
+  organize?: () => void;
+  call: () => void;
+}) {
+  const names = useNames(m, t);
+  const order = byValue(m);
+  const value = (id: string) => m.result?.scores[id] ?? metricOf(m, names.progress(id));
+  const ranked = [...plan.seats].sort((a, b) => order(value(a), value(b)));
+  // Provisional place over the whole match: every value recorded so far.
+  const all = m.participants
+    .map((p) => value(p.tournamentEntryId))
+    .filter((v): v is number => v !== null);
+  const cut = t?.mode === 'QUICK_HIGH_SCORE' ? t.tournamentConfiguration.qualifiers : null;
+  const place = (id: string) => {
+    const v = value(id);
+    return v === null ? null : 1 + all.filter((x) => order(x, v) < 0).length;
+  };
+  const missing = heat.missing.filter((id) => plan.seats.includes(id));
+  const nextPlayers = next ? next.entryIds : [];
+  return (
+    <>
+      <div className="heat-end-head">
+        <span className="marker">Manche {heat.number} chiusa!</span>
+        <p className="hint">
+          {plan.thrown} turni per {plan.seats.length}{' '}
+          {plan.seats.length === 1 ? 'giocatore' : 'giocatori'} ·{' '}
+          {plan.gaps.length ? `${plan.gaps.length} da verificare` : 'nessun turno da verificare'}
+          {missing.length ? ` · ${missing.length} totali del totem da inserire` : ''}
+        </p>
+      </div>
+      <section className="card heat-rank" aria-label="Risultato della manche">
+        {ranked.map((id, i) => {
+          const p = place(id);
+          return (
+            <div key={id} className={`rk ${i === 0 ? 'gold' : ''}`}>
+              <span className={`n ${i < 4 ? `r${i + 1}` : ''}`}>{i + 1}</span>
+              <Avatar name={names.name(id)} size="md" />
+              <span className="nm">
+                <b>{names.name(id)}</b>
+                <small>
+                  {p === null
+                    ? 'nessun valore'
+                    : `${p}° provvisorio${isHeated(m) ? ' in qualifica' : ''}${cut && p <= cut ? ' · in finale' : ''}`}
+                </small>
+              </span>
+              <strong>{value(id) ?? '—'}</strong>
+            </div>
+          );
+        })}
+      </section>
+      {next && (
+        <section className="now call" aria-label="Prossima manche">
+          <div className="call-head">
+            <span className="field-l">Chiama al totem</span>
+            <strong>MANCHE {next.number}</strong>
+          </div>
+          <div className="call-seats">
+            {nextPlayers.map((id, i) => (
+              <div key={id} className={i === 0 ? 'lead' : ''}>
+                <Avatar name={names.name(id)} active={i === 0} />
+                <b>{names.name(id)}</b>
+                <small>{i === 0 ? 'TIRA PER PRIMO' : `${i + 1}°`}</small>
+              </div>
+            ))}
+          </div>
+          {organize && (
+            <button type="button" className="text-link" onClick={organize}>
+              Cambia giocatori o ordine
+            </button>
+          )}
+        </section>
+      )}
+      <InBar at="bottom">
+        <div className="acts split">
+          <button type="button" className="btn" onClick={review}>
+            Rivedi M{heat.number}
+          </button>
+          {missing.length ? (
+            <button type="button" className="btn cta" onClick={() => go('risultati')}>
+              Totali del totem <ArrowRight aria-hidden="true" />
+            </button>
+          ) : next ? (
+            <button type="button" className="btn cta" onClick={call}>
+              Inizia Manche {next.number} <ArrowRight aria-hidden="true" />
+            </button>
+          ) : (
+            <button type="button" className="btn cta" onClick={() => go('risultati')}>
+              Vedi i risultati <ArrowRight aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </InBar>
+    </>
+  );
+}
+const isHeated = (m: Match) =>
+  m.heatOverview.heats.filter((h) => h.status !== 'cancelled').length > 1;
 
 function SeatPicker({
   m,
@@ -1039,7 +1280,7 @@ function SeatPicker({
   pick: (entryId: string) => void;
 }) {
   return (
-    <div className="g-acts">
+    <div className="list">
       {plan.seats.map((id, i) => {
         const done = plan.closed.some((s) => s.entryId === id);
         const p = names.progress(id);
@@ -1047,11 +1288,11 @@ function SeatPicker({
           <button
             type="button"
             key={id}
-            className={`g-act ${plan.current?.entryId === id ? 'on' : ''}`}
+            className={`act ${plan.current?.entryId === id ? 'on' : ''}`}
             disabled={busy || done}
             onClick={() => pick(id)}
           >
-            <Avatar name={names.name(id)} />
+            <Avatar name={names.name(id)} size="md" />
             <span>
               <b>{names.name(id)}</b>
               <small>
@@ -1066,425 +1307,297 @@ function SeatPicker({
   );
 }
 
-/** Previous total, points of the turn and the new provisional value. */
-function TurnSummary({
-  m,
-  plan,
-  c,
-  x01,
-  progressKind,
-  mode,
-}: {
-  m: Match;
-  plan: Plan;
-  c: ReturnType<typeof confirmation>;
-  x01: boolean;
-  progressKind: boolean;
-  mode: EntryMode;
-}) {
-  const previous = progressKind
-    ? (m.progress.find((p) => p.tournamentEntryId === plan.current?.entryId)?.partialValue ?? null)
-    : plan.before;
-  const chip = c.bust ? (
-    <StatusChip tone="warning">BUST · il turno vale 0, il residuo resta</StatusChip>
-  ) : c.shanghai ? (
-    <StatusChip tone="success">SHANGHAI · vittoria immediata</StatusChip>
-  ) : c.closed ? (
-    <StatusChip tone="success">
-      CHIUSURA{mode === 'detail' ? ' · freccette restanti non usate' : ''}
-    </StatusChip>
-  ) : c.needsTotal ? (
-    <StatusChip tone="neutral">NON DECISO · totale da leggere sul totem</StatusChip>
-  ) : null;
-  return (
-    <div className="g-sum">
-      <div className="big">
-        <small>{progressKind ? 'Numero raggiunto' : 'Punti del turno'}</small>
-        <strong>{c.points ?? (mode === 'detail' && c.needsTotal ? '?' : 0)}</strong>
-      </div>
-      <div className="rows">
-        <span>
-          {progressKind ? 'Prima' : x01 ? 'Residuo' : 'Totale precedente'}
-          <b>{previous ?? '—'}</b>
-        </span>
-        <span>
-          {progressKind ? 'Ora' : x01 ? 'Nuovo residuo' : 'Totale provvisorio'}
-          <b className={c.bust ? 'warn' : ''}>{c.after ?? '—'}</b>
-        </span>
-      </div>
-      {chip}
-    </div>
-  );
-}
-
-/** Seats with their progressive value, rounds and state; ordered by throwing order or value. */
-function Board({
-  m,
-  t,
-  plan,
-  sort,
-  compact = false,
-}: {
-  m: Match;
-  t: Tournament | undefined;
-  plan: Plan;
-  sort: 'order' | 'rank';
-  compact?: boolean;
-}) {
-  const names = useNames(m, t);
-  const g = gameOf(m);
-  const leader = leaderOf(m, plan.seats, names.progress);
-  const cols =
-    plan.rounds ??
-    Math.max(plan.round, ...plan.seats.map((id) => names.progress(id)?.rounds.length ?? 0));
-  const rows = plan.seats.map((id, i) => ({
-    id,
-    i,
-    p: names.progress(id),
-    v: metricOf(m, names.progress(id)),
-  }));
-  if (sort === 'rank')
-    rows.sort((a, b) =>
-      a.v === null ? 1 : b.v === null ? -1 : g.scoring === 'remaining' ? a.v - b.v : b.v - a.v,
-    );
-  return (
-    <ol className={`g-board ${compact ? 'compact' : ''}`}>
-      {rows.map(({ id, i, p, v }, pos) => {
-        const on = plan.current?.entryId === id;
-        const unit = names.entry(id);
-        const closed = plan.closed.find((s) => s.entryId === id);
-        const done = p?.rounds.filter((r) => r.status !== 'missing').length ?? 0;
-        return (
-          <li key={id} className={on ? 'on' : ''}>
-            <span className="g-pos">{sort === 'rank' ? pos + 1 : i + 1}</span>
-            <Avatar name={on ? names.thrower(plan.current) : names.name(id)} />
-            <span className="g-nm">
-              <b>
-                {names.name(id)}
-                {leader === id && <CrownIcon role="img" aria-label="In testa" />}
-              </b>
-              {(unit?.members.length ?? 0) > 1 ? (
-                <small>{unit!.members.map((x) => x.displayName).join(' + ')}</small>
-              ) : on ? (
-                <small>al bersaglio</small>
-              ) : null}
-            </span>
-            <strong>{v ?? '—'}</strong>
-            <span className="g-cnt">{closed ? 'chiuso' : `${done}/${plan.rounds ?? cols}`}</span>
-            {!compact && (
-              <span className="g-rchips" aria-hidden="true">
-                {Array.from({ length: cols }, (_, r) => {
-                  const x = p?.rounds[r];
-                  const now = on && plan.current?.round === r + 1;
-                  const text =
-                    !x || x.status === 'missing'
-                      ? now
-                        ? '•'
-                        : x?.state === 'reenter'
-                          ? '!'
-                          : '–'
-                      : x.status === 'skipped'
-                        ? 's'
-                        : x.bust
-                          ? 'B'
-                          : x.value;
-                  return (
-                    <span
-                      key={r}
-                      className={`${!x || x.status !== 'recorded' ? 'e' : ''} ${x?.bust ? 'b' : ''} ${now ? 'now' : ''}`}
-                    >
-                      {text}
-                    </span>
-                  );
-                })}
-              </span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/** Classifica: throwing order or provisional ranking, next turns, every round. */
+/** Classifica: the provisional ranking, over the whole qualification or one heat. */
 function LiveBoard({
   m,
   t,
   plan,
   heated,
-  open,
+  heat,
 }: {
   m: Match;
   t: Tournament | undefined;
   plan: Plan;
   heated: boolean;
-  open: (slot: Slot) => void;
+  heat: HeatRow | null;
 }) {
   const names = useNames(m, t);
-  const [sort, setSort] = useState<'order' | 'rank' | 'rounds'>('order');
+  const [view, setView] = useState<'all' | 'heat'>('all');
   const g = gameOf(m);
-  const cols =
-    plan.rounds ??
-    Math.max(plan.round, ...plan.seats.map((id) => names.progress(id)?.rounds.length ?? 0));
-  const queue = [plan.current, plan.next].filter((x): x is NonNullable<typeof x> => !!x);
+  const order = byValue(m);
+  const overview = m.heatOverview;
+  const heatOf = (id: string) => overview.heats.find((h) => h.entryIds.includes(id));
+  const excluded = new Set(m.excludedEntryIds);
+  const ids = (
+    view === 'heat' || !heated ? plan.seats : m.participants.map((p) => p.tournamentEntryId)
+  ).filter((id) => !excluded.has(id));
+  const value = (id: string) => m.result?.scores[id] ?? metricOf(m, names.progress(id));
+  const played = (id: string) =>
+    (names.progress(id)?.rounds.filter((r) => r.status !== 'missing').length ?? 0) > 0;
+  const rows = ids
+    .map((id) => ({ id, v: played(id) || m.result?.scores[id] != null ? value(id) : null }))
+    .sort((a, b) => order(a.v, b.v));
+  const cut =
+    t?.mode === 'QUICK_HIGH_SCORE' && m.matchType === 'qualification'
+      ? t.tournamentConfiguration.qualifiers
+      : null;
+  const cutAt =
+    view === 'all' && cut !== null && rows.filter((r) => r.v !== null).length > cut ? cut : null;
+  const playingNow = plan.seats.filter(
+    (id) => names.progress(id)?.complete === false && played(id),
+  );
+  const done = ids.filter((id) => names.progress(id)?.complete);
+  const waiting = ids.filter((id) => !played(id) && m.result?.scores[id] == null);
+  const cols = plan.rounds ?? null;
+  const sub = (id: string) => {
+    const p = names.progress(id);
+    const h = heatOf(id);
+    const at = plan.current?.entryId === id;
+    const gaps =
+      p?.rounds.filter(
+        (r) => r.state === 'reenter' || r.state === 'review' || r.state === 'partial',
+      ).length ?? 0;
+    const thrown = p?.rounds.filter((r) => r.status !== 'missing').length ?? 0;
+    const state = !played(id)
+      ? 'in attesa'
+      : p?.complete
+        ? cols
+          ? `${cols}/${cols}`
+          : 'completato'
+        : at
+          ? 'al bersaglio'
+          : `in gioco ${thrown}${cols ? `/${cols}` : ''}`;
+    return [heated && h ? `M${h.number}` : null, state, gaps ? `${gaps} da verificare` : null]
+      .filter(Boolean)
+      .join(' · ');
+  };
   return (
-    <div className="g-rank">
+    <>
       <InBar at="top">
-        <div className="g-info">
+        {heated && (
+          <Segmented
+            label="Vista classifica"
+            value={view}
+            change={setView}
+            options={[
+              { id: 'all', label: m.matchType === 'qualification' ? 'Qualifica' : 'Tutti' },
+              { id: 'heat', label: `Manche ${heat?.number ?? plan.heatNumber ?? ''}` },
+            ]}
+          />
+        )}
+        <div className="card stat3">
+          {cut !== null ? (
+            <div>
+              <small>Soglia finale</small>
+              <strong className="accent">{rows[cut - 1]?.v ?? '—'}</strong>
+            </div>
+          ) : (
+            <div>
+              <small>In testa</small>
+              <strong>{rows[0]?.v ?? '—'}</strong>
+            </div>
+          )}
           <div>
-            <b>
-              {heated ? `Manche ${plan.heatNumber} di ${m.heatOverview.heats.length}` : g.label}
-            </b>
-            <small>
-              {plan.seats.length} al bersaglio
-              {heated ? ` · ${m.participants.length} iscritti` : ''}
-            </small>
+            <small>Giocati</small>
+            <strong>
+              {done.length}
+              {playingNow.length ? ` + ${playingNow.length}` : ''}
+            </strong>
           </div>
-          <div className="g-rbox">
-            <small>Round</small>
-            <b>
-              {plan.round}
-              {plan.rounds ? ` di ${plan.rounds}` : ''}
-            </b>
+          <div>
+            <small>In attesa</small>
+            <strong className="muted">{waiting.length}</strong>
           </div>
         </div>
-        <Segmented
-          label="Ordinamento"
-          value={sort}
-          change={setSort}
-          options={[
-            { id: 'order', label: 'Ordine' },
-            { id: 'rank', label: 'Provvisoria' },
-            { id: 'rounds', label: 'Tutti i round' },
-          ]}
-        />
       </InBar>
-      {sort === 'rounds' ? (
-        <>
-          <p className="hint">
-            Sequenza dei turni, round per round. Tocca un turno per aprirlo nella matrice.
-          </p>
-          <ol className="g-order">
-            {Array.from({ length: cols }, (_, r) => {
-              const views = plan.seats.map((id) => names.progress(id)?.rounds[r]);
-              const done = views.filter((v) => v && v.status !== 'missing').length;
-              const now = plan.current?.round === r + 1;
-              const future = plan.current ? r + 1 > plan.current.round : false;
-              return (
-                <li key={r} className={now ? 'now' : future ? 'todo' : ''}>
-                  <div className="g-oh">
-                    <b>Round {r + 1}</b>
-                    {done === plan.seats.length ? (
-                      <StatusChip tone="success">COMPLETATO</StatusChip>
-                    ) : now ? (
-                      <StatusChip tone="live">IN CORSO</StatusChip>
-                    ) : done ? (
-                      <StatusChip tone="warning">{plan.seats.length - done} DA INSERIRE</StatusChip>
-                    ) : (
-                      <StatusChip tone="neutral">DA GIOCARE</StatusChip>
-                    )}
-                  </div>
-                  <div className="g-ot">
-                    {plan.seats.map((id, i) => {
-                      const v = views[i];
-                      const cur = sameSlot(plan.current, { entryId: id, round: r + 1 });
-                      const st = cellState(v, cur, future || now);
-                      return (
-                        <button
-                          type="button"
-                          key={id}
-                          className={st.cls}
-                          onClick={() => open({ entryId: id, round: r + 1 })}
-                        >
-                          <span className="seq">{r * plan.seats.length + i + 1}</span>
-                          <span className="nm">
-                            {cur
-                              ? names.thrower(plan.current)
-                              : v?.playerId
-                                ? names.thrower({ entryId: id, playerId: v.playerId })
-                                : names.name(id)}
-                          </span>
-                          <span className="vl">{st.value || ' '}</span>
-                          <span className="st">{st.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </>
-      ) : (
-        <>
-          {sort === 'rank' && (
-            <p className="hint">
-              Classifica provvisoria e non ufficiale: conta il risultato del totem.
-              {heated && !['points'].includes(g.scoring)
-                ? ' Le manche non si confrontano tra loro.'
-                : ''}
-            </p>
-          )}
-          <Board m={m} t={t} plan={plan} sort={sort} />
-          {queue.length > 0 && (
-            <section className="section">
-              <h2 className="section-title">Prossimi turni</h2>
-              <div className="g-queue">
-                {queue.map((x, i) => (
-                  <span key={`${x.entryId}-${x.round}`}>
-                    <Avatar name={names.thrower(x)} />
-                    {names.thrower(x)}
-                    <small>
-                      {i === 0 ? 'ora' : 'dopo'} · R{x.round}
-                    </small>
-                  </span>
-                ))}
+      <ol className="list board" aria-label="Classifica provvisoria">
+        {rows.map((r, i) => (
+          <li key={r.id}>
+            {cutAt !== null && i === cutAt && (
+              <div className="cut" aria-hidden="true">
+                <i />
+                FINALE · TOP {cut}
+                <i />
               </div>
-            </section>
-          )}
-          <button
-            className="outline"
-            onClick={() => plan.seats[0] && open({ entryId: plan.seats[0], round: 1 })}
-          >
-            <LayoutGrid size={20} aria-hidden="true" /> Visualizza matrice round
-          </button>
-        </>
-      )}
-    </div>
+            )}
+            <div
+              className={`rk ${r.v === null ? 'wait' : ''} ${plan.current?.entryId === r.id ? 'me' : ''}`}
+            >
+              <span className={`n ${r.v !== null && i < 4 ? `r${i + 1}` : ''}`}>
+                {r.v === null ? '·' : i + 1}
+              </span>
+              <Avatar name={names.name(r.id)} size="md" />
+              <span className="nm">
+                <b>{names.name(r.id)}</b>
+                <small>{sub(r.id)}</small>
+              </span>
+              <strong>{r.v ?? '–'}</strong>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="hint">
+        Classifica provvisoria: conta il risultato del totem.
+        {heated && g.scoring !== 'points' ? ' Le manche non si confrontano tra loro.' : ''}
+      </p>
+    </>
   );
 }
 
-function cellState(v: RoundView | undefined, current: boolean, waiting: boolean) {
-  if (v?.state === 'reenter') return { value: '!', label: 'REINSERIRE', cls: 'vd' };
-  if (v?.state === 'partial') return { value: '?', label: 'PARZIALE', cls: 'vd' };
-  if (v?.status === 'skipped') return { value: '–', label: 'SALTATO', cls: 'sk' };
+/** What a matrix cell shows, and how it reads aloud. */
+function cellOf(v: RoundView | undefined, current: boolean, gap: boolean) {
+  if (v?.state === 'reenter') return { text: '!', cls: 'gap', label: 'da reinserire' };
+  if (v?.state === 'partial') return { text: '?', cls: 'gap', label: 'parziale' };
+  if (v?.status === 'skipped') return { text: 'S', cls: 'gap', label: 'saltato' };
   if (v?.status === 'recorded')
-    return {
-      value: v.bust ? '0' : String(v.value),
-      label: v.bust ? 'BUST' : v.state === 'review' ? 'VERIFICA' : v.darts ? 'FRECCETTE' : 'TOTALE',
-      cls: v.bust ? 'b' : v.state === 'review' ? 'vd' : '',
-    };
-  if (current) return { value: '•', label: 'AL BERSAGLIO', cls: 'cur' };
-  return waiting
-    ? { value: '', label: 'IN ATTESA', cls: 'fut' }
-    : { value: '', label: 'MANCANTE', cls: 'vd' };
+    return v.state === 'review'
+      ? { text: String(v.value), cls: 'gap', label: `${v.value}, da verificare` }
+      : v.bust
+        ? { text: 'B', cls: 'bust', label: 'bust' }
+        : { text: String(v.value), cls: v.darts ? 'darts' : '', label: String(v.value) };
+  if (current) return { text: '●', cls: 'cur', label: 'al bersaglio' };
+  if (gap) return { text: '?', cls: 'gap', label: 'mancante' };
+  return { text: '·', cls: 'fut', label: 'da giocare' };
 }
 
 /**
- * Matrice: every turn of the seats, round by round. A cell opens the darts, the values before
- * and after, the corrections; edits, annulments and restores never move the turn at the board.
+ * Matrice: every turn of the seats, round by round, with the heats above. A cell opens its
+ * correction sheet; corrections never move the turn at the board.
  */
 function RoundMatrix({
   m,
   t,
   plan,
-  focus,
-  setFocus,
-  go,
-  notify,
+  heat,
+  heated,
+  selectHeat,
+  open,
+  organize,
 }: {
   m: Match;
   t: Tournament | undefined;
   plan: Plan;
-  focus: Slot | null;
-  setFocus: (slot: Slot | null) => void;
-  go: (tab: Tab) => void;
-  notify: (toast: Toast) => void;
+  heat: HeatRow | null;
+  heated: boolean;
+  selectHeat: (heatId: string) => void;
+  open: (slot: Slot) => void;
+  organize?: () => void;
 }) {
   const names = useNames(m, t);
   const g = gameOf(m);
   const x01 = g.scoring === 'remaining';
-  const cols =
-    plan.rounds ??
-    Math.max(plan.round, ...plan.seats.map((id) => names.progress(id)?.rounds.length ?? 0));
-  const cell = focus && plan.seats.includes(focus.entryId) && focus.round <= cols ? focus : null;
+  const cols = columnsOf(plan, names.progress);
+  const status = heat?.status;
+  const sub =
+    status === 'completed'
+      ? `${cols} round · registrata`
+      : status === 'pending' || status === 'ready'
+        ? 'In attesa · ordine modificabile'
+        : plan.current
+          ? `Round ${plan.round}${plan.rounds ? ` di ${plan.rounds}` : ''} · tocca a ${first(names.thrower(plan.current))}`
+          : plan.state === 'completed'
+            ? 'Tutti i turni registrati'
+            : `Round ${plan.round}`;
+  const gap = plan.gaps[0];
   return (
-    <div className="g-matrix">
+    <>
       <InBar at="top">
-        <div className="g-mx">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">
-                  {plan.seats.some((id) => (names.entry(id)?.members.length ?? 0) > 1)
-                    ? 'Squadra'
-                    : 'Giocatore'}
-                </th>
-                {Array.from({ length: cols }, (_, r) => (
-                  <th scope="col" key={r}>
-                    R{r + 1}
-                  </th>
-                ))}
-                <th scope="col">{x01 ? 'Res' : 'Tot'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plan.seats.map((id) => {
-                const p = names.progress(id);
-                return (
-                  <tr key={id} className={plan.current?.entryId === id ? 'on' : ''}>
-                    <th scope="row">{names.name(id)}</th>
-                    {Array.from({ length: cols }, (_, r) => {
-                      const v = p?.rounds[r];
-                      const cur = sameSlot(plan.current, { entryId: id, round: r + 1 });
-                      const sel = sameSlot(cell, { entryId: id, round: r + 1 });
-                      let text = '–';
-                      let cls = 'e';
-                      if (v?.state === 'reenter') [text, cls] = ['!', 'vd'];
-                      else if (v?.state === 'partial') [text, cls] = ['?', 'vd'];
-                      else if (v?.status === 'skipped') [text, cls] = ['salt.', 'sk'];
-                      else if (v?.status === 'recorded')
-                        [text, cls] = [
-                          v.bust ? 'B' : String(v.value),
-                          `${v.darts ? 'dd' : ''} ${v.bust ? 'b' : ''} ${v.state === 'review' ? 'mis' : ''}`,
-                        ];
-                      else if (cur) [text, cls] = ['ora', 'cur'];
-                      return (
-                        <td key={r}>
-                          <button
-                            type="button"
-                            className={`${cls} ${sel ? 'sel' : ''}`}
-                            aria-label={`${names.name(id)}, round ${r + 1}: ${text}`}
-                            aria-pressed={sel}
-                            onClick={() => setFocus({ entryId: id, round: r + 1 })}
-                          >
-                            {text}
-                          </button>
-                        </td>
-                      );
-                    })}
-                    <td className="tot">{metricOf(m, p) ?? '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="g-legend">
-          <span>
-            <i />
-            freccette registrate
-          </span>
-          <span>B bust</span>
-          <span>salt. saltato</span>
-          <span>! da reinserire</span>
-          <span>? parziale</span>
-        </div>
+        {heated && (
+          <HeatTabs overview={m.heatOverview} viewing={heat?.heatId ?? null} select={selectHeat} />
+        )}
       </InBar>
-      {cell ? (
-        <CellPanel
-          key={`${cell.entryId}:${cell.round}`}
-          m={m}
-          t={t}
-          plan={plan}
-          slot={cell}
-          go={go}
-          notify={notify}
-        />
-      ) : (
-        <p className="hint">Tocca una cella per vedere freccette, valori e correzioni.</p>
+      <div className="mx-head">
+        <div>
+          <h2>
+            {heated ? `Manche ${heat?.number} · ` : ''}
+            {plan.seats.length} {plan.seats.length === 1 ? 'giocatore' : 'giocatori'}
+          </h2>
+          <p className="hint">{sub}</p>
+        </div>
+        {organize && (
+          <button type="button" className="btn sm" onClick={organize}>
+            <ListOrdered aria-hidden="true" /> Organizza
+          </button>
+        )}
+      </div>
+      <div className="mx-scroll">
+        <table className="mx" aria-label="Turni per round">
+          <thead>
+            <tr>
+              <th scope="col">Ordine</th>
+              {Array.from({ length: cols }, (_, r) => (
+                <th scope="col" key={r}>
+                  R{r + 1}
+                </th>
+              ))}
+              <th scope="col">{x01 ? 'RES' : 'TOT'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.seats.map((id) => {
+              const p = names.progress(id);
+              const on = plan.current?.entryId === id;
+              return (
+                <tr key={id} className={on ? 'active' : ''}>
+                  <th scope="row">
+                    <span className="nm">
+                      <Avatar name={names.name(id)} size="xs" />
+                      {first(names.name(id))}
+                    </span>
+                  </th>
+                  {Array.from({ length: cols }, (_, r) => {
+                    const slot = { entryId: id, round: r + 1 };
+                    const cell = cellOf(
+                      p?.rounds[r],
+                      sameSlot(plan.current, slot),
+                      plan.gaps.some((s) => sameSlot(s, slot)),
+                    );
+                    return (
+                      <td key={r} className={cell.cls}>
+                        <button
+                          type="button"
+                          aria-label={`${names.name(id)}, round ${r + 1}: ${cell.label}`}
+                          onClick={() => open(slot)}
+                        >
+                          {cell.text}
+                        </button>
+                      </td>
+                    );
+                  })}
+                  <td className="tot">{metricOf(m, p) ?? '–'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {gap && (
+        <button type="button" className="card gap-card" onClick={() => open(gap)}>
+          <AlertTriangle aria-hidden="true" />
+          <span>
+            <b>
+              {plan.gaps.length} {plan.gaps.length === 1 ? 'turno' : 'turni'} da verificare
+            </b>
+            <span className="hint">
+              {names.name(gap.entryId)} · Round {gap.round}
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" />
+        </button>
       )}
-    </div>
+      <div className="mx-legend">
+        <span>
+          <i className="l-cur" />
+          al bersaglio
+        </span>
+        <span>
+          <i className="l-gap" />
+          da verificare
+        </span>
+        <span>B bust · S saltato</span>
+        <span>Tocca una cella per correggere</span>
+      </div>
+    </>
   );
 }
 
@@ -1494,11 +1607,13 @@ const recordStatus: Record<string, string> = {
   corrected: 'sostituito',
   voided: 'annullato',
 };
-function CellPanel({
+/** Correggi turno: one cell of the matrix, its value before and after, and its history. */
+function CellSheet({
   m,
   t,
   plan,
   slot,
+  close,
   go,
   notify,
 }: {
@@ -1506,6 +1621,7 @@ function CellPanel({
   t: Tournament | undefined;
   plan: Plan;
   slot: Slot;
+  close: () => void;
   go: (tab: Tab) => void;
   notify: (toast: Toast) => void;
 }) {
@@ -1515,22 +1631,26 @@ function CellPanel({
   const x01 = g.scoring === 'remaining';
   const p = names.progress(slot.entryId);
   const v = p?.rounds[slot.round - 1];
-  const [edit, setEdit] = useState<string | null>(null);
-  const [voiding, setVoiding] = useState(false);
   const command = useMatchCommand(m);
   const current = sameSlot(plan.current, slot);
+  const gap = plan.gaps.some((s) => sameSlot(s, slot));
   const thrower = names.thrower({
     entryId: slot.entryId,
     playerId: current ? plan.current!.playerId : (v?.playerId ?? null),
   });
-  const unit = names.entry(slot.entryId);
   const history = m.rounds
     .filter((r) => r.tournamentEntryId === slot.entryId && r.round === slot.round)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const thrown = history.length > 0;
   const max = spec.max[Math.min(slot.round, spec.max.length) - 1] ?? spec.max[0] ?? 180;
-  const stays = plan.current
-    ? `Il turno in corso resta a ${names.thrower(plan.current)}, round ${plan.current.round}.`
-    : '';
+  const darted = spec.kind !== 'progress';
+  const [mode, setMode] = useState<EntryMode>(v?.darts && darted ? 'detail' : 'quick');
+  const [edit, setEdit] = useState(v?.value == null ? '' : String(v.value));
+  const [input, setInput] = useState<DartInput>(() =>
+    v?.darts ? { ...emptyInput(), darts: [0, 1, 2].map((i) => v.darts![i] ?? null) } : emptyInput(),
+  );
+  const [voiding, setVoiding] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   // Values before and after the round, from the standing values before it.
   const before = (() => {
     if (!p) return null;
@@ -1545,207 +1665,239 @@ function CellPanel({
     if (x01) return earlier.every((r) => r.status === 'recorded') ? g.startingScore! - sum : null;
     return sum;
   })();
-  const after =
-    v?.value == null || before === null
-      ? null
-      : spec.kind === 'remaining'
-        ? v.value
-        : x01
-          ? before - v.value
-          : spec.kind === 'points'
-            ? before + v.value
-            : v.value;
+  const c = confirmation({
+    ctx: { game: m.gameMode as GameMode, round: slot.round, remaining: x01 ? before : null },
+    kind: spec.kind,
+    x01,
+    before: spec.kind === 'progress' ? null : before,
+    mode,
+    darts: input.darts,
+    quick: edit,
+    max,
+  });
+  // What the round would record: the total typed, or the value of the darts.
+  const nextValue =
+    mode === 'quick'
+      ? edit === ''
+        ? null
+        : Number(edit)
+      : !c.ok
+        ? null
+        : spec.kind === 'remaining'
+          ? c.after
+          : c.points;
+  const total = metricOf(m, p);
+  const delta =
+    nextValue === null || v?.value == null || spec.kind !== 'points' ? null : nextValue - v.value;
+  const stays = plan.current
+    ? `Il turno in corso resta a ${names.thrower(plan.current)}, round ${plan.current.round}.`
+    : '';
   const save = () => {
-    if (edit === null || edit === '') return;
-    const value = Number(edit);
-    command.run('rounds', { entryId: slot.entryId, round: slot.round, value }, () => {
-      notify({
-        text: (
-          <>
-            Round {slot.round} di <b>{names.name(slot.entryId)}</b>: {v?.value ?? '—'} → {value}. Il
-            turno in corso non cambia.
-          </>
-        ),
-      });
-      setEdit(null);
-    });
-  };
-  const head = (
-    <header>
-      <Avatar name={thrower} />
-      <b>
-        {(unit?.members.length ?? 0) > 1
-          ? `${names.name(slot.entryId)} (${thrower})`
-          : names.name(slot.entryId)}{' '}
-        · Round {slot.round}
-      </b>
-      {v?.bust && <StatusChip tone="warning">BUST</StatusChip>}
-      {v?.state === 'skipped' && <StatusChip tone="neutral">SALTATO</StatusChip>}
-      {v?.state === 'partial' && <StatusChip tone="warning">PARZIALE</StatusChip>}
-      {v?.state === 'reenter' && <StatusChip tone="warning">DA REINSERIRE</StatusChip>}
-      {v?.state === 'review' && <StatusChip tone="warning">DA VERIFICARE</StatusChip>}
-      {v?.state === 'early' && !v.bust && <StatusChip tone="success">CHIUSO PRIMA</StatusChip>}
-      {v?.status === 'recorded' && !v.darts && <StatusChip tone="neutral">SOLO TOTALE</StatusChip>}
-    </header>
-  );
-  if (edit !== null)
-    return (
-      <section className="g-cell">
-        {head}
-        <div className="g-out">
-          <output aria-live="polite">{edit || '0'}</output>
-          <span className="hint">{spec.label.toLowerCase()}</span>
-        </div>
-        <NumberKeypad
-          value={edit}
-          change={setEdit}
-          submit={save}
-          undo={() => setEdit('')}
-          busy={command.busy}
-          canUndo={false}
-          maximum={max}
-          notify={() => undefined}
-          quick={[]}
-          quickLabel=""
-          limitLabel={`Massimo ${max}`}
-          okLabel="Salva il valore"
-        />
-        {v?.darts && (
-          <p className="hint">
-            Le freccette restano com’erano: se il valore non torna, la cella resta da verificare.
-          </p>
-        )}
-        <p className="hint">{stays}</p>
-        <div className="pair">
-          <button type="button" onClick={() => setEdit(null)} disabled={command.busy}>
-            Indietro
-          </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={edit === '' || command.busy}
-            onClick={save}
-          >
-            {command.busy ? 'SALVATAGGIO…' : 'SALVA'}
-          </button>
-        </div>
-        <ErrorMessage error={command.error} />
-      </section>
+    if (nextValue === null || command.busy) return;
+    command.run(
+      'rounds',
+      {
+        entryId: slot.entryId,
+        round: slot.round,
+        value: nextValue,
+        ...(mode === 'detail' && c.darts ? { darts: c.darts, bust: c.bust } : {}),
+      },
+      () => {
+        notify({
+          text: (
+            <>
+              Round {slot.round} di <b>{names.name(slot.entryId)}</b>: {v?.value ?? '—'} →{' '}
+              {nextValue}. Il turno in corso non cambia.
+            </>
+          ),
+        });
+        close();
+      },
     );
-  if (voiding)
-    return (
-      <section className="g-cell">
-        {head}
+  };
+  const recordedAs =
+    !v || v.status === 'missing'
+      ? current
+        ? 'È il turno in corso'
+        : thrown
+          ? 'Valore annullato: da inserire'
+          : gap
+            ? 'Turno passato senza valore'
+            : 'Round non ancora giocato'
+      : v.status === 'skipped'
+        ? 'Saltato: non osservato'
+        : v.darts
+          ? `Registrato con le freccette: ${v.value ?? '?'}`
+          : `Registrato come totale: ${v.value ?? '?'}`;
+  const editable = !current && (!!v && v.status !== 'missing' ? true : thrown || gap);
+  return (
+    <Modal
+      title={`${(names.entry(slot.entryId)?.members.length ?? 0) > 1 ? `${names.name(slot.entryId)} (${thrower})` : names.name(slot.entryId)} · Round ${slot.round}`}
+      subtitle={recordedAs}
+      lead={<Avatar name={thrower} />}
+      close={close}
+      footer={
+        voiding ? (
+          <>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={command.busy}
+              onClick={() => setVoiding(false)}
+            >
+              Indietro
+            </button>
+            <button
+              type="button"
+              className="btn warn"
+              disabled={command.busy}
+              onClick={() =>
+                command.run(
+                  'rounds/void',
+                  { entryId: slot.entryId, round: slot.round, reason: 'Annullato dalla matrice' },
+                  () => {
+                    notify({
+                      text: <>Round annullato: torna da inserire. Il turno in corso non cambia.</>,
+                    });
+                    close();
+                  },
+                )
+              }
+            >
+              Annulla round
+            </button>
+          </>
+        ) : current ? (
+          <button type="button" className="btn cta" onClick={() => go('live')}>
+            Vai a Live
+          </button>
+        ) : editable ? (
+          <>
+            {v && v.status !== 'missing' ? (
+              <button
+                type="button"
+                className="btn danger"
+                disabled={command.busy}
+                onClick={() => setVoiding(true)}
+              >
+                Annulla turno
+              </button>
+            ) : (
+              <button type="button" className="btn ghost" onClick={close}>
+                Chiudi
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn cta"
+              disabled={nextValue === null || command.busy}
+              onClick={save}
+            >
+              {command.busy
+                ? 'Salvataggio…'
+                : v?.value == null
+                  ? 'Salva valore'
+                  : 'Salva correzione'}
+            </button>
+          </>
+        ) : undefined
+      }
+    >
+      {voiding ? (
         <p>
           Annullare il round {slot.round} di {names.name(slot.entryId)}? Il valore resta nello
           storico e il round torna da inserire. {stays}
         </p>
-        <div className="pair">
-          <button type="button" onClick={() => setVoiding(false)} disabled={command.busy}>
-            Indietro
-          </button>
-          <button
-            type="button"
-            className="warning"
-            disabled={command.busy}
-            onClick={() =>
-              command.run(
-                'rounds/void',
-                { entryId: slot.entryId, round: slot.round, reason: 'Annullato dalla matrice' },
-                () => {
-                  setVoiding(false);
-                  notify({
-                    text: <>Round annullato: torna da inserire. Il turno in corso non cambia.</>,
-                  });
-                },
-              )
-            }
-          >
-            Annulla round
-          </button>
-        </div>
-        <ErrorMessage error={command.error} />
-      </section>
-    );
-  const thrown = history.length > 0;
-  return (
-    <section className="g-cell">
-      {head}
-      {!v || v.status === 'missing' ? (
-        <>
-          <p className="hint">
-            {current
-              ? 'È il turno in corso: si registra da Live.'
-              : thrown
-                ? 'Il valore è stato annullato: inseriscilo di nuovo quando lo conosci.'
-                : plan.gaps.some((s) => sameSlot(s, slot))
-                  ? 'Turno passato senza valore: inseriscilo se lo conosci.'
-                  : 'Round non ancora giocato.'}
-          </p>
-          {current ? (
-            <button type="button" onClick={() => go('live')}>
-              Vai a Live
-            </button>
-          ) : (
-            (thrown || plan.gaps.some((s) => sameSlot(s, slot))) && (
-              <button type="button" onClick={() => setEdit('')}>
-                Inserisci
-              </button>
-            )
-          )}
-        </>
+      ) : !editable ? (
+        <p className="hint">
+          {current ? 'Si registra da Live, come ogni turno.' : 'Si registra quando tocca a lui.'}
+        </p>
       ) : (
         <>
-          <div className="g-sum">
-            <div className="big">
-              <small>{spec.label}</small>
-              <strong>{v.value ?? '–'}</strong>
+          {darted && (
+            <Segmented
+              label="Correggi con"
+              value={mode}
+              change={setMode}
+              options={[
+                { id: 'detail', label: 'Freccette' },
+                { id: 'quick', label: 'Totale' },
+              ]}
+            />
+          )}
+          <div className="before-after">
+            <div className="card">
+              <span className="field-l">Prima</span>
+              <strong className={v?.value != null ? 'struck' : ''}>{v?.value ?? '–'}</strong>
             </div>
-            <div className="rows">
-              <span>
-                {x01 ? 'Residuo prima' : 'Totale prima'}
-                <b>{before ?? '—'}</b>
-              </span>
-              <span>
-                {x01 ? 'Residuo dopo' : 'Totale dopo'}
-                <b>{after ?? '—'}</b>
-              </span>
+            <MoveRight aria-hidden="true" />
+            <div className="card on">
+              <span className="field-l">Dopo</span>
+              <strong>{nextValue ?? '–'}</strong>
             </div>
           </div>
-          {v.darts ? (
-            <>
-              <span className="eyebrow">Dettaglio freccette</span>
-              <div className="dart-cells small">
-                {[0, 1, 2].map((i) => (
-                  <DartCell
-                    key={i}
-                    index={i}
-                    dart={v.darts![i] ?? null}
-                    unused={i >= v.darts!.length}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="hint">
-              {v.status === 'skipped'
-                ? 'Turno non osservato: nessun valore, nemmeno zero.'
-                : 'Solo totale: le freccette di questo turno non sono state registrate.'}
-            </p>
-          )}
-          {v.state === 'review' && (
-            <p className="g-warn">
-              <Info aria-hidden="true" />
+          {total !== null && spec.kind === 'points' && (
+            <div className="tally">
+              <span>Totale di {first(names.name(slot.entryId))}</span>
               <span>
-                Le freccette danno {v.dartsValue}, il valore registrato è {v.value}. Il dettaglio
-                resta com’era: correggi il valore se serve.
+                {total} →<b>{delta === null ? total : total + delta}</b>
+              </span>
+            </div>
+          )}
+          {v?.state === 'review' && (
+            <p className="note warn">
+              <AlertTriangle aria-hidden="true" />
+              <span>
+                Le freccette danno {v.dartsValue}, il valore registrato è {v.value}.
               </span>
             </p>
+          )}
+          {mode === 'detail' ? (
+            <DartPad
+              input={input}
+              change={setInput}
+              ctx={{
+                game: m.gameMode as GameMode,
+                round: slot.round,
+                remaining: x01 ? before : null,
+              }}
+              notify={setHint}
+              disabled={command.busy}
+              submit={save}
+            />
+          ) : (
+            <NumberKeypad
+              value={edit}
+              change={setEdit}
+              submit={save}
+              busy={command.busy}
+              maximum={max}
+              notify={setHint}
+              limitLabel={`Massimo ${max}`}
+              label="Tastierino della correzione"
+            />
+          )}
+          {(hint || (mode === 'detail' && c.why)) && (
+            <p className="form-reason" role="status">
+              {hint ?? c.why}
+            </p>
+          )}
+          {v?.darts && mode === 'quick' && (
+            <div className="darts small" aria-label="Freccette registrate">
+              {[0, 1, 2].map((i) => (
+                <DartCell
+                  key={i}
+                  index={i}
+                  dart={v.darts![i] ?? null}
+                  unused={i >= v.darts!.length}
+                />
+              ))}
+            </div>
           )}
         </>
       )}
       {history.length > 0 && (
-        <ul className="g-hist" aria-label="Cronologia del round">
+        <ul className="hist" aria-label="Cronologia del round">
           {history.map((r) => (
             <li key={r.id}>
               {new Date(r.createdAt).toLocaleTimeString('it-IT', {
@@ -1758,26 +1910,7 @@ function CellPanel({
           ))}
         </ul>
       )}
-      {v && v.status !== 'missing' && (
-        <div className="pair">
-          <button
-            type="button"
-            disabled={command.busy}
-            onClick={() => setEdit(v.value === null ? '' : String(v.value))}
-          >
-            {v.value === null ? 'Inserisci' : 'Modifica'}
-          </button>
-          <button
-            type="button"
-            className="warning"
-            disabled={command.busy}
-            onClick={() => setVoiding(true)}
-          >
-            Annulla round
-          </button>
-        </div>
-      )}
-      {v?.corrected && (
+      {v?.corrected && !voiding && (
         <button
           type="button"
           className="text-link"
@@ -1791,7 +1924,10 @@ function CellPanel({
                 restorePrevious: true,
                 reason: 'Ripristino del valore precedente',
               },
-              () => notify({ text: <>Valore precedente ripristinato.</> }),
+              () => {
+                notify({ text: <>Valore precedente ripristinato.</> });
+                close();
+              },
             )
           }
         >
@@ -1799,7 +1935,7 @@ function CellPanel({
         </button>
       )}
       <ErrorMessage error={command.error} />
-    </section>
+    </Modal>
   );
 }
 
@@ -1825,98 +1961,64 @@ function GuidedResults({
   const names = useNames(m, t);
   const official = (id: string) => m.result?.scores[id] ?? null;
   const ended = plan.state === 'completed';
+  // Totals that differ from complete rounds without an explanation: to review first.
+  const differing = plan.seats.filter((id) => {
+    const p = names.progress(id);
+    const off = official(id);
+    return (
+      off !== null &&
+      !!p?.complete &&
+      p.computed !== off &&
+      !m.result?.reconciliation.some((r) => r.entryId === id)
+    );
+  });
+  const annotate = (id: string) => {
+    const p = names.progress(id);
+    const value = metricOf(m, p);
+    const off = official(id);
+    if (value === null) return null;
+    if (off !== null && p?.complete)
+      return p.computed === off ? `companion ${value} ✓` : `companion ${value}`;
+    return `companion ${value}${p && !p.complete ? ` · ${p.recorded}/${p.rounds.length} round` : ''}`;
+  };
   return (
-    <div className="g-results">
-      <InBar at="top">
-        <div className="g-note">
+    <>
+      {m.status !== 'completed' && (
+        <p className="note">
           <Info aria-hidden="true" />
           <span>
             {ended
-              ? 'Il risultato ufficiale è quello del totem. Il totale del companion serve a verificarlo, non lo sostituisce.'
-              : `Turni in corso: ${plan.expected ? `${plan.expected - plan.thrown} da registrare. ` : ''}I valori del totem si inseriscono a fine manche.`}
+              ? 'Conta il totale del totem: quello del companion serve a verificarlo.'
+              : `Turni in corso${plan.expected ? `: ${plan.expected - plan.thrown} da registrare` : ''}. I totali del totem si inseriscono a fine manche.`}
           </span>
-        </div>
-      </InBar>
-      <ol className="g-res">
-        {plan.seats.map((id) => {
-          const p = names.progress(id);
-          const value = metricOf(m, p);
-          const off = official(id);
-          const reconciled = m.result?.reconciliation.find((r) => r.entryId === id);
-          const missing = p?.missing ?? [];
-          const skipped = p?.skipped ?? [];
-          let tone = '';
-          let state: ReactNode;
-          if (off === null)
-            state = (
-              <>
-                <StatusChip tone="neutral">DA INSERIRE</StatusChip>
-                <span>
-                  {missing.length || skipped.length
-                    ? `Round mancanti o saltati: ${[...missing, ...skipped]
-                        .sort((a, b) => a - b)
-                        .map((r) => `R${r}`)
-                        .join(', ')}`
-                    : 'Leggi il punteggio finale sul totem.'}
-                </span>
-              </>
-            );
-          else if (!p?.complete) {
-            tone = 'ok';
-            state = (
-              <>
-                <StatusChip tone="success">TOTEM REGISTRATO</StatusChip>
-                <span>Round incompleti: il companion non può verificarlo.</span>
-              </>
-            );
-          } else if (p.computed === off) {
-            tone = 'ok';
-            state = <StatusChip tone="success">COINCIDE</StatusChip>;
-          } else if (reconciled) {
-            tone = 'ok';
-            state = (
-              <>
-                <StatusChip tone="success">TOTEM CONFERMATO</StatusChip>
-                <span>{reconciled.reason}</span>
-              </>
-            );
-          } else {
-            tone = 'diff';
-            state = (
-              <>
-                <StatusChip tone="warning">
-                  DIFFERENZA {p.computed !== null && off - p.computed > 0 ? '+' : ''}
-                  {p.computed !== null ? off - p.computed : ''}
-                </StatusChip>
-                <button type="button" onClick={() => review(id)}>
-                  Correggi un round
-                </button>
-              </>
-            );
-          }
-          return (
-            <li key={id} className={tone}>
-              <div className="g-res-top">
-                <Avatar name={names.name(id)} />
-                <span className="g-nm">
-                  <b>{names.name(id)}</b>
-                  <small>
-                    Companion {value ?? '—'}
-                    {p && !p.complete ? ' parziale' : ''} · {p?.recorded ?? 0}/
-                    {p?.rounds.length ?? 0} round
-                  </small>
-                </span>
-                <span className="g-off">
-                  <small>TOTEM</small>
-                  <strong>{off ?? '—'}</strong>
-                </span>
-              </div>
-              <div className="g-res-st">{state}</div>
-            </li>
-          );
-        })}
-      </ol>
-      <ResultEntry query={query} tournament={tournament} embedded review={review} />
-    </div>
+        </p>
+      )}
+      {differing.map((id) => {
+        const p = names.progress(id)!;
+        const off = official(id)!;
+        return (
+          <div key={id} className="tie-alert" role="alert">
+            <p>
+              <AlertTriangle aria-hidden="true" />
+              <span>
+                <strong>{names.name(id)}</strong>: totem {off}, round {p.computed} (differenza{' '}
+                {off - p.computed! > 0 ? '+' : ''}
+                {off - p.computed!}).
+              </span>
+            </p>
+            <button type="button" className="btn sm" onClick={() => review(id)}>
+              Correggi un round
+            </button>
+          </div>
+        );
+      })}
+      <ResultEntry
+        query={query}
+        tournament={tournament}
+        embedded
+        review={review}
+        annotate={annotate}
+      />
+    </>
   );
 }

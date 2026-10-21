@@ -274,16 +274,16 @@
 .bt-navigation .bt-nav-item.is-pressed > * {
   transform: scale(0.96);
 }
-.bt-navigation .bt-nav-item:is([aria-current='page'], [aria-pressed='true']) {
+.bt-navigation .bt-nav-item:is([aria-current], [aria-pressed='true']) {
   color: #fff;
   font-weight: 600;
 }
-.bt-navigation .bt-nav-item:is([aria-current='page'], [aria-pressed='true']) svg {
+.bt-navigation .bt-nav-item:is([aria-current], [aria-pressed='true']) svg {
   color: var(--bt-accent-bright);
 }
 /* Home e Tornei si riempiono quando sono attive. */
 .bt-navigation
-  .bt-nav-item:is([aria-current='page'], [aria-pressed='true'])
+  .bt-nav-item:is([aria-current], [aria-pressed='true'])
   :is(.lucide-house, .lucide-trophy)
   path:last-child {
   fill: currentColor;
@@ -357,7 +357,7 @@
     border: 2px solid Highlight;
   }
   .bt-navigation .bt-nav-item,
-  .bt-navigation .bt-nav-item:is([aria-current='page'], [aria-pressed='true']) {
+  .bt-navigation .bt-nav-item:is([aria-current], [aria-pressed='true']) {
     color: LinkText;
   }
 }

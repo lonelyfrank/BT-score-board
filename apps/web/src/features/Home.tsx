@@ -1,14 +1,16 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Settings,
+  BookText,
+  CalendarDays,
   ChartNoAxesColumnIncreasing,
-  Trophy,
   ChevronRight,
+  Crosshair,
   HardDriveDownload,
   Lock,
+  Settings,
+  Trophy,
 } from 'lucide-react';
-import { CheersIcon, CrossedDarts, CrowdIcon, CrownIcon } from '../components/BrandIcons';
 import { api, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
@@ -28,26 +30,24 @@ export function Home() {
     to: s.match ? `/partite/${s.match.id}` : tournamentPath(s.tournament),
     detail: [
       s.tournament.name,
-      gameOf(s.tournament).label,
-      `${s.playersIn} in gara`,
       s.current
-        ? `${s.current.player} al tiro · turno ${s.current.turn} di ${s.current.turns}`
+        ? `${s.current.player} al tiro, turno ${s.current.turn}/${s.current.turns}`
         : s.next?.heat
           ? `manche ${s.next.heat.number}/${s.next.heat.of}: ${s.next.players.join(', ')}`
           : s.next && s.next.players.length <= 4
             ? `prossimo: ${s.next.players.join(' vs ')}`
             : s.next
               ? `${s.next.missing} punteggi da registrare`
-              : 'conferma la fase per proseguire',
+              : `${gameOf(s.tournament).label} · conferma la fase per proseguire`,
     ].join(' · '),
   };
   return (
-    <div className="home-page">
+    <main className="home">
       <div className="home-hero" aria-hidden="true" />
-      <div className="home-footer" aria-hidden="true" />
+      <div className="home-foot" aria-hidden="true" />
       <h1 className="visually-hidden">Bite the Trouble — Not perfect, just real</h1>
-      <div className="home-tools">
-        <Link className="icon-button" to="/impostazioni" aria-label="Impostazioni e accesso">
+      <div className="htools">
+        <Link to="/impostazioni" aria-label="Impostazioni e backup">
           <Settings />
         </Link>
         {sharedApi && (
@@ -56,14 +56,19 @@ export function Home() {
             {locked ? 'Accesso richiesto' : 'Organizzatore'}
           </Link>
         )}
-        <Link className="icon-button" to="/hiscore" aria-label="Classifiche Hi-Score">
-          <ChartNoAxesColumnIncreasing strokeWidth={2.4} />
-        </Link>
+        <span className="htools-end">
+          <Link to="/regole" aria-label="Regole del totem">
+            <BookText />
+          </Link>
+          <Link to="/serate" aria-label="Game Night">
+            <CalendarDays />
+          </Link>
+        </span>
       </div>
-      <div className="home-actions">
+      <div className="home-body">
         {resume && (
-          <Link className="home-resume" to={resume.to}>
-            <span className="live-dot" aria-hidden="true" />
+          <Link className="resume" to={resume.to}>
+            <i aria-hidden="true" />
             <span>
               <small>IN CORSO · RIPRENDI</small>
               <span>{resume.detail}</span>
@@ -71,84 +76,71 @@ export function Home() {
             <ChevronRight aria-hidden="true" />
           </Link>
         )}
-        <nav aria-label="Azioni principali">
-          <Link className="home-card primary" to="/partite/nuova">
-            <CrossedDarts />
+        <nav className="hcards" aria-label="Azioni principali">
+          <Link className="hcard primary" to="/partite/nuova">
+            <Crosshair aria-hidden="true" />
             <span>
               <strong>NUOVA PARTITA</strong>
-              <small>8 giochi · 4 posti per manche</small>
+              <small>8 giochi · fino a 4 al totem</small>
             </span>
-            <ChevronRight />
+            <ChevronRight aria-hidden="true" />
           </Link>
-          <Link className="home-card" to="/tornei/nuovo">
-            <Trophy strokeWidth={1.5} />
+          <Link className="hcard" to="/tornei/nuovo">
+            <Trophy aria-hidden="true" strokeWidth={1.5} />
             <span>
               <strong>NUOVO TORNEO</strong>
-              <small>Gironi + eliminazione diretta</small>
+              <small>Hi-Score, gironi o partita singola</small>
             </span>
-            <ChevronRight />
+            <ChevronRight aria-hidden="true" />
           </Link>
-          <Link className="home-card" to="/hiscore">
-            <CrowdIcon />
+          <Link className="hcard" to="/hiscore">
+            <ChartNoAxesColumnIncreasing aria-hidden="true" strokeWidth={1.5} />
             <span>
               <strong>HI-SCORE NIGHTS</strong>
-              <small>Qualifica + finale dei migliori 4</small>
+              <small>Qualifica + finale dei migliori</small>
             </span>
-            <ChevronRight />
-          </Link>
-          <Link className="home-card" to="/serate">
-            <CheersIcon />
-            <span>
-              <strong>GAME NIGHT</strong>
-              <small>Una serata, più tornei</small>
-            </span>
-            <ChevronRight />
+            <ChevronRight aria-hidden="true" />
           </Link>
         </nav>
         {locked && (
-          <Link className="home-locked" to="/impostazioni">
+          <Link className="alert" to="/impostazioni">
             <Lock aria-hidden="true" />
-            <span>Inserisci il token organizzatore per creare partite e registrare punteggi.</span>
+            <span>
+              <b>Accesso organizzatore</b>
+              <small>Inserisci il token per creare partite e registrare punteggi</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
           </Link>
         )}
+        {backup.data?.backupRecommended && (
+          <Link className="alert" to="/impostazioni#backup">
+            <HardDriveDownload aria-hidden="true" />
+            <span>
+              <b>Backup consigliato</b>
+              <small>{backup.data.meta.changesSinceBackup} modifiche solo su questo telefono</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        )}
+        {!!recent.data?.length && (
+          <section className="home-recent" aria-labelledby="recent-title">
+            <div className="sec-h">
+              <h2 id="recent-title">RISULTATI RECENTI</h2>
+              <Link to="/tornei?filtro=done">Tutti</Link>
+            </div>
+            <ul className="hstrip">
+              {recent.data.slice(0, 2).map(({ summary, winner }) => (
+                <li key={summary.id}>
+                  <Link to={resultsPath(summary)}>
+                    <b>{summary.name}</b>
+                    <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
-      {(backup.data?.backupRecommended || !!recent.data?.length) && (
-        <section className="home-extra" aria-label="Risultati e dati">
-          {backup.data?.backupRecommended && (
-            <Link className="home-backup" to="/impostazioni#backup">
-              <HardDriveDownload aria-hidden="true" />
-              <span>
-                <strong>Backup consigliato</strong>
-                <small>
-                  {backup.data.meta.changesSinceBackup} modifiche non salvate fuori dal telefono
-                </small>
-              </span>
-              <ChevronRight aria-hidden="true" />
-            </Link>
-          )}
-          {!!recent.data?.length && (
-            <>
-              <div className="home-rhead">
-                <h2>Risultati recenti</h2>
-                <Link to="/tornei">Tutti</Link>
-              </div>
-              <ul className="home-strip" aria-label="Risultati recenti">
-                {recent.data.map(({ summary, winner }) => (
-                  <li key={summary.id}>
-                    <Link to={resultsPath(summary)}>
-                      <CrownIcon aria-hidden="true" />
-                      <span>
-                        <b>{summary.name}</b>
-                        <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
-      )}
-    </div>
+    </main>
   );
 }

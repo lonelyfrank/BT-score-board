@@ -18,6 +18,7 @@ export const clientRoutes = [
   '/hiscore',
   '/hiscore/*',
   '/serate',
+  '/regole',
   '/giocatori',
   '/impostazioni',
 ];

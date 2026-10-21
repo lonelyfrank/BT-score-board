@@ -24,7 +24,7 @@ function UpdateToast() {
   return (
     <div className="update-toast" role="status">
       <p>Nuova versione disponibile</p>
-      <button className="primary" onClick={pwa.applyUpdate}>
+      <button type="button" className="btn cta sm" onClick={pwa.applyUpdate}>
         Aggiorna
       </button>
     </div>
@@ -66,6 +66,8 @@ function StorageStatus() {
       </p>
       {problem && (
         <button
+          type="button"
+          className="btn sm"
           onClick={() =>
             problem.action === 'reload'
               ? window.location.reload()

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Delete, EyeOff, Minus, Plus, X } from 'lucide-react';
 import {
   dartLabel,
@@ -51,25 +51,21 @@ export function DartCell({
         : selected
           ? 'In attesa'
           : '';
+  const cls = `dart k-${kind} ${dart?.kind === 'triple' ? 't' : ''} ${dart?.kind === 'single' ? 's' : ''} ${!dart && !pending && !unused ? 'blank' : ''} ${selected ? 'on' : ''}`;
   const content = (
     <>
-      <small className="dart-lab">FRECCETTA {index + 1}</small>
+      <span className="lab">FRECCETTA {index + 1}</span>
       <strong>
         {dart?.kind === 'miss' && !pending && !unused ? <X strokeWidth={3} /> : value}
       </strong>
       <em>{label}</em>
-      {selected && !pending && !unused && (
-        <span className="dart-more" aria-hidden="true">
-          •••
-        </span>
-      )}
     </>
   );
-  if (!onClick) return <div className={`dart-cell k-${kind}`}>{content}</div>;
+  if (!onClick) return <div className={cls}>{content}</div>;
   return (
     <button
       type="button"
-      className={`dart-cell k-${kind} ${selected ? 'on' : ''}`}
+      className={cls}
       aria-pressed={selected}
       aria-label={`Freccetta ${index + 1}: ${label || 'vuota'}`}
       disabled={unused}
@@ -111,6 +107,7 @@ export function DartPad({
   notify,
   disabled,
   submit,
+  summary,
 }: {
   input: DartInput;
   change: (input: DartInput) => void;
@@ -119,8 +116,11 @@ export function DartPad({
   disabled: boolean;
   /** Enter on a keyboard. */
   submit: () => void;
+  /** Between the cells and the keys: the points of the turn. */
+  summary?: ReactNode;
 }) {
   const view = turnView(ctx, input.darts);
+  const ref = useRef<HTMLDivElement>(null);
   const [panel, setPanel] = useState<{ kind: Kind | 'unobserved'; sector: number } | null>(null);
   const press = (key: DartKey) => {
     const result = pressDartKey(input, key, ctx);
@@ -129,8 +129,10 @@ export function DartPad({
   };
   useEffect(() => {
     const handle = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement).closest('input, textarea, select, dialog') || disabled)
-        return;
+      if ((event.target as HTMLElement).closest('input, textarea, select') || disabled) return;
+      // A pad inside a sheet listens only while its sheet is the open one.
+      const sheet = document.querySelector('dialog[open]');
+      if (sheet && !sheet.contains(ref.current)) return;
       const k = event.key.toUpperCase();
       const map: Record<string, DartKey> = {
         B: 'BULL',
@@ -161,8 +163,8 @@ export function DartPad({
     }
   };
   return (
-    <>
-      <div className="dart-cells">
+    <div className="dartpad" ref={ref}>
+      <div className="darts">
         {[0, 1, 2].map((i) => (
           <DartCell
             key={i}
@@ -175,13 +177,14 @@ export function DartPad({
           />
         ))}
       </div>
+      {summary}
       {panel ? (
         <section className="dart-panel" aria-label={`Freccetta ${input.sel + 1}`}>
           <header>
             <h3>Freccetta {input.sel + 1} di 3</h3>
             <button
               type="button"
-              className="icon-button"
+              className="ibtn"
               aria-label="Chiudi"
               onClick={() => setPanel(null)}
             >
@@ -234,7 +237,7 @@ export function DartPad({
           </div>
           <button
             type="button"
-            className="primary cta"
+            className="btn cta"
             onClick={() => {
               change(
                 placeDart(
@@ -254,7 +257,7 @@ export function DartPad({
           </button>
         </section>
       ) : (
-        <div className="dart-keys" role="group" aria-label="Tastierino freccette">
+        <div className="keys" role="group" aria-label="Tastierino freccette">
           {keys.map(([key, cls, label]) => (
             <button
               type="button"
@@ -269,6 +272,6 @@ export function DartPad({
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }

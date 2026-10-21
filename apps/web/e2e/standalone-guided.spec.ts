@@ -1,17 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 import { addPlayers, enterScore, guardNetwork } from './helpers';
 
-// V1.3 Guided Scoring: the turn at the board, the three darts, the round matrix and the
-// official result, end to end on the standalone PWA.
+// V1.3 Guided Scoring with the V1.4 screens: the turn at the board, the three darts, the round
+// matrix with its correction sheet and the official result, end to end on the standalone PWA.
 
-const shots = '../../docs/release/screenshots-v1.3';
+const shots = '../../docs/release/screenshots-v1.4';
 const shot = (page: Page, name: string, fullPage = false) =>
   page.screenshot({ path: `${shots}/${name}.png`, fullPage });
-const now = (page: Page) => page.locator('.g-now');
-const cta = (page: Page) => page.locator('.g-ctas .cta');
-const toast = (page: Page) => page.locator('.g-toast');
+const now = (page: Page) => page.locator('.now');
+const cta = (page: Page) => page.getByRole('button', { name: /^Conferma il turno di/ });
+const toast = (page: Page) => page.locator('.toast');
+const sheet = (page: Page) => page.getByRole('dialog');
 
-/** A free match with rounds tracked (tracking chosen in the advanced options). */
+/** A free match with rounds tracked (the tracking is chosen with the game). */
 async function trackedMatch(
   page: Page,
   players: string[],
@@ -19,20 +20,19 @@ async function trackedMatch(
   teams?: (page: Page) => Promise<void>,
 ) {
   await page.goto('/partite/nuova');
+  await page.getByRole('radio', { name: tracking }).click();
+  await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, players);
   if (teams) await teams(page);
-  await page.getByText(/^Opzioni avanzate/).click();
-  await page.getByRole('radio', { name: tracking }).click();
-  await page.getByRole('button', { name: 'INIZIA PARTITA' }).click();
-  await page.getByRole('button', { name: 'CONFERMA E INIZIA' }).click();
+  await page.getByRole('button', { name: 'Avvia partita' }).click();
   await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
   await expect(now(page)).toBeVisible();
 }
 async function atBoard(page: Page, name: string, round?: number) {
   await expect(now(page).locator('h2')).toHaveText(name);
-  if (round) await expect(page.locator('.g-round > b')).toContainText(`Round ${round}`);
+  if (round) await expect(page.locator('.strip .rd')).toContainText(`Round ${round}/`);
 }
-/** Quick entry: the total of the turn typed on the keypad, Enter confirms. */
+/** Quick entry: the total of the turn typed on the keypad, then the main button. */
 async function total(page: Page, name: string, value: number) {
   await atBoard(page, name);
   await page.getByRole('radio', { name: 'Totale' }).click();
@@ -41,10 +41,7 @@ async function total(page: Page, name: string, value: number) {
   await cta(page).click();
   await expect(toast(page)).toContainText(name);
 }
-const dismissInterlude = async (page: Page) => {
-  const next = page.locator('.g-next');
-  if (await next.isVisible()) await next.click();
-};
+const next = (page: Page) => now(page).locator('.sq.next');
 
 test('guided Hi-Score: three darts, quick totals, next player, reload, matrix and result', async ({
   page,
@@ -55,8 +52,8 @@ test('guided Hi-Score: three darts, quick totals, next player, reload, matrix an
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await trackedMatch(page, ['Frank', 'Salvo', 'Marco', 'Luca'], 'Flessibile');
   await atBoard(page, 'Frank', 1);
-  await expect(now(page)).toContainText('Ora al bersaglio');
-  await expect(now(page)).toContainText('Dopo: Salvo');
+  await expect(now(page)).toContainText('Al bersaglio');
+  await expect(next(page)).toContainText('Salvo');
   await expect(page.getByRole('navigation', { name: 'Navigazione della partita' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Navigazione principale' })).toHaveCount(0);
   await shot(page, '01-turno-attivo');
@@ -67,13 +64,13 @@ test('guided Hi-Score: three darts, quick totals, next player, reload, matrix an
   await page.getByRole('button', { name: 'Singolo' }).click();
   await page.getByRole('button', { name: 'Fuori bersaglio' }).click();
   await page.keyboard.type('20t');
-  await expect(page.locator('.dart-cell')).toHaveText([/20.*Singolo/, /Fuori/, /T20.*Triplo/]);
-  await expect(page.locator('.g-sum .big strong')).toHaveText('80');
-  await expect(page.locator('.g-sum')).toContainText('Totale provvisorio80');
-  await expect(cta(page)).toHaveText('CONFERMA ROUND → SALVO');
+  await expect(page.locator('.darts .dart')).toHaveText([/20.*Singolo/, /Fuori/, /T20.*Triplo/]);
+  await expect(page.locator('.tally b').first()).toHaveText('80');
+  await expect(page.locator('.tally')).toContainText('Nuovo totale80');
+  await expect(cta(page)).toContainText('Conferma 80');
   await shot(page, '02-tre-freccette');
   await cta(page).dblclick();
-  await expect(toast(page)).toContainText('Frank · 80 punti · totale 80');
+  await expect(toast(page)).toContainText('Frank · 80 registrato · totale 80');
   await atBoard(page, 'Salvo', 1);
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(toast(page)).toHaveCount(0, { timeout: 8000 });
@@ -81,54 +78,54 @@ test('guided Hi-Score: three darts, quick totals, next player, reload, matrix an
 
   // An unobserved dart is not zero: the total comes from the totem.
   await page.keyboard.type('19s');
-  await page.locator('.dart-cell').nth(1).click();
-  await page.locator('.dart-cell').nth(1).click();
+  await page.locator('.darts .dart').nth(1).click();
+  await page.locator('.darts .dart').nth(1).click();
   await page.getByRole('radio', { name: /Non osservata/ }).click();
   await page.getByRole('button', { name: 'CONFERMA FRECCETTA' }).click();
   await page.keyboard.type('1s');
   await expect(cta(page)).toBeDisabled();
-  await expect(page.locator('.g-ctas')).toContainText('Freccetta non osservata');
+  await expect(page.locator('.actionbar')).toContainText('Freccetta non osservata');
   await page.getByRole('button', { name: 'Inserisci il totale' }).click();
   await page.keyboard.type('85');
   await cta(page).click();
-  await expect(toast(page)).toContainText('Salvo · 85 punti');
+  await expect(toast(page)).toContainText('Salvo · 85 registrato');
 
-  // Scenario C: a quick total, no darts invented.
+  // Scenario C: a quick total, no darts invented; the round ends and round 2 starts at once.
   await total(page, 'Marco', 60);
   await total(page, 'Luca', 45);
-  await expect(page.getByRole('heading', { name: 'Round 1 completato' })).toBeVisible();
-  await expect(page.locator('.g-next')).toContainText('Round 2 di 7 · ora tocca aFrank');
+  await atBoard(page, 'Frank', 2);
   await shot(page, '04-round-completato');
-  await page.locator('.g-next').click();
 
   // Scenario H: closed and reopened, the same turn with its draft digits.
   await page.getByRole('radio', { name: 'Totale' }).click();
   await page.keyboard.type('7');
   await page.reload();
   await atBoard(page, 'Frank', 2);
-  await expect(now(page)).toContainText('Dopo: Salvo');
+  await expect(next(page)).toContainText('Salvo');
   await expect(page.getByLabel('Valore del turno da confermare')).toHaveText('7');
   await page.keyboard.press('Backspace');
 
   // Scenario D: Frank's round 1 corrected from the matrix; the turn at the board stays.
   await page.getByRole('link', { name: 'Matrice' }).click();
   await page.getByRole('button', { name: 'Frank, round 1: 80' }).click();
-  await expect(page.locator('.g-cell')).toContainText('Dettaglio freccette');
-  await expect(page.locator('.g-cell .dart-cell')).toHaveText([/20/, /Fuori/, /T20/]);
+  await expect(sheet(page)).toContainText('Registrato con le freccette: 80');
+  await expect(sheet(page).locator('.dart')).toHaveText([/20/, /Fuori/, /T20/]);
+  await sheet(page).getByRole('button', { name: 'Chiudi', exact: true }).click();
   await page.getByRole('button', { name: 'Marco, round 1: 60' }).click();
-  await expect(page.locator('.g-cell')).toContainText('Solo totale');
+  await expect(sheet(page)).toContainText('Registrato come totale: 60');
+  await sheet(page).getByRole('button', { name: 'Chiudi', exact: true }).click();
   await page.getByRole('button', { name: 'Frank, round 1: 80' }).click();
   await shot(page, '05-matrice-round');
-  await page.getByRole('button', { name: 'Modifica' }).click();
+  await sheet(page).getByRole('radio', { name: 'Totale' }).click();
   await page.keyboard.press('Backspace');
   await page.keyboard.press('Backspace');
   await page.keyboard.type('100');
-  await page.getByRole('button', { name: 'SALVA', exact: true }).click();
+  await sheet(page).getByRole('button', { name: 'Salva correzione' }).click();
   await expect(toast(page)).toContainText('80 → 100');
-  await expect(page.locator('.g-cell')).toContainText(
-    'Le freccette danno 80, il valore registrato è 100',
-  );
-  await expect(page.locator('.g-cell .g-hist li')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Frank, round 1: 100, da verificare' }).click();
+  await expect(sheet(page)).toContainText('Le freccette danno 80, il valore registrato è 100');
+  await expect(sheet(page).locator('.hist li')).toHaveCount(2);
+  await sheet(page).getByRole('button', { name: 'Chiudi', exact: true }).click();
   await page.getByRole('link', { name: 'Live' }).click();
   await atBoard(page, 'Frank', 2);
 
@@ -139,20 +136,19 @@ test('guided Hi-Score: three darts, quick totals, next player, reload, matrix an
       ['Salvo', 60],
       ['Marco', 50],
       ['Luca', 40],
-    ] as const) {
-      await dismissInterlude(page);
+    ] as const)
       await total(page, name, value);
-    }
   }
   await expect(page.getByRole('heading', { name: 'Partita completata' })).toBeVisible();
   await page.getByRole('link', { name: 'Classifica' }).click();
-  await page.getByRole('radio', { name: 'Provvisoria' }).click();
-  await expect(page.locator('.g-board li').first()).toContainText('Frank');
-  await expect(page.locator('.g-rank')).toContainText('provvisoria e non ufficiale');
+  await expect(page.locator('.board li').first()).toContainText('Frank');
+  await expect(
+    page.getByText('Classifica provvisoria: conta il risultato del totem.'),
+  ).toBeVisible();
 
   // The official totals come from the totem; the companion only checks them.
   await page.getByRole('link', { name: 'Risultati' }).click();
-  await expect(page.locator('.g-res li').first()).toContainText('Companion 520');
+  await expect(page.locator('.result-rows .rk').first()).toContainText('companion 520');
   await enterScore(page, 'Frank', 520);
   await enterScore(page, 'Salvo', 445);
   await enterScore(page, 'Marco', 360);
@@ -163,8 +159,7 @@ test('guided Hi-Score: three darts, quick totals, next player, reload, matrix an
   await difference.getByLabel(/Motivo/).fill('R4 letto male');
   await difference.getByRole('button', { name: 'CONFERMA IL VALORE DEL TOTEM' }).click();
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
-  await expect(page.locator('.g-res li').first()).toContainText('COINCIDE');
-  await expect(page.locator('.g-res li').last()).toContainText('TOTEM CONFERMATO');
+  await expect(page.getByText('Luca: ufficiale 290, round 285 — R4 letto male')).toBeVisible();
   await expect(toast(page)).toHaveCount(0, { timeout: 8000 });
   await shot(page, '06-risultato-finale', true);
   expect(guard.api).toEqual([]);
@@ -188,11 +183,10 @@ test('uneven teams: the actual thrower rotates, undo takes back a turn without m
     },
   );
   // Four units on four seats: one session, no heats.
-  await expect(page.locator('.heat-timeline')).toHaveCount(0);
+  await expect(page.locator('.htabs')).toHaveCount(0);
   await atBoard(page, 'Ada', 1);
-  await expect(now(page)).toContainText('Ora al bersaglio · Ada + Bea');
-  await expect(now(page)).toContainText('Tiratore 1 di 2 · con Bea');
-  await expect(now(page)).toContainText('Dopo: Ciro');
+  await expect(now(page)).toContainText('Ada + Bea · tiratore 1 di 2');
+  await expect(next(page)).toContainText('Ciro');
   await total(page, 'Ada', 60);
   await atBoard(page, 'Ciro');
   // Undo from the notice: Ada again, her round taken back, the rotation not moved twice.
@@ -200,10 +194,9 @@ test('uneven teams: the actual thrower rotates, undo takes back a turn without m
   await atBoard(page, 'Ada', 1);
   await total(page, 'Ada', 50);
   for (const name of ['Ciro', 'Elio', 'Gino']) await total(page, name, 40);
-  await page.locator('.g-next').click();
   // Round 2: the second member of every pair, the single again.
   await atBoard(page, 'Bea', 2);
-  await expect(now(page)).toContainText('Dopo: Dino');
+  await expect(next(page)).toContainText('Dino');
   // A double tap on the confirmation saves once.
   await page.getByRole('radio', { name: 'Totale' }).click();
   await page.keyboard.type('33');
@@ -211,12 +204,14 @@ test('uneven teams: the actual thrower rotates, undo takes back a turn without m
   await atBoard(page, 'Dino', 2);
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.getByRole('link', { name: 'Matrice' }).click();
-  await expect(page.locator('.g-mx tbody tr').first()).toContainText('5033');
+  await expect(page.locator('.mx tbody tr').first()).toContainText('5033');
   await page.getByRole('button', { name: 'Ada + Bea, round 1: 50' }).click();
-  await expect(page.locator('.g-cell header')).toContainText('Ada + Bea (Ada) · Round 1');
-  await expect(page.locator('.g-cell .g-hist')).toContainText('annullato');
+  await expect(sheet(page).locator('.sh-h')).toContainText('Ada + Bea (Ada) · Round 1');
+  await expect(sheet(page).locator('.hist')).toContainText('annullato');
+  await sheet(page).getByRole('button', { name: 'Chiudi', exact: true }).click();
   await page.getByRole('button', { name: 'Ada + Bea, round 2: 33' }).click();
-  await expect(page.locator('.g-cell header')).toContainText('(Bea)');
+  await expect(sheet(page).locator('.sh-h')).toContainText('(Bea)');
+  await sheet(page).getByRole('button', { name: 'Chiudi', exact: true }).click();
 
   // Controls: pick who is at the board, pause and resume the rotation.
   await page.getByRole('link', { name: 'Live' }).click();
@@ -232,9 +227,8 @@ test('uneven teams: the actual thrower rotates, undo takes back a turn without m
   // Round 3: the pair's rotation is back to its first thrower.
   await atBoard(page, 'Ada', 3);
   // Dino and Fede were passed in round 2: listed for verification.
-  await page.getByRole('link', { name: 'Classifica' }).click();
-  await page.getByRole('radio', { name: 'Tutti i round' }).click();
-  await expect(page.locator('.g-order > li').nth(1)).toContainText('2 DA INSERIRE');
+  await page.getByRole('link', { name: 'Matrice' }).click();
+  await expect(page.locator('.gap-card')).toContainText('2 turni da verificare');
   expect(guard.api).toEqual([]);
   expect(guard.errors).toEqual([]);
 });
@@ -245,7 +239,6 @@ test('round by round: skipped turn, correction, official result, difference and 
   await trackedMatch(page, ['Ivo', 'Lea'], 'Round per round');
   await total(page, 'Ivo', 60);
   await total(page, 'Lea', 40);
-  await page.locator('.g-next').click();
   // Ivo's round 2 was not seen: skipped, never zero.
   await atBoard(page, 'Ivo', 2);
   await page.getByRole('button', { name: 'Controlli del turno' }).click();
@@ -253,22 +246,20 @@ test('round by round: skipped turn, correction, official result, difference and 
   await expect(toast(page)).toContainText('saltato');
   await total(page, 'Lea', 40);
   for (let r = 3; r <= 7; r++) {
-    await dismissInterlude(page);
     await total(page, 'Ivo', 40);
     await total(page, 'Lea', 40);
   }
   await expect(page.getByRole('heading', { name: 'Partita completata' })).toBeVisible();
   await page.getByRole('link', { name: 'Matrice' }).click();
-  await expect(page.getByRole('button', { name: 'Ivo, round 2: salt.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ivo, round 2: saltato' })).toBeVisible();
   await page.getByRole('button', { name: 'Ivo, round 3: 40' }).click();
-  await page.getByRole('button', { name: 'Modifica' }).click();
   await page.keyboard.press('Backspace');
   await page.keyboard.type('5');
-  await page.getByRole('button', { name: 'SALVA', exact: true }).click();
-  await expect(page.locator('.g-mx tbody tr').first().locator('td.tot')).toHaveText('265');
+  await sheet(page).getByRole('button', { name: 'Salva correzione' }).click();
+  await expect(page.locator('.mx tbody tr').first().locator('td.tot')).toHaveText('265');
 
   await page.getByRole('link', { name: 'Risultati' }).click();
-  await expect(page.locator('.g-res li').first()).toContainText('Companion 265 parziale');
+  await expect(page.locator('.result-rows .rk').first()).toContainText('companion 265');
   await enterScore(page, 'Ivo', 330);
   await page.keyboard.type('300');
   await page.getByRole('button', { name: 'Conferma il punteggio di Lea' }).click();
@@ -280,17 +271,13 @@ test('round by round: skipped turn, correction, official result, difference and 
   await difference.getByLabel(/Motivo/).fill('R5 letto male');
   await difference.getByRole('button', { name: 'CONFERMA IL VALORE DEL TOTEM' }).click();
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
-  await expect(page.locator('.final-rows li.first')).toContainText('Ivo');
+  await expect(page.locator('.result-head')).toContainText('Vince Ivo!');
   await expect(page.getByText('Lea: ufficiale 300, round 280 — R5 letto male')).toBeVisible();
-  await expect(page.locator('.g-res li').first()).toContainText('TOTEM REGISTRATO');
 
   // After a reload the history of every observation is still there.
   await page.reload();
   await expect(page.getByText('Lea: ufficiale 300, round 280 — R5 letto male')).toBeVisible();
   await page.getByRole('link', { name: 'Matrice' }).click();
   await page.getByRole('button', { name: 'Ivo, round 3: 45' }).click();
-  await expect(page.locator('.g-cell .g-hist li')).toHaveText([
-    /40 · sostituito/,
-    /45 · registrato/,
-  ]);
+  await expect(sheet(page).locator('.hist li')).toHaveText([/40 · sostituito/, /45 · registrato/]);
 });

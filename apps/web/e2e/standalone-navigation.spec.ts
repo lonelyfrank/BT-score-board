@@ -30,11 +30,18 @@ test('navigation keeps links, route ownership and browser history in sync', asyn
     'aria-current',
     'page',
   );
+  // A tournament is created full screen, one step at a time: no bar to leave by mistake.
   await page.goto('/tornei/nuovo');
-  await expect(nav.getByRole('link', { name: 'Tornei' })).toHaveAttribute('aria-current', 'page');
+  await expect(nav).toHaveCount(0);
+  await page.goto('/tornei/nuovo?passo=2');
+  await expect(nav).toHaveCount(0);
+  // Pages opened from Home belong to Home: its item marks the section, not the page.
   await page.goto('/impostazioni');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
-  await expect(nav.locator('.bt-nav-selection')).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'location');
+  await expect(nav.locator('.bt-nav-selection')).toHaveCount(1);
+  await page.goto('/regole');
+  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'location');
 });
 
 test('keyboard focus and reduced motion remain usable', async ({ page }) => {

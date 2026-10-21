@@ -1,6 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowUp, ArrowDown, Lock, LockOpen, Plus, Shuffle, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowLeftRight,
+  ArrowUp,
+  ChevronUp,
+  GripVertical,
+  Lock,
+  LockOpen,
+  Plus,
+  Shuffle,
+  Trash2,
+} from 'lucide-react';
 import { ErrorMessage, Modal, Segmented } from './ui';
 import { uuid } from '../../../../packages/application/src/portable.js';
 import { api, type Match } from '../services/api';
@@ -25,10 +36,10 @@ export const heatStatusLabel: Record<string, string> = {
 };
 
 /**
- * The heats of a match in their order: which one is at the board, the next one, the played
- * ones and how many results each still misses. Tapping a heat shows its players.
+ * The heats of a match as tabs: which one is at the board, the next one, the played ones and
+ * how many results each still misses.
  */
-export function HeatTimeline({
+export function HeatTabs({
   overview,
   viewing,
   select,
@@ -37,29 +48,35 @@ export function HeatTimeline({
   viewing: string | null;
   select: (heatId: string) => void;
 }) {
+  const heats = overview.heats.filter((h) => h.status !== 'cancelled');
   return (
-    <div className="heat-timeline" role="radiogroup" aria-label="Manche">
-      {overview.heats.map((h) => {
+    <div
+      className="htabs"
+      role="radiogroup"
+      aria-label="Manche"
+      style={{ gridTemplateColumns: `repeat(${Math.min(heats.length, 4)}, minmax(0, 1fr))` }}
+    >
+      {heats.map((h) => {
         const tag =
           h.heatId === overview.nextHeatId && h.status !== 'active'
             ? 'prossima'
             : heatStatusLabel[h.status];
+        const missing =
+          h.missing.length > 0 && h.status !== 'pending' && h.status !== 'ready'
+            ? ` · ${h.missing.length} da inserire`
+            : '';
         return (
           <button
             type="button"
             role="radio"
             key={h.heatId}
             aria-checked={viewing === h.heatId}
-            className={`heat-chip status-${h.status}`}
+            aria-label={`M${h.number} ${tag}${missing}`}
+            className={`htab ${h.status === 'completed' ? 'done' : ''} ${h.status === 'active' ? 'live' : ''}`}
             onClick={() => select(h.heatId)}
           >
             <strong>M{h.number}</strong>
-            <small>
-              {tag}
-              {h.missing.length > 0 && h.status !== 'pending' && h.status !== 'ready'
-                ? ` · ${h.missing.length} da inserire`
-                : ''}
-            </small>
+            <small>{missing ? `${h.missing.length} da inserire` : tag}</small>
           </button>
         );
       })}
@@ -252,63 +269,110 @@ export function HeatEditor({
     setLayout(next);
     setFeedback('Proposta aggiornata. Conferma per salvarla.');
   }
+  /** Earlier in the same heat: swaps with the seat before. */
+  function up(index: number, slot: number) {
+    const h = layout[index]!;
+    if (slot === 0 || h.fixed || h.locked) return;
+    const next = layout.map((x) => ({ ...x, slots: [...x.slots] }));
+    const seats = next[index]!.slots;
+    [seats[slot - 1], seats[slot]] = [seats[slot]!, seats[slot - 1]!];
+    setLayout(next);
+    setStrategy('custom');
+    setFeedback(`${name(seats[slot - 1]!)} anticipato in manche ${index + 1}.`);
+  }
+  /** To the next heat still open with a free seat. */
+  function moveOut(index: number, slot: number) {
+    const id = layout[index]!.slots[slot]!;
+    const order = [...layout.keys()].map((k) => (index + 1 + k) % layout.length);
+    const to = order.find(
+      (j) =>
+        j !== index && !layout[j]!.fixed && !layout[j]!.locked && layout[j]!.slots.includes(null),
+    );
+    if (to === undefined) {
+      setFeedback(
+        'Nessuna manche in attesa con un posto libero: aggiungine una o scambia due giocatori.',
+      );
+      return;
+    }
+    const next = layout.map((x) => ({ ...x, slots: [...x.slots] }));
+    next[index]!.slots[slot] = null;
+    next[to]!.slots[next[to]!.slots.indexOf(null)] = id;
+    setLayout(next);
+    setStrategy('custom');
+    setFeedback(`${name(id)} spostato in manche ${to + 1}.`);
+  }
+  const fixedHeats = layout.filter((h) => h.fixed);
   return (
-    <Modal title="Organizza manche" close={busy ? () => {} : close}>
-      <p className="hint">
-        {expected.length} partecipanti · {layout.length} manche · {assigned.length} slot assegnati
-      </p>
+    <Modal
+      title="Organizza manche"
+      subtitle={`${layout.map((h) => h.slots.filter(Boolean).length).join(' + ')} · le manche giocate restano bloccate`}
+      close={busy ? () => {} : close}
+      tall
+      footer={
+        <>
+          <button type="button" className="btn ghost" disabled={busy} onClick={close}>
+            Annulla
+          </button>
+          <button
+            type="button"
+            className="btn cta"
+            aria-label="Conferma organizzazione"
+            disabled={busy || stale || !!invalid || layout.every((h) => h.fixed)}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending ? 'Salvataggio…' : 'Salva ordine'}
+          </button>
+          <p role={invalid ? 'alert' : 'status'} className={`form-reason ${invalid ? '' : 'ok'}`}>
+            {invalid || feedback}
+          </p>
+        </>
+      }
+    >
       <fieldset disabled={busy || stale} className="heat-organizer">
+        {fixedHeats.length > 0 && (
+          <div className="card locked-heats">
+            {fixedHeats.map((h) => (
+              <p key={h.key} className="lockrow">
+                <Lock aria-hidden="true" />
+                <b>M{layout.indexOf(h) + 1}</b> {heatStatusLabel[h.status]} ·{' '}
+                {h.slots
+                  .filter((id): id is string => !!id)
+                  .map((id) => name(id).split(' ')[0])
+                  .join(', ')}
+              </p>
+            ))}
+          </div>
+        )}
         <Segmented
           label="Distribuzione nelle manche"
+          small
           value={strategy}
           change={distribute}
           options={[
-            { id: 'sequential', label: 'Riempimento' },
+            { id: 'sequential', label: 'Riempi' },
             { id: 'balanced', label: 'Bilanciata' },
-            { id: 'custom', label: 'Personalizzata' },
+            { id: 'random', label: 'Casuale' },
+            { id: 'custom', label: 'Manuale' },
           ]}
         />
         <p className="hint">
-          Seleziona un partecipante e tocca uno slot libero per spostarlo, oppure un altro
-          partecipante per scambiarli. Le squadre occupano un solo slot.
+          ↑ anticipa nella manche, ⇄ sposta nella manche successiva con un posto libero. Tocca un
+          giocatore e poi un altro (o un posto libero) per scambiarli. Le squadre occupano un solo
+          posto.
         </p>
-        <ol className="heat-editor">
-          {layout.map((h, index) => (
-            <li key={h.key} className={h.fixed || h.locked ? 'locked' : ''}>
-              <div className="team-head">
-                <strong>Manche {index + 1}</strong>
-                <small>
-                  {h.slots.filter(Boolean).length}/{capacity} · {heatStatusLabel[h.status]}
-                </small>
-              </div>
-              <div className="heat-slots">
-                {h.slots.map((id, slot) => (
-                  <button
-                    type="button"
-                    key={slot}
-                    className={`heat-slot ${id ? '' : 'heat-slot-empty'}`}
-                    aria-label={`Manche ${index + 1}, slot ${slot + 1}: ${id ? name(id) : 'libero'}`}
-                    aria-pressed={!!id && picked === id}
-                    disabled={h.fixed || h.locked || (!id && !picked)}
-                    onClick={() => tap(index, slot)}
-                  >
-                    <small>Slot {slot + 1}</small>
-                    <span>{id ? name(id) : 'libero'}</span>
-                  </button>
-                ))}
-              </div>
-              {h.fixed ? (
-                <p className="hint">
-                  Manche avviata, chiusa o con cronologia: composizione e ordine protetti.
-                </p>
-              ) : h.locked ? (
-                <p className="hint">Manche confermata: sbloccala prima di modificarla.</p>
-              ) : null}
-              <div className="heat-actions">
-                {!h.fixed && (
-                  <>
+        <ol className="heats">
+          {layout.map((h, index) =>
+            h.fixed ? null : (
+              <li key={h.key} className={`heat ${h.locked ? 'locked' : ''}`}>
+                <div className="heat-h">
+                  <strong>M{index + 1}</strong>
+                  <span>
+                    {h.slots.filter(Boolean).length}/{capacity} · {heatStatusLabel[h.status]}
+                  </span>
+                  <span className="heat-tools">
                     <button
                       type="button"
+                      className="mini"
                       aria-label={`Anticipa manche ${index + 1}`}
                       disabled={
                         h.locked ||
@@ -318,10 +382,11 @@ export function HeatEditor({
                       }
                       onClick={() => reorder(index, -1)}
                     >
-                      <ArrowUp size={16} /> Prima
+                      <ArrowUp />
                     </button>
                     <button
                       type="button"
+                      className="mini"
                       aria-label={`Posticipa manche ${index + 1}`}
                       disabled={
                         h.locked ||
@@ -331,38 +396,87 @@ export function HeatEditor({
                       }
                       onClick={() => reorder(index, 1)}
                     >
-                      <ArrowDown size={16} /> Dopo
+                      <ArrowDown />
                     </button>
                     {h.slots.every((id) => id === null) && (
                       <button
                         type="button"
+                        className="mini"
                         aria-label={`Elimina manche ${index + 1}`}
                         onClick={() => {
                           setLayout(layout.filter((_, i) => i !== index));
                           setFeedback('Manche vuota rimossa.');
                         }}
                       >
-                        <Trash2 size={16} /> Elimina
+                        <Trash2 />
                       </button>
                     )}
                     {h.heatId && !dirty && (
                       <button
                         type="button"
+                        className="mini"
+                        aria-label={h.locked ? 'Sblocca manche' : 'Blocca manche'}
                         onClick={() => lock.mutate({ heatId: h.heatId!, locked: !h.locked })}
                       >
-                        {h.locked ? <LockOpen size={16} /> : <Lock size={16} />}
-                        {h.locked ? 'Sblocca manche' : 'Blocca manche'}
+                        {h.locked ? <LockOpen /> : <Lock />}
                       </button>
                     )}
-                  </>
+                  </span>
+                </div>
+                <div className="heat-slots">
+                  {h.slots.map((id, slot) => (
+                    <div
+                      key={slot}
+                      className={`mv ${id ? '' : 'free'} ${id && picked === id ? 'picked' : ''}`}
+                    >
+                      <GripVertical aria-hidden="true" className="grip" />
+                      <button
+                        type="button"
+                        className="slot"
+                        aria-label={`Manche ${index + 1}, slot ${slot + 1}: ${id ? name(id) : 'libero'}`}
+                        aria-pressed={!!id && picked === id}
+                        disabled={h.locked || (!id && !picked)}
+                        onClick={() => tap(index, slot)}
+                      >
+                        <span className="pos">{slot + 1}</span>
+                        <b>{id ? name(id) : picked ? 'Sposta qui' : 'posto libero'}</b>
+                      </button>
+                      {id && (
+                        <span className="acts">
+                          <button
+                            type="button"
+                            className="mini"
+                            aria-label={`Anticipa ${name(id)}`}
+                            disabled={h.locked || slot === 0}
+                            onClick={() => up(index, slot)}
+                          >
+                            <ChevronUp />
+                          </button>
+                          <button
+                            type="button"
+                            className="mini"
+                            aria-label={`Sposta ${name(id)} in un’altra manche`}
+                            disabled={h.locked}
+                            onClick={() => moveOut(index, slot)}
+                          >
+                            <ArrowLeftRight />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {h.locked && (
+                  <p className="hint">Manche confermata: sbloccala prima di modificarla.</p>
                 )}
-              </div>
-            </li>
-          ))}
+              </li>
+            ),
+          )}
         </ol>
-        <div className="heat-actions">
+        <div className="heat-more">
           <button
             type="button"
+            className="btn sm"
             disabled={!comparableAcrossHeats(base.gameMode as GameMode) || layout.length >= 256}
             onClick={() => {
               setLayout([...layout, freshHeat(Array.from({ length: capacity }, () => null))]);
@@ -370,47 +484,31 @@ export function HeatEditor({
               setFeedback('Nuova manche: assegna almeno un partecipante.');
             }}
           >
-            <Plus size={16} /> Nuova manche
+            <Plus aria-hidden="true" /> Nuova manche
           </button>
           <button
             type="button"
+            className="btn sm"
             onClick={() => distribute(strategy === 'custom' ? 'sequential' : strategy)}
           >
-            <Shuffle size={16} /> Applica automatico
-          </button>
-          <button type="button" onClick={() => distribute('random')}>
-            Casuale
+            <Shuffle aria-hidden="true" /> Applica automatico
           </button>
         </div>
+        <p className="hint">
+          {expected.length} partecipanti · {layout.length} manche · {assigned.length} posti
+          assegnati
+        </p>
+        {stale && (
+          <p role="alert" className="form-reason">
+            La partita è cambiata in un’altra schermata. Ripristina la distribuzione per caricare i
+            dati aggiornati.
+          </p>
+        )}
+        <ErrorMessage error={save.error ?? lock.error} />
+        <button type="button" className="text-link" disabled={busy} onClick={reset}>
+          Ripristina distribuzione
+        </button>
       </fieldset>
-      <p role="status" className="hint">
-        {feedback}
-      </p>
-      {invalid ? (
-        <p role="alert" className="hint">
-          {invalid}
-        </p>
-      ) : (
-        <p className="hint">Distribuzione valida · tutti i partecipanti assegnati.</p>
-      )}
-      {stale && (
-        <p role="alert">
-          La partita è cambiata in un’altra schermata. Ripristina la distribuzione per caricare i
-          dati aggiornati.
-        </p>
-      )}
-      <ErrorMessage error={save.error ?? lock.error} />
-      <button type="button" disabled={busy} onClick={reset}>
-        Ripristina distribuzione
-      </button>
-      <button
-        type="button"
-        className="primary"
-        disabled={busy || stale || !!invalid || layout.every((h) => h.fixed)}
-        onClick={() => save.mutate()}
-      >
-        {save.isPending ? 'Salvataggio…' : 'Conferma organizzazione'}
-      </button>
     </Modal>
   );
 }

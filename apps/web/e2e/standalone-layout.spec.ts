@@ -33,13 +33,13 @@ function audit(page: Page) {
       // The Home is the one exception of V1.1: its decorative footer runs under the glass, its
       // controls do not.
       const main = document.querySelector('#main-content')!;
-      const scroller = main.querySelector<HTMLElement>(':scope > main, :scope > .home-page');
+      const scroller = main.querySelector<HTMLElement>(':scope > main');
       if (root.scrollHeight > window.innerHeight + 1)
         problems.push(`page scrolls: ${root.scrollHeight} > ${window.innerHeight}`);
       scroller?.scrollTo(0, scroller.scrollHeight);
       const top = nav.getBoundingClientRect().top;
       const last = scroller?.lastElementChild?.getBoundingClientRect();
-      if (scroller?.matches('main') && last && last.bottom > top + 1)
+      if (scroller?.matches('main:not(.home)') && last && last.bottom > top + 1)
         problems.push(`content under the bar: ${last.bottom} > ${top}`);
       const controls = [
         ...main.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, summary'),
@@ -86,16 +86,16 @@ test('no horizontal scroll, bar never over the controls, touch targets of 44px',
       await expect(page.locator('#main-content h1, #main-content h2').first()).toBeVisible();
       expect(await audit(page), `${path} at ${viewport.width}x${viewport.height}`).toEqual([]);
     }
-    // Result entry: full screen, the confirm key reachable and free, keys large enough.
+    // Result entry: full screen, the confirm button reachable and free, keys large enough.
     await page.goto(match);
     await page.keyboard.type('5');
-    const key = await reachable(page, '.keypad .confirm-key');
+    const key = await reachable(page, '.actionbar .btn.cta');
     expect(key, `confirm key at ${viewport.width}x${viewport.height}`).toMatchObject({
       inside: true,
       free: true,
     });
     expect(Math.min(...key.size)).toBeGreaterThanOrEqual(44);
-    const digit = await reachable(page, '.keypad button:first-child');
+    const digit = await reachable(page, '.keys button:first-child');
     expect(Math.min(...digit.size)).toBeGreaterThanOrEqual(44);
     expect(await audit(page)).toEqual([]);
   }
