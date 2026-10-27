@@ -19,7 +19,7 @@ const set = (patch: Partial<PwaState>) => {
 let applyUpdate: (reload?: boolean) => Promise<void> = async () => undefined;
 
 export function registerPwa() {
-  if (import.meta.env.VITE_DATA_MODE !== 'standalone' || !('serviceWorker' in navigator)) return;
+  if (import.meta.env.VITE_DATA_MODE === 'shared' || !('serviceWorker' in navigator)) return;
   set({ supported: true, offlineReady: !!navigator.serviceWorker.controller });
   applyUpdate = registerSW({
     onOfflineReady: () => set({ offlineReady: true }),

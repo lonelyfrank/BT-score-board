@@ -24,6 +24,7 @@ import {
   type Tournament,
   type TournamentAction,
 } from '../services/api';
+import { useCanManage } from '../services/me';
 import { activeSession, recentResults, tournamentPath } from '../services/session';
 import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
@@ -53,6 +54,7 @@ const dateOf = (iso: string) =>
 
 /** Tornei, or with `highscore` the Hi-Score Nights: tonight's first, then the archive. */
 export function TournamentList({ highscore = false }: { highscore?: boolean }) {
+  const manage = useCanManage();
   const [params, setParams] = useSearchParams();
   const [offset, setOffset] = useState(0);
   const filter =
@@ -121,10 +123,12 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
         }
         back={null}
         action={
-          <AddButton
-            label={highscore ? 'Nuova Hi-Score Night' : 'Nuovo torneo'}
-            to="/tornei/nuovo"
-          />
+          manage ? (
+            <AddButton
+              label={highscore ? 'Nuova Hi-Score Night' : 'Nuovo torneo'}
+              to="/tornei/nuovo"
+            />
+          ) : undefined
         }
       />
       <div className="toolbar">

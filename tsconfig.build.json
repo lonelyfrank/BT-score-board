@@ -1,7 +1,9 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": { "declaration": true },
   "exclude": [
     "apps/web",
+    "apps/worker",
     "packages/local-store",
     "tests",
     "vitest.config.ts",

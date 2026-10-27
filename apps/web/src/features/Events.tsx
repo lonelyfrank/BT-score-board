@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Plus } from 'lucide-react';
 import { api, type PubEvent, type Summary } from '../services/api';
+import { useCanManage } from '../services/me';
 import { tournamentPath } from '../services/session';
 import {
   AddButton,
@@ -28,6 +29,7 @@ const upcoming = (e: PubEvent) => e.status === 'planned' || e.status === 'active
 const count = (n: number) => `${n} ${n === 1 ? 'torneo' : 'tornei'}`;
 
 function EventCard({ event, tournaments }: { event: PubEvent; tournaments?: Summary[] }) {
+  const manage = useCanManage();
   const client = useQueryClient();
   const advance = useMutation({
     mutationFn: () =>
@@ -81,7 +83,7 @@ function EventCard({ event, tournaments }: { event: PubEvent; tournaments?: Summ
         <p className="hint">Nessun torneo ancora collegato.</p>
       )}
       <ErrorMessage error={advance.error} />
-      {upcoming(event) && (
+      {manage && upcoming(event) && (
         <div className="pair">
           <Link className="btn sm dashed" to={`/tornei/nuovo?serata=${event.id}`}>
             <Plus aria-hidden="true" /> Aggiungi torneo
@@ -170,6 +172,7 @@ function NewEventSheet({ close }: { close: () => void }) {
 }
 
 export function Events() {
+  const manage = useCanManage();
   const [tab, setTab] = useState<'up' | 'past'>('up');
   const [creating, setCreating] = useState(false);
   const events = useQuery({ queryKey: ['events'], queryFn: () => api.events() });
@@ -193,7 +196,9 @@ export function Events() {
         subtitle="Serate del locale"
         back="/"
         backLabel="Indietro alla Home"
-        action={<AddButton label="Nuova serata" onClick={() => setCreating(true)} />}
+        action={
+          manage ? <AddButton label="Nuova serata" onClick={() => setCreating(true)} /> : undefined
+        }
       />
       <div className="toolbar">
         <Segmented

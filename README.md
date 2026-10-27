@@ -8,6 +8,11 @@ L'app funziona in due modalità che condividono schermate, dominio e servizi app
 | ---------------------------- | ---------------------------- | ---------------------------------------------------------- |
 | **Standalone** (predefinita) | IndexedDB del browser        | Un telefono, nessun server, offline; deploy statico Vercel |
 | **Shared** (opzionale)       | SQLite tramite l'API Fastify | Base per una futura gestione multi-dispositivo             |
+| **Cloud**                    | Durable Object Cloudflare    | Account (password + passkey), admin, più telefoni, gratis  |
+
+## Modalità cloud (Cloudflare)
+
+Account con username e password, oppure con passkey. Il proprietario nomina gli admin; gli admin invitano i giocatori e collegano ogni account al suo storico. Deploy gratuito su Workers + Durable Objects con `pnpm deploy:cloud`. Primo avvio, migrazione dai backup dei telefoni, ruoli e sicurezza sono descritti in [docs/cloudflare/DEPLOY.md](docs/cloudflare/DEPLOY.md).
 
 ## Uso standalone
 

@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { linkResolver } from '../../../../packages/domain/src/index.js';
-import { localData } from './api';
+import { cloudApi, localData } from './api';
+import { isAdmin, useAccount } from './cloud';
 
 // Which player of the device is its owner. A per-device convenience, not game data: it is
 // not part of backups or crew packages, so a new phone simply asks again.
@@ -34,9 +35,14 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-/** The player this phone belongs to, following links to the record that was kept. */
+/**
+ * The player this phone belongs to, following links to the record that was kept. In cloud mode
+ * it is the player an admin linked to the signed-in account.
+ */
 export function useMe(): string | null {
-  const stored = useSyncExternalStore(subscribe, read, () => null);
+  const device = useSyncExternalStore(subscribe, read, () => null);
+  const account = useAccount();
+  const stored = cloudApi ? (account?.playerId ?? null) : device;
   const links = useQuery({
     queryKey: ['links'],
     queryFn: () => localData!.links(),
@@ -44,4 +50,10 @@ export function useMe(): string | null {
   });
   if (!stored) return null;
   return linkResolver(links.data ?? [])(stored);
+}
+
+/** Whether shared data may be changed from here: always on a device, by admins in cloud mode. */
+export function useCanManage(): boolean {
+  const account = useAccount();
+  return !cloudApi || isAdmin(account);
 }

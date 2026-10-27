@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.build.json && npm run build --prefix apps/web && npm run build:shared --prefix apps/web",
     "dev:web": "npm run dev --prefix apps/web",
     "start": "node dist/apps/api/src/server/main.js",
-    "typecheck": "tsc --noEmit && npm run typecheck --prefix apps/web",
+    "typecheck": "tsc --noEmit && npm run typecheck --prefix apps/web && npm run typecheck --prefix apps/worker",
     "test": "vitest run",
     "check": "npm run typecheck && vitest run && npm run build",
     "check:release": "npm run format:check && npm run check && npm run smoke && npm run test:e2e",
@@ -22,7 +22,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "smoke": "tsc -p tsconfig.build.json && node dist/scripts/smoke.js",
-    "dev:web:shared": "npm run dev:shared --prefix apps/web"
+    "dev:web:shared": "npm run dev:shared --prefix apps/web",
+    "dev:cloud": "npm run build:cloud --prefix apps/web && npm run dev --prefix apps/worker",
+    "deploy:cloud": "npm run build:cloud --prefix apps/web && npm run deploy --prefix apps/worker"
   },
   "packageManager": "pnpm@12.14.0",
   "dependencies": {

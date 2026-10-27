@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Search, Users } from 'lucide-react';
-import { api, localData, nickname, type Player, type PlayerStatus } from '../services/api';
+import {
+  api,
+  cloudApi,
+  localData,
+  nickname,
+  type Player,
+  type PlayerStatus,
+} from '../services/api';
 import { tournamentPath } from '../services/session';
 import { games, type GameMode } from '../services/rules';
 import {
@@ -18,7 +25,8 @@ import {
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
 import { FxName, ProgressPanel, useProgression } from '../components/Progression';
-import { meStore } from '../services/me';
+import { meStore, useCanManage } from '../services/me';
+import { AccountLink } from '../components/AccountLink';
 import { useKnowsMe } from '../components/WhoAmI';
 
 type Filter = PlayerStatus | 'all';
@@ -35,9 +43,10 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
   const [avatar, setAvatar] = useState(player.avatar ?? null);
   const [editing, setEditing] = useState(false);
   // Only the owner of a profile changes it; everyone in the crew sees it. Until the phone
-  // knows its owner (see the Home) nothing is blocked.
+  // knows its owner (see the Home) nothing is blocked. In cloud mode admins change any profile.
   const { me } = useKnowsMe();
-  const canEdit = !localData || !me || me === player.id;
+  const manage = useCanManage();
+  const canEdit = cloudApi ? manage || me === player.id : !localData || !me || me === player.id;
   const stats = useQuery({
     queryKey: ['player-stats', player.id],
     queryFn: () => api.statistics(player.id),
@@ -104,14 +113,16 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           </>
         ) : (
           <>
-            <button
-              type="button"
-              className={`btn ${active ? 'danger' : ''}`}
-              disabled={update.isPending}
-              onClick={() => update.mutate({ status: active ? 'inactive' : 'active' })}
-            >
-              {active ? 'Disattiva' : 'Riattiva'}
-            </button>
+            {manage && (
+              <button
+                type="button"
+                className={`btn ${active ? 'danger' : ''}`}
+                disabled={update.isPending}
+                onClick={() => update.mutate({ status: active ? 'inactive' : 'active' })}
+              >
+                {active ? 'Disattiva' : 'Riattiva'}
+              </button>
+            )}
             <button type="button" className="btn cta" onClick={() => setEditing(true)}>
               Modifica nome
             </button>
@@ -297,8 +308,9 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
       <p className="hint">
         Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
       </p>
-      {localData && <ThisIsMe player={player} />}
-      {localData && canEdit && <LinkDuplicate player={player} close={close} />}
+      {localData && !cloudApi && <ThisIsMe player={player} />}
+      {cloudApi && manage && <AccountLink player={player} />}
+      {localData && canEdit && manage && <LinkDuplicate player={player} close={close} />}
     </Modal>
   );
 }
@@ -364,6 +376,7 @@ const levelLabel = (p?: { progress: { level: { level: number; title: string } } 
   p ? `Lv ${p.progress.level.level} ${p.progress.level.title}` : '';
 
 export function Players() {
+  const manage = useCanManage();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('active');
   const [offset, setOffset] = useState(0);
@@ -397,7 +410,11 @@ export function Players() {
             : undefined
         }
         back={null}
-        action={<AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />}
+        action={
+          manage ? (
+            <AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />
+          ) : undefined
+        }
       />
       <div className="toolbar">
         <label className="search">

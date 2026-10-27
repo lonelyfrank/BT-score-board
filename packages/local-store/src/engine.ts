@@ -24,8 +24,15 @@ import {
 import { createBackup, type BackupFile } from './backup.js';
 import { mergeBackupData, type MergeReport } from './merge.js';
 
+/** What the engine needs from durable storage: IndexedDB on a phone, SQLite on the server. */
+export type EngineDatabase = Pick<
+  LocalDatabase,
+  'load' | 'commit' | 'exportAll' | 'replaceAll' | 'writeSocial' | 'markBackup' | 'audit' | 'close'
+>;
 export interface EngineOptions {
   database?: OpenOptions;
+  /** Opens another durable store instead of IndexedDB (the cloud server's SQLite). */
+  storage?: () => EngineDatabase | Promise<EngineDatabase>;
   /** BroadcastChannel used to refresh other tabs; null disables it. */
   channel?: string | null;
   context?: Context;
@@ -66,7 +73,7 @@ export class LocalEngine {
   private readonly now: () => string;
 
   private constructor(
-    private readonly db: LocalDatabase,
+    private readonly db: EngineDatabase,
     private readonly options: EngineOptions,
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
@@ -74,17 +81,19 @@ export class LocalEngine {
 
   static async open(options: EngineOptions = {}): Promise<LocalEngine> {
     let engine: LocalEngine | undefined;
-    const db = await openLocalDatabase({
-      ...options.database,
-      onClosed: () => {
-        options.database?.onClosed?.();
-        engine?.shutdown('upgrade');
-      },
-      onBlocked: () => {
-        options.database?.onBlocked?.();
-        engine?.emit({ type: 'blocked' });
-      },
-    });
+    const db = options.storage
+      ? await options.storage()
+      : await openLocalDatabase({
+          ...options.database,
+          onClosed: () => {
+            options.database?.onClosed?.();
+            engine?.shutdown('upgrade');
+          },
+          onBlocked: () => {
+            options.database?.onBlocked?.();
+            engine?.emit({ type: 'blocked' });
+          },
+        });
     engine = new LocalEngine(db, options);
     await engine.reload();
     const name = options.channel === undefined ? 'bt-darts-local' : options.channel;

@@ -12,10 +12,9 @@
     "resolveJsonModule": true,
     "rootDir": ".",
     "outDir": "dist",
-    "sourceMap": true,
-    "declaration": true
+    "sourceMap": true
   },
-  "exclude": ["apps/web"],
+  "exclude": ["apps/web", "apps/worker"],
   "include": [
     "apps/**/*.ts",
     "packages/**/*.ts",

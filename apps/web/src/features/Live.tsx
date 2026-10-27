@@ -5,6 +5,7 @@ import { AlertTriangle, History, Pause, Undo2 } from 'lucide-react';
 import { CrownIcon, DartIcon } from '../components/BrandIcons';
 import {
   api,
+  dataMode,
   entryMode,
   lastTurnScores,
   pollInterval,
@@ -14,6 +15,7 @@ import {
   type Match,
   type TurnInput,
 } from '../services/api';
+import { isAdmin, useAccount } from '../services/cloud';
 import { tournamentPath } from '../services/session';
 import {
   Avatar,
@@ -51,6 +53,9 @@ function scoredTurns(m: Match) {
 export function Live() {
   const { gameId = '' } = useParams();
   const client = useQueryClient();
+  // In cloud mode only admins record scores: the server enforces it, the screen just hides the controls.
+  const account = useAccount();
+  const readOnly = dataMode === 'cloud' && !isAdmin(account);
   const [draft, setDraft] = useState<Draft>(() => {
     try {
       return { darts: [], ...JSON.parse(storage.get(`bt-input:${gameId}`) ?? '{"value":""}') };
@@ -300,28 +305,30 @@ export function Live() {
               TURNO DI {turn ? name(turn.participantId) : '—'}
             </p>
             <div className="legacy-entry">
-              <Segmented
-                label="Modo di inserimento"
-                small
-                value={dartMode ? 'dart' : 'total'}
-                change={(id) => {
-                  setMode(id);
-                  entryMode.set(id);
-                  change('');
-                }}
-                options={[
-                  {
-                    id: 'total',
-                    label: 'Totale turno',
-                    disabled: darts.length > 0 || recovering || mutation.isPending,
-                  },
-                  {
-                    id: 'dart',
-                    label: `Per freccetta ×${config.dartsPerTurn}`,
-                    disabled: darts.length > 0 || recovering || mutation.isPending,
-                  },
-                ]}
-              />
+              {!readOnly && (
+                <Segmented
+                  label="Modo di inserimento"
+                  small
+                  value={dartMode ? 'dart' : 'total'}
+                  change={(id) => {
+                    setMode(id);
+                    entryMode.set(id);
+                    change('');
+                  }}
+                  options={[
+                    {
+                      id: 'total',
+                      label: 'Totale turno',
+                      disabled: darts.length > 0 || recovering || mutation.isPending,
+                    },
+                    {
+                      id: 'dart',
+                      label: `Per freccetta ×${config.dartsPerTurn}`,
+                      disabled: darts.length > 0 || recovering || mutation.isPending,
+                    },
+                  ]}
+                />
+              )}
               <dl className="card stat3">
                 <div>
                   <dt>MEDIA</dt>
@@ -339,61 +346,65 @@ export function Live() {
                 </div>
               </dl>
             </div>
-            <div className="paper">
-              <div>
-                <output
-                  aria-live="polite"
-                  aria-label={
-                    dartMode
-                      ? `Freccetta ${darts.length + 1} da confermare`
-                      : 'Totale turno da confermare'
-                  }
-                >
-                  {shown}
-                </output>
-                {dartMode ? (
-                  <small>
-                    {Array.from({ length: config.dartsPerTurn }, (_, k) =>
-                      k < darts.length ? darts[k] : k === darts.length ? input || '·' : '–',
-                    ).join(' + ')}{' '}
-                    = {darts.reduce((n, d) => n + d, 0) + Number(input || 0)}
-                  </small>
+            {!readOnly && (
+              <>
+                <div className="paper">
+                  <div>
+                    <output
+                      aria-live="polite"
+                      aria-label={
+                        dartMode
+                          ? `Freccetta ${darts.length + 1} da confermare`
+                          : 'Totale turno da confermare'
+                      }
+                    >
+                      {shown}
+                    </output>
+                    {dartMode ? (
+                      <small>
+                        {Array.from({ length: config.dartsPerTurn }, (_, k) =>
+                          k < darts.length ? darts[k] : k === darts.length ? input || '·' : '–',
+                        ).join(' + ')}{' '}
+                        = {darts.reduce((n, d) => n + d, 0) + Number(input || 0)}
+                      </small>
+                    ) : (
+                      <small>TOTALE TURNO · MAX {config.maxTurnScore}</small>
+                    )}
+                  </div>
+                </div>
+                {recovering ? (
+                  <p className="note warn" role="alert">
+                    <AlertTriangle aria-hidden="true" />
+                    <span>
+                      Invio non confermato
+                      {pendingValue !== null && (
+                        <>
+                          : <strong>{pendingValue}</strong>
+                        </>
+                      )}{' '}
+                      a {turn ? name(turn.participantId) : '—'}. Riprova con la stessa richiesta.
+                    </span>
+                  </p>
                 ) : (
-                  <small>TOTALE TURNO · MAX {config.maxTurnScore}</small>
+                  <p
+                    className={`paper-tag ${flash || mutation.isPending ? 'shown' : ''} ${flash?.ok ? 'ok' : ''}`}
+                    role="status"
+                  >
+                    {mutation.isPending ? 'Salvataggio…' : flash?.text}
+                  </p>
                 )}
-              </div>
-            </div>
-            {recovering ? (
-              <p className="note warn" role="alert">
-                <AlertTriangle aria-hidden="true" />
-                <span>
-                  Invio non confermato
-                  {pendingValue !== null && (
-                    <>
-                      : <strong>{pendingValue}</strong>
-                    </>
-                  )}{' '}
-                  a {turn ? name(turn.participantId) : '—'}. Riprova con la stessa richiesta.
-                </span>
-              </p>
-            ) : (
-              <p
-                className={`paper-tag ${flash || mutation.isPending ? 'shown' : ''} ${flash?.ok ? 'ok' : ''}`}
-                role="status"
-              >
-                {mutation.isPending ? 'Salvataggio…' : flash?.text}
-              </p>
+                <NumberKeypad
+                  value={recovering ? '' : input}
+                  change={change}
+                  submit={confirm}
+                  busy={busy}
+                  maximum={limit}
+                  locked={recovering}
+                  notify={(text) => setFlash({ text, ok: false })}
+                  limitLabel={`Massimo ${limit} ${dartMode ? 'per freccetta' : 'per turno'}`}
+                />
+              </>
             )}
-            <NumberKeypad
-              value={recovering ? '' : input}
-              change={change}
-              submit={confirm}
-              busy={busy}
-              maximum={limit}
-              locked={recovering}
-              notify={(text) => setFlash({ text, ok: false })}
-              limitLabel={`Massimo ${limit} ${dartMode ? 'per freccetta' : 'per turno'}`}
-            />
           </>
         )}
         {m.status === 'completed' && (
@@ -428,22 +439,24 @@ export function Live() {
             <Link className="btn cta" to={back}>
               VAI ALLA CLASSIFICA
             </Link>
-            <div className="pair">
-              <button
-                type="button"
-                className="btn"
-                disabled={mutation.isPending || !undoable.length}
-                onClick={() => {
-                  setReason('');
-                  setUndoOpen(true);
-                }}
-              >
-                Annulla ultimo turno
-              </button>
-              <Link className="btn" to="/partite/nuova">
-                Nuova partita
-              </Link>
-            </div>
+            {readOnly ? null : (
+              <div className="pair">
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={mutation.isPending || !undoable.length}
+                  onClick={() => {
+                    setReason('');
+                    setUndoOpen(true);
+                  }}
+                >
+                  Annulla ultimo turno
+                </button>
+                <Link className="btn" to="/partite/nuova">
+                  Nuova partita
+                </Link>
+              </div>
+            )}
           </section>
         )}
         {m.status === 'paused' && (
@@ -461,14 +474,16 @@ export function Live() {
               Il turno di {turn ? name(turn.participantId) : '—'} resta dov’era. Nessun punteggio si
               può registrare finché l’incontro è in pausa.
             </p>
-            <button
-              type="button"
-              className="btn cta"
-              disabled={mutation.isPending || tournamentPaused}
-              onClick={() => run({ type: 'resume' })}
-            >
-              RIPRENDI INCONTRO
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="btn cta"
+                disabled={mutation.isPending || tournamentPaused}
+                onClick={() => run({ type: 'resume' })}
+              >
+                RIPRENDI INCONTRO
+              </button>
+            )}
           </section>
         )}
         {['ready', 'scheduled'].includes(m.status) && (
@@ -487,14 +502,16 @@ export function Live() {
               Ordine di tiro: {order.map((p) => name(p.tournamentEntryId)).join(' → ')}. Il
               bersaglio è libero.
             </p>
-            <button
-              type="button"
-              className="btn cta"
-              disabled={mutation.isPending || tournamentPaused}
-              onClick={() => run({ type: 'start' })}
-            >
-              INIZIA INCONTRO
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="btn cta"
+                disabled={mutation.isPending || tournamentPaused}
+                onClick={() => run({ type: 'start' })}
+              >
+                INIZIA INCONTRO
+              </button>
+            )}
           </section>
         )}
         <ErrorMessage error={query.error ?? mutation.error} />
@@ -554,7 +571,7 @@ export function Live() {
           </div>
         )}
       </main>
-      {live && (
+      {live && !readOnly && (
         <div className="actionbar">
           <div className="acts pair">
             <button
@@ -655,16 +672,18 @@ export function Live() {
                       </small>
                     </span>
                     <strong>{x.total}</strong>
-                    <button
-                      type="button"
-                      className="btn sm"
-                      onClick={() => {
-                        setEditing(open ? null : x.turn.id);
-                        setFix({ values: x.scores.map((s) => String(s.score)), reason: '' });
-                      }}
-                    >
-                      Correggi
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        className="btn sm"
+                        onClick={() => {
+                          setEditing(open ? null : x.turn.id);
+                          setFix({ values: x.scores.map((s) => String(s.score)), reason: '' });
+                        }}
+                      >
+                        Correggi
+                      </button>
+                    )}
                   </div>
                   {open && (
                     <form
@@ -715,7 +734,7 @@ export function Live() {
             Le correzioni restano nello storico con il valore precedente. Una fase già confermata va
             riaperta dall’organizzatore nel torneo.
           </p>
-          {live && (
+          {live && !readOnly && (
             <button
               type="button"
               className="btn warn-outline"

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 dist-shared/
+dist-cloud/
+.wrangler/
+.dev.vars
 dev-dist/
 data/
 coverage/

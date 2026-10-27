@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Crown, Share2, Download, Users } from 'lucide-react';
 import { api, localData, type Player } from '../services/api';
+import { useCanManage } from '../services/me';
 import { canShareFiles, downloadFile, shareFile } from '../services/device';
 import { tournamentPath } from '../services/session';
 import { games, type GameMode } from '../services/rules';
@@ -63,6 +64,7 @@ function packageName(crew: Crew, at: string) {
 }
 
 export function Crews() {
+  const manage = useCanManage();
   const crews = useCrews();
   const players = usePlayers();
   const [editing, setEditing] = useState(false);
@@ -81,7 +83,11 @@ export function Crews() {
         title="Compagnie"
         subtitle="Partite e livelli condivisi con gli amici"
         back="/giocatori"
-        action={<AddButton label="Nuova compagnia" onClick={() => setEditing(true)} />}
+        action={
+          manage ? (
+            <AddButton label="Nuova compagnia" onClick={() => setEditing(true)} />
+          ) : undefined
+        }
       />
       <main className="lists">
         <ErrorMessage error={crews.error} retry={() => void crews.refetch()} />

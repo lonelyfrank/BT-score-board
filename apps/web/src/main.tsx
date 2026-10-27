@@ -4,7 +4,9 @@ import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-do
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { BottomNavigation, Empty, scrollToTop } from './components/ui';
 import { AppStatus } from './components/AppStatus';
-import { dataMode, localData } from './services/api';
+import { cloudApi, dataMode, localData } from './services/api';
+import { session, useAccount } from './services/cloud';
+import { useCanManage } from './services/me';
 import { registerPwa } from './services/pwa';
 import { Home } from './features/Home';
 import { Setup } from './features/Setup';
@@ -17,6 +19,7 @@ import { TournamentDetail } from './features/TournamentDetail';
 import { Events } from './features/Events';
 import { Rules } from './features/Rules';
 import { CrewDetail, Crews } from './features/Crews';
+import { Login } from './features/Login';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -35,6 +38,39 @@ const client = new QueryClient({
     mutations: { retry: false, networkMode },
   },
 });
+/** Cloud mode: every screen needs a signed-in account; the session is checked once at start. */
+function Gate({ children }: { children: React.ReactNode }) {
+  const account = useAccount();
+  const queries = useQueryClient();
+  useEffect(() => {
+    // Unreachable server: the sign-in screen shows the error and retries.
+    void cloudApi?.refreshSession().catch(() => session.set(null));
+  }, []);
+  // Signing out or in shows another account's data: nothing cached is kept.
+  useEffect(() => () => queries.clear(), [account?.id, queries]);
+  if (!cloudApi) return <>{children}</>;
+  if (account === undefined)
+    return (
+      <main className="not-found">
+        <p className="loading" role="status">
+          Caricamento…
+        </p>
+      </main>
+    );
+  return account ? <>{children}</> : <Login />;
+}
+/** Creating games is for admins in cloud mode; others see why instead of a form they cannot send. */
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  if (useCanManage()) return <>{children}</>;
+  return (
+    <main className="not-found">
+      <Empty title="Solo per gli admin">
+        <p className="hint">Partite e tornei li crea un admin; tu li segui in diretta.</p>
+        <Link to="/tornei">Vai ai tornei</Link>
+      </Empty>
+    </main>
+  );
+}
 function App() {
   const { pathname, search } = useLocation();
   // Match screens and the steps of a flow stay full-screen; choosing the game keeps the bar.
@@ -76,10 +112,24 @@ function App() {
       <div id="main-content">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/partite/nuova" element={<Setup />} />
+          <Route
+            path="/partite/nuova"
+            element={
+              <AdminOnly>
+                <Setup />
+              </AdminOnly>
+            }
+          />
           <Route path="/partite/:gameId" element={<MatchScreen />} />
           <Route path="/tornei" element={<TournamentList />} />
-          <Route path="/tornei/nuovo" element={<TournamentSetup />} />
+          <Route
+            path="/tornei/nuovo"
+            element={
+              <AdminOnly>
+                <TournamentSetup />
+              </AdminOnly>
+            }
+          />
           <Route path="/tornei/:id" element={<TournamentDetail />} />
           <Route path="/hiscore" element={<TournamentList highscore />} />
           <Route path="/hiscore/:id" element={<TournamentDetail />} />
@@ -110,7 +160,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={client}>
       <BrowserRouter>
-        <App />
+        <Gate>
+          <App />
+        </Gate>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

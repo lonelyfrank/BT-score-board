@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, UserRound } from 'lucide-react';
-import { api, localData, nickname } from '../services/api';
+import { api, cloudApi, localData, nickname } from '../services/api';
 import { meStore, useMe } from '../services/me';
 import { Avatar, ErrorMessage, Loading, Modal } from './ui';
 import { FxName, useProgression } from './Progression';
@@ -97,7 +97,8 @@ export function WhoAmISheet({ close }: { close: () => void }) {
 export function WhoAmICard() {
   const { me, ready, players } = useKnowsMe();
   const [open, setOpen] = useState(false);
-  if (!localData || !ready || me || !players.some((p) => p.status === 'active')) return null;
+  if (!localData || cloudApi || !ready || me || !players.some((p) => p.status === 'active'))
+    return null;
   return (
     <>
       <button type="button" className="alert who-card" onClick={() => setOpen(true)}>

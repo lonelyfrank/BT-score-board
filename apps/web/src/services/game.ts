@@ -36,7 +36,7 @@ export type ResultInput = Omit<
  * (standalone, IndexedDB) or on the Fastify server (shared mode).
  */
 export interface GameAdapter {
-  readonly mode: 'standalone' | 'shared';
+  readonly mode: 'standalone' | 'shared' | 'cloud';
   players(search?: string, offset?: number, status?: PlayerStatus): Promise<Page<Player>>;
   createPlayer(
     displayName: string,
@@ -187,6 +187,24 @@ export const messages: Record<string, string> = {
   SCORE_VOIDED: 'Questo punteggio è stato annullato.',
   INTEGRITY_CONFLICT: 'L’operazione contrasta con i dati salvati: nulla è stato modificato.',
   NOT_SUPPORTED: 'Operazione non disponibile in questa modalità.',
+  NETWORK: 'Connessione assente o interrotta. Controlla la rete e riprova.',
+  SERVER_DOWN: 'Il server non è disponibile. Riprova tra poco.',
+  UNAUTHENTICATED: 'Sessione scaduta: accedi di nuovo.',
+  ADMIN_REQUIRED: 'Solo un admin può farlo.',
+  INVALID_LOGIN: 'Username o password non corretti.',
+  INVALID_USERNAME:
+    'Username di 3–24 caratteri: lettere, numeri, punto, trattino o trattino basso.',
+  WEAK_PASSWORD: 'La password deve avere da 8 a 128 caratteri.',
+  USERNAME_TAKEN: 'Username già in uso: scegline un altro.',
+  INVALID_CODE: 'Codice non valido o scaduto. Chiedine uno nuovo a un admin.',
+  TOO_MANY_ATTEMPTS: 'Troppi tentativi: riprova tra qualche minuto.',
+  ACCOUNT_DISABLED: 'Questo account è stato disattivato da un admin.',
+  PLAYER_TAKEN: 'Questo giocatore è già collegato a un altro account.',
+  ACCOUNT_NOT_FOUND: 'Account non trovato.',
+  OWNER_ROLE: 'Il ruolo del proprietario non si può cambiare.',
+  PASSKEY_FAILED: 'Passkey non riconosciuta. Accedi con la password.',
+  PASSKEY_CANCELLED: 'Operazione con la passkey annullata.',
+  PASSKEY_UNSUPPORTED: 'Questo dispositivo o browser non supporta le passkey.',
 };
 
 // Session-scoped drafts: they survive a reload but not a closed tab.

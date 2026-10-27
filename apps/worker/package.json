@@ -1,0 +1,21 @@
+{
+  "name": "@bt/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bt/application": "workspace:*",
+    "@bt/domain": "workspace:*",
+    "@bt/local-store": "workspace:*",
+    "@simplewebauthn/server": "14.0.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261012.1",
+    "wrangler": "4.149.0"
+  }
+}

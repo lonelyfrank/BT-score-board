@@ -5,17 +5,25 @@ import pkg from './package.json';
 
 // standalone (default): static PWA, all data in IndexedDB, deployable on Vercel.
 // shared (`--mode shared`): served by Fastify from dist-shared, data through /api/v1.
+// cloud (`--mode cloud`): PWA served by the Cloudflare Worker from dist-cloud, with accounts.
 export default defineConfig(({ mode }) => {
   const shared = mode === 'shared';
+  const cloud = mode === 'cloud';
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
   return {
     define: {
-      'import.meta.env.VITE_DATA_MODE': JSON.stringify(shared ? 'shared' : 'standalone'),
+      'import.meta.env.VITE_DATA_MODE': JSON.stringify(
+        shared ? 'shared' : cloud ? 'cloud' : 'standalone',
+      ),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(
         commit ? `${pkg.version}+${commit}` : pkg.version,
       ),
     },
-    server: shared ? { proxy: { '/api': 'http://127.0.0.1:3000' } } : {},
+    server: shared
+      ? { proxy: { '/api': 'http://127.0.0.1:3000' } }
+      : cloud
+        ? { proxy: { '/api': 'http://127.0.0.1:8787' } }
+        : {},
     plugins: [
       VitePWA({
         // Shared mode stays a plain page served by Fastify; the module still resolves (no-op).
@@ -62,7 +70,7 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     build: {
-      outDir: shared ? 'dist-shared' : 'dist',
+      outDir: shared ? 'dist-shared' : cloud ? 'dist-cloud' : 'dist',
       emptyOutDir: true,
       // Hashed bundles get a folder of their own so the host can cache them as immutable;
       // /assets keeps the unhashed brand files from public/.

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, Eye, EyeOff, Lock } from 'lucide-react';
-import { ApiError, appVersion, localData, sharedApi } from '../services/api';
+import { ApiError, appVersion, cloudApi, localData, sharedApi } from '../services/api';
+import { useAccount, isAdmin } from '../services/cloud';
 import type { BackupFile, BackupSummary } from '../../../../packages/local-store/src/index.js';
 import {
   canShareFiles,
@@ -17,6 +18,7 @@ import { gameModes, games } from '../services/rules';
 import { Header, ErrorMessage, Modal } from '../components/ui';
 import { MergeFlow } from './Crews';
 import { WhoAmISheet, useKnowsMe } from '../components/WhoAmI';
+import { AccountSection, AdminSection } from './Account';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const dateTime = (iso: string | null) =>
@@ -32,6 +34,7 @@ const dateTime = (iso: string | null) =>
 
 export function Settings() {
   const { hash } = useLocation();
+  const account = useAccount();
   useEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
   }, [hash]);
@@ -39,12 +42,34 @@ export function Settings() {
     <>
       <Header
         title="Impostazioni"
-        subtitle={localData ? 'Dati, backup e app' : 'Accesso, server e app'}
+        subtitle={
+          cloudApi
+            ? isAdmin(account)
+              ? 'Account, utenti, backup e app'
+              : 'Account e app'
+            : localData
+              ? 'Dati, backup e app'
+              : 'Accesso, server e app'
+        }
         back="/"
         backLabel="Indietro alla Home"
       />
       <main className="settings">
-        {localData ? <DeviceData /> : <OrganizerAccess />}
+        {cloudApi ? (
+          <>
+            <AccountSection />
+            {isAdmin(account) && (
+              <>
+                <AdminSection />
+                <DeviceData />
+              </>
+            )}
+          </>
+        ) : localData ? (
+          <DeviceData />
+        ) : (
+          <OrganizerAccess />
+        )}
         <AppSection />
         <p className="hint">
           Gli otto giochi del totem Pub Time Darts:{' '}
@@ -63,7 +88,10 @@ export function backupName(at: string) {
   return `bt-darts-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
 }
 
+/** The device's archive, or in cloud mode (admins) the server's: same backup and restore. */
 function DeviceData() {
+  const server = !!cloudApi;
+  const where = server ? 'del server' : 'di questo dispositivo';
   const client = useQueryClient();
   const status = useQuery({ queryKey: ['local-status'], queryFn: () => localData!.status() });
   const storage = useQuery({ queryKey: ['storage-info'], queryFn: storageInfo });
@@ -99,7 +127,9 @@ function DeviceData() {
     mutationFn: () => localData!.importBackup(preview!.backup, true),
     onSuccess: () => {
       setPreview(undefined);
-      setMessage('Backup ripristinato su questo dispositivo.');
+      setMessage(
+        server ? 'Backup ripristinato sul server.' : 'Backup ripristinato su questo dispositivo.',
+      );
       void client.invalidateQueries();
     },
   });
@@ -177,10 +207,18 @@ function DeviceData() {
             Condividi backup
           </button>
         )}
-        <p className="hint">
-          Esporta prima e dopo ogni serata e conserva il file fuori dal telefono. Cancellare i dati
-          del browser o cambiare telefono elimina l’archivio locale.
-        </p>
+        {server ? (
+          <p className="hint">
+            I dati restano sul server; una copia esportata ogni tanto protegge da errori. Per
+            portare qui i dati di un telefono, esporta il backup sul telefono e ripristinalo o
+            uniscilo da qui.
+          </p>
+        ) : (
+          <p className="hint">
+            Esporta prima e dopo ogni serata e conserva il file fuori dal telefono. Cancellare i
+            dati del browser o cambiare telefono elimina l’archivio locale.
+          </p>
+        )}
         {message && (
           <p className="form-reason ok" role="status">
             {message}
@@ -188,78 +226,93 @@ function DeviceData() {
         )}
         <ErrorMessage error={exportBackup.error ?? readFile.error} />
       </section>
-      <h2 className="set-h">Questo telefono</h2>
-      <div className="card">
-        <div className="row">
-          <span className="k">Io sono</span>
-          <button type="button" className="btn sm" onClick={() => setChoosingMe(true)}>
-            {myName ?? 'Scegli il tuo giocatore'}
-          </button>
-        </div>
-      </div>
-      {choosingMe && <WhoAmISheet close={() => setChoosingMe(false)} />}
-      <h2 className="set-h" id="device-title">
-        Dati su questo dispositivo
-      </h2>
-      <ErrorMessage error={status.error} retry={() => void status.refetch()} />
-      <div className="card" aria-labelledby="device-title">
-        <div className="row">
-          <span className="k">Archiviazione persistente</span>
-          {info?.persisted ? (
-            <span className="chip ok">ATTIVA</span>
-          ) : info?.persisted === false ? (
-            <span className="chip warn">NON GARANTITA</span>
-          ) : (
-            <span className="v">—</span>
-          )}
-        </div>
-        {s && (
-          <div className="row">
-            <span className="k">Giocatori · tornei</span>
-            <span className="v">
-              {s.counts.players} · {s.counts.tournaments}
-            </span>
+      {server ? (
+        s && (
+          <div className="card">
+            <div className="row">
+              <span className="k">Giocatori · tornei sul server</span>
+              <span className="v">
+                {s.counts.players} · {s.counts.tournaments}
+              </span>
+            </div>
           </div>
-        )}
-        {info?.usage != null && info.quota != null && (
-          <div className="row">
-            <span className="k">Spazio usato</span>
-            <span className="v">
-              {formatBytes(info.usage)} di {formatBytes(info.quota)}
-            </span>
-          </div>
-        )}
-      </div>
-      {info?.persisted === false && (
+        )
+      ) : (
         <>
-          <p className="hint">
-            Il browser potrebbe cancellare i dati se lo spazio scarseggia. Installare l’app sulla
-            schermata Home aiuta; il backup resta comunque la protezione principale.
-          </p>
-          <button
-            type="button"
-            className="btn"
-            disabled={persist.isPending}
-            onClick={() => persist.mutate()}
-          >
-            Richiedi archiviazione persistente
-          </button>
+          <h2 className="set-h">Questo telefono</h2>
+          <div className="card">
+            <div className="row">
+              <span className="k">Io sono</span>
+              <button type="button" className="btn sm" onClick={() => setChoosingMe(true)}>
+                {myName ?? 'Scegli il tuo giocatore'}
+              </button>
+            </div>
+          </div>
+          {choosingMe && <WhoAmISheet close={() => setChoosingMe(false)} />}
+          <h2 className="set-h" id="device-title">
+            Dati su questo dispositivo
+          </h2>
+          <ErrorMessage error={status.error} retry={() => void status.refetch()} />
+          <div className="card" aria-labelledby="device-title">
+            <div className="row">
+              <span className="k">Archiviazione persistente</span>
+              {info?.persisted ? (
+                <span className="chip ok">ATTIVA</span>
+              ) : info?.persisted === false ? (
+                <span className="chip warn">NON GARANTITA</span>
+              ) : (
+                <span className="v">—</span>
+              )}
+            </div>
+            {s && (
+              <div className="row">
+                <span className="k">Giocatori · tornei</span>
+                <span className="v">
+                  {s.counts.players} · {s.counts.tournaments}
+                </span>
+              </div>
+            )}
+            {info?.usage != null && info.quota != null && (
+              <div className="row">
+                <span className="k">Spazio usato</span>
+                <span className="v">
+                  {formatBytes(info.usage)} di {formatBytes(info.quota)}
+                </span>
+              </div>
+            )}
+          </div>
+          {info?.persisted === false && (
+            <>
+              <p className="hint">
+                Il browser potrebbe cancellare i dati se lo spazio scarseggia. Installare l’app
+                sulla schermata Home aiuta; il backup resta comunque la protezione principale.
+              </p>
+              <button
+                type="button"
+                className="btn"
+                disabled={persist.isPending}
+                onClick={() => persist.mutate()}
+              >
+                Richiedi archiviazione persistente
+              </button>
+            </>
+          )}
+          {persist.data === false && (
+            <p className="hint" role="status">
+              Il browser non ha concesso l’archiviazione persistente.
+            </p>
+          )}
+          <h2 className="set-h">Server del locale</h2>
+          <div className="card">
+            <div className="row">
+              <span>
+                <b className="row-title">Modalità condivisa</b>
+                <small className="hint">Non configurata · i dati restano sul telefono</small>
+              </span>
+            </div>
+          </div>
         </>
       )}
-      {persist.data === false && (
-        <p className="hint" role="status">
-          Il browser non ha concesso l’archiviazione persistente.
-        </p>
-      )}
-      <h2 className="set-h">Server del locale</h2>
-      <div className="card">
-        <div className="row">
-          <span>
-            <b className="row-title">Modalità condivisa</b>
-            <small className="hint">Non configurata · i dati restano sul telefono</small>
-          </span>
-        </div>
-      </div>
       {preview && (merging || preview.summary.scope === 'crew') && (
         <MergeFlow
           {...preview}
@@ -316,8 +369,8 @@ function DeviceData() {
           {hasData ? (
             <>
               <p>
-                <b>Unisci</b> aggiunge questi dati a quelli del telefono senza cancellare nulla (ad
-                esempio il backup di un altro telefono).
+                <b>Unisci</b> aggiunge questi dati a quelli {server ? 'del server' : 'del telefono'}{' '}
+                senza cancellare nulla (ad esempio il backup di un altro telefono).
               </p>
               <button type="button" className="btn cta" onClick={() => setMerging(true)}>
                 Unisci ai dati attuali
@@ -325,7 +378,7 @@ function DeviceData() {
               <p className="note warn">
                 <AlertTriangle aria-hidden="true" />
                 <span>
-                  Sostituirà tutti i dati attuali di questo dispositivo (
+                  Sostituirà tutti i dati attuali {where} (
                   {count(counts.players, 'giocatore', 'giocatori')},{' '}
                   {count(counts.tournaments, 'torneo', 'tornei')}). L’operazione non si può
                   annullare.
@@ -341,7 +394,10 @@ function DeviceData() {
               </button>
             </>
           ) : (
-            <p className="hint">Il dispositivo non contiene dati: il backup verrà importato.</p>
+            <p className="hint">
+              {server ? 'Il server' : 'Il dispositivo'} non contiene dati: il backup verrà
+              importato.
+            </p>
           )}
           <ErrorMessage error={importBackup.error} />
         </Modal>
@@ -365,7 +421,11 @@ function AppSection() {
         <div className="row">
           <span className="k">Modalità</span>
           <span className="v">
-            {localData ? 'Standalone · PWA' : 'Condivisa · server del locale'}
+            {cloudApi
+              ? 'Cloud · account'
+              : localData
+                ? 'Standalone · PWA'
+                : 'Condivisa · server del locale'}
           </span>
         </div>
         {pwa.supported && (

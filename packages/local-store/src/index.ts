@@ -4,3 +4,4 @@ export * from './indexeddb.js';
 export * from './backup.js';
 export * from './engine.js';
 export * from './merge.js';
+export * from './sql-database.js';

@@ -12,7 +12,8 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-import { api, localData, sharedApi } from '../services/api';
+import { api, cloudApi, localData, sharedApi } from '../services/api';
+import { useCanManage } from '../services/me';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
 import { CrewOnboarding } from './Crews';
@@ -24,8 +25,10 @@ export function Home() {
   const backup = useQuery({
     queryKey: ['local-status'],
     queryFn: () => localData!.status(),
-    enabled: !!localData,
+    // On the server the reminder is for the admins' copy, in the settings.
+    enabled: !!localData && !cloudApi,
   });
+  const manage = useCanManage();
   const s = session.data;
   // Shared mode only: commands need the organizer token of this tab.
   const locked = !!sharedApi && !sharedApi.hasToken();
@@ -85,22 +88,45 @@ export function Home() {
           </Link>
         )}
         <nav className="hcards" aria-label="Azioni principali">
-          <Link className="hcard primary" to="/partite/nuova">
-            <Crosshair aria-hidden="true" />
-            <span>
-              <strong>NUOVA PARTITA</strong>
-              <small>8 giochi · fino a 4 al totem</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-          </Link>
-          <Link className="hcard" to="/tornei/nuovo">
-            <Trophy aria-hidden="true" strokeWidth={1.5} />
-            <span>
-              <strong>NUOVO TORNEO</strong>
-              <small>Hi-Score, gironi o partita singola</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-          </Link>
+          {manage ? (
+            <>
+              <Link className="hcard primary" to="/partite/nuova">
+                <Crosshair aria-hidden="true" />
+                <span>
+                  <strong>NUOVA PARTITA</strong>
+                  <small>8 giochi · fino a 4 al totem</small>
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </Link>
+              <Link className="hcard" to="/tornei/nuovo">
+                <Trophy aria-hidden="true" strokeWidth={1.5} />
+                <span>
+                  <strong>NUOVO TORNEO</strong>
+                  <small>Hi-Score, gironi o partita singola</small>
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link className="hcard primary" to="/tornei">
+                <Trophy aria-hidden="true" />
+                <span>
+                  <strong>TORNEI</strong>
+                  <small>In corso, classifiche e risultati</small>
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </Link>
+              <Link className="hcard" to="/giocatori">
+                <Users aria-hidden="true" strokeWidth={1.5} />
+                <span>
+                  <strong>GIOCATORI</strong>
+                  <small>Livelli, record e statistiche</small>
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </Link>
+            </>
+          )}
           <Link className="hcard" to="/hiscore">
             <ChartNoAxesColumnIncreasing aria-hidden="true" strokeWidth={1.5} />
             <span>
