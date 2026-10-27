@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { chooseTracking } from './helpers';
+import { chooseTracking, atBt } from './helpers';
 
 const banner = (page: Page) => page.locator('.turn-banner');
 async function controlled(page: Page) {
@@ -9,6 +9,7 @@ async function controlled(page: Page) {
 /** A two-player Hi-Score match, left with the first player's total saved. */
 async function matchInProgress(page: Page, names: [string, string]) {
   await page.goto('/partite/nuova');
+  await atBt(page);
   await chooseTracking(page, 'Solo finale');
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await page.getByRole('button', { name: 'Aggiungi giocatore' }).click();

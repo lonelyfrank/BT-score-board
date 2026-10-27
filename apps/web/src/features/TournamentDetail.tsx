@@ -6,6 +6,8 @@ import { GroupsDetail } from './Groups';
 import { HiScoreDetail } from './HiScore';
 
 /** One address per tournament, whatever the path: the mode decides the page. */
+import { MoveSpace } from './PlaySpaces';
+
 export function TournamentDetail() {
   const { id = '' } = useParams();
   // Same key as the pages below: they reuse this read.
@@ -23,5 +25,10 @@ export function TournamentDetail() {
   // A single match is its own page: the result screen.
   if (query.data.mode === 'SINGLE_MATCH' && query.data.matches[0])
     return <Navigate to={`/partite/${query.data.matches[0].id}`} replace />;
-  return query.data.mode === 'GROUPS' ? <GroupsDetail /> : <HiScoreDetail />;
+  return (
+    <>
+      {query.data.mode === 'GROUPS' ? <GroupsDetail /> : <HiScoreDetail />}
+      <MoveSpace tournamentId={id} />
+    </>
+  );
 }

@@ -394,3 +394,73 @@ export function JoinSpace() {
     </>
   );
 }
+
+/**
+ * Under a tournament: where it counts, and the explicit command to move it. A move recomputes
+ * both scoreboards and is audited, so it asks for a confirmation and names the destination.
+ */
+export function MoveSpace({ tournamentId }: { tournamentId: string }) {
+  const queries = useQueryClient();
+  const spaces = usePlaySpaces();
+  const t = useQuery({
+    queryKey: ['tournament', tournamentId],
+    queryFn: () => api.tournament(tournamentId),
+  });
+  const access = useQuery({
+    queryKey: ['match-access', tournamentId, t.data?.version],
+    queryFn: () => cloudApi!.matchAccess(tournamentId),
+    enabled: !!cloudApi && !!t.data,
+  });
+  const [target, setTarget] = useState('');
+  const [sure, setSure] = useState(false);
+  const move = useMutation({
+    mutationFn: () => localData!.moveTournament(t.data!, target),
+    onSuccess: () => {
+      setTarget('');
+      setSure(false);
+      void queries.invalidateQueries();
+    },
+  });
+  if (!localData || !t.data || (cloudApi && !access.data?.mine)) return null;
+  const current = spaces.data?.find((s) => s.id === t.data.playSpaceId);
+  const destination = spaces.data?.find((s) => s.id === target);
+  return (
+    <section className="card pad move-space" aria-labelledby="move-space-title">
+      <h2 id="move-space-title">Punto di incontro</h2>
+      <p>
+        {current
+          ? `I risultati contano nella scoreboard ${current.name}.`
+          : 'Non classificato: non conta in nessuna scoreboard.'}
+      </p>
+      <label className="field">
+        Sposta in
+        <select value={target} onChange={(e) => setTarget(e.target.value)}>
+          <option value="">Scegli…</option>
+          {(spaces.data ?? [])
+            .filter((s) => s.id !== t.data.playSpaceId)
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      {destination && (
+        <label className="check-row">
+          <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} />
+          Confermo: tutti i risultati passano alla scoreboard {destination.name} e lasciano{' '}
+          {current?.name ?? 'i dati non classificati'}
+        </label>
+      )}
+      <button
+        type="button"
+        className="btn"
+        disabled={!target || !sure || move.isPending}
+        onClick={() => move.mutate()}
+      >
+        Sposta
+      </button>
+      <ErrorMessage error={move.error} />
+    </section>
+  );
+}

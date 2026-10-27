@@ -11,6 +11,7 @@ import {
   newTournament,
   nextStep,
   openFinalResult,
+  atBt,
 } from './helpers';
 
 const rows = (page: import('@playwright/test').Page) => page.locator('.result-rows .rk');
@@ -25,6 +26,7 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   const scores = [700, 640, 610, 555, 555, 420, 380, 300];
   await page.goto('/');
   await page.getByRole('link', { name: /NUOVO TORNEO/ }).click();
+  await atBt(page);
   await page.getByRole('radio', { name: /^Hi-Score rapido/ }).click();
   // The quick format compares totals: the game is Hi-Score, not a choice.
   await expect(page.getByText('Gioco sul totem:')).toContainText('Hi-Score');
@@ -186,6 +188,7 @@ test('free matches of the totem: Odd & Even sides, Exacta target and Shanghai wi
   page,
 }) => {
   await page.goto('/partite/nuova');
+  await atBt(page);
   await gameRadio(page, 'Odd & Even').click();
   await chooseTracking(page, 'Solo finale');
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
@@ -242,6 +245,7 @@ test('game night with a tournament and players with nicknames', async ({ page })
   await night.getByRole('button', { name: 'Apri la serata' }).click();
   await expect(night).toContainText('STASERA');
   await night.getByRole('link', { name: 'Aggiungi torneo' }).click();
+  await atBt(page);
   await expect(page.getByLabel('Serata (facoltativa)')).toHaveValue(/.+/);
   await page.getByLabel('Nome', { exact: true }).fill('Bite the Trouble Open');
   await nextStep(page);
@@ -382,6 +386,7 @@ test('pairs composed by hand, rounds tracked with rotation, official result from
 }) => {
   const guard = guardNetwork(page);
   await page.goto('/partite/nuova');
+  await atBt(page);
   await chooseTracking(page, 'Flessibile');
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, ['Ada', 'Bea', 'Ciro', 'Dino']);
@@ -427,6 +432,7 @@ test('pairs composed by hand, rounds tracked with rotation, official result from
 
 test('seven players in a free Hi-Score match play two heats with one ranking', async ({ page }) => {
   await page.goto('/partite/nuova');
+  await atBt(page);
   await chooseTracking(page, 'Solo finale');
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);

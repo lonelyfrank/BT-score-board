@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { atBt } from './helpers';
 
 test('navigation keeps links, route ownership and browser history in sync', async ({ page }) => {
   await page.goto('/');
@@ -32,6 +33,7 @@ test('navigation keeps links, route ownership and browser history in sync', asyn
   );
   // A tournament is created full screen, one step at a time: no bar to leave by mistake.
   await page.goto('/tornei/nuovo');
+  await atBt(page);
   await expect(nav).toHaveCount(0);
   await page.goto('/tornei/nuovo?passo=2');
   await expect(nav).toHaveCount(0);

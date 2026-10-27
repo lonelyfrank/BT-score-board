@@ -170,6 +170,11 @@ export async function dispatch(
     if (!isAdmin(account) && !access.isMember(space, account.id))
       throw new DomainError('FORBIDDEN_SPACE', 'Join this play space to play there', 403);
   }
+  if (method === 'moveTournament' && access && !isAdmin(account)) {
+    // The match can only go where its scorer may play.
+    if (!access.isMember(String(args[1]), account.id))
+      throw new DomainError('FORBIDDEN_SPACE', 'Join the destination play space first', 403);
+  }
   if (method === 'createPlaySpace') {
     const space = await adapter.createPlaySpace(
       (record(args[0]) ?? {}) as { name: string },

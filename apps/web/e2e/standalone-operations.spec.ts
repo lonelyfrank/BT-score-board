@@ -7,6 +7,7 @@ import {
   freeMatch,
   guardNetwork,
   newTournament,
+  atBt,
 } from './helpers';
 
 // V1.2 operational readiness: the evenings of the acceptance checklist, end to end.
@@ -119,6 +120,7 @@ test('seven players in uneven teams: rotation kept through an annulled round, ra
 }) => {
   const guard = guardNetwork(page);
   await page.goto('/partite/nuova');
+  await atBt(page);
   await chooseTracking(page, 'Flessibile');
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, ['Ada', 'Bea', 'Ciro', 'Dino', 'Elio', 'Fede', 'Gino']);

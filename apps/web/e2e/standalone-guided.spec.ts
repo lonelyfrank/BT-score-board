@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addPlayers, enterScore, guardNetwork } from './helpers';
+import { addPlayers, enterScore, guardNetwork, atBt } from './helpers';
 
 // V1.3 Guided Scoring with the V1.4 screens: the turn at the board, the three darts, the round
 // matrix with its correction sheet and the official result, end to end on the standalone PWA.
@@ -20,6 +20,7 @@ async function trackedMatch(
   teams?: (page: Page) => Promise<void>,
 ) {
   await page.goto('/partite/nuova');
+  await atBt(page);
   await page.getByRole('radio', { name: tracking }).click();
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, players);

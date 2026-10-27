@@ -123,6 +123,13 @@ export function withMembership(previous: Crew | undefined, next: Crew, at: strin
   for (const id of before) if (!after.has(id)) removed.set(id, at);
   return {
     ...next,
+    // An editor that knows nothing of play spaces must not drop them.
+    ...(next.playSpaceIds === undefined && previous?.playSpaceIds
+      ? { playSpaceIds: previous.playSpaceIds }
+      : {}),
+    ...(next.favoritePlaySpaceId === undefined && previous?.favoritePlaySpaceId !== undefined
+      ? { favoritePlaySpaceId: previous.favoritePlaySpaceId }
+      : {}),
     joinedAt,
     removedMembers: [...removed].map(([playerId, removedAt]) => ({ playerId, removedAt })),
   };

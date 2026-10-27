@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cloudApi } from '../services/api';
 import { ErrorMessage } from './ui';
 import { Qr, shareLink } from './Qr';
+import { MoveSpace } from '../features/PlaySpaces';
 
 /**
  * Above the scoring screens in cloud mode: who holds the match, passing it on, and the link that
@@ -10,7 +11,7 @@ import { Qr, shareLink } from './Qr';
  */
 export function ScorerBar({ tournamentId }: { tournamentId: string }) {
   const queries = useQueryClient();
-  const [open, setOpen] = useState<'pass' | 'follow' | null>(null);
+  const [open, setOpen] = useState<'pass' | 'follow' | 'space' | null>(null);
   const [note, setNote] = useState('');
   const candidates = useQuery({
     queryKey: ['scorer-candidates', tournamentId],
@@ -39,6 +40,13 @@ export function ScorerBar({ tournamentId }: { tournamentId: string }) {
       >
         Passa il segnapunti
       </button>
+      <button
+        type="button"
+        className="btn sm ghost"
+        onClick={() => setOpen(open === 'space' ? null : 'space')}
+      >
+        Punto di incontro
+      </button>
       {open === 'follow' && (
         <div className="follow-share">
           <Qr value={link} label="QR per seguire la partita" />
@@ -62,6 +70,7 @@ export function ScorerBar({ tournamentId }: { tournamentId: string }) {
           {note && <p role="status">{note}</p>}
         </div>
       )}
+      {open === 'space' && <MoveSpace tournamentId={tournamentId} />}
       {open === 'pass' && (
         <div className="follow-share">
           <p className="hint">

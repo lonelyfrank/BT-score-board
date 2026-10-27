@@ -224,6 +224,31 @@ describe('who can score a match', () => {
   });
 });
 
+describe('moving a match to another play space', () => {
+  it('is an explicit, audited command of the scorer, to a space they belong to', async () => {
+    const w = await world();
+    const bar = (await w.call(w.ann, 'createPlaySpace', { name: 'Da Gino' })) as { id: string };
+    const t = await match(w, w.ann);
+    await expect(w.call(w.carl, 'moveTournament', t, bar.id)).rejects.toMatchObject({
+      code: 'NOT_SCORER',
+    });
+    // The scorer must belong to the destination.
+    const other = (await w.call(w.carl, 'createPlaySpace', { name: 'Altrove' })) as { id: string };
+    await expect(w.call(w.ann, 'moveTournament', t, other.id)).rejects.toMatchObject({
+      code: 'FORBIDDEN_SPACE',
+    });
+    const moved = (await w.call(w.ann, 'moveTournament', t, bar.id, 'Era la sala sbagliata')) as {
+      playSpaceId: string;
+      version: number;
+    };
+    expect(moved.playSpaceId).toBe(bar.id);
+    // A stale version is refused: the command is checked against the server's copy.
+    await expect(w.call(w.ann, 'moveTournament', t, BT_PLAY_SPACE_ID)).rejects.toThrow();
+    const audit = await w.adapter.tournament(t.id);
+    expect(audit.playSpaceId).toBe(bar.id);
+  });
+});
+
 describe('who can see a play space', () => {
   it('keeps a private space out of every generic read until the account joins by invite', async () => {
     const w = await world();

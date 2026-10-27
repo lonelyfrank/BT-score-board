@@ -71,6 +71,7 @@ export async function newTournament(
   },
 ) {
   await page.goto('/tornei/nuovo');
+  await atBt(page);
   await page.getByRole('radio', { name: new RegExp(`^${options.format}`) }).click();
   if (options.name) await page.getByLabel('Nome', { exact: true }).fill(options.name);
   if (options.game) await gameRadio(page, options.game).click();
@@ -123,6 +124,7 @@ export async function freeMatch(
   tracking: boolean | Tracking = false,
 ) {
   await page.goto('/partite/nuova');
+  await atBt(page);
   await gameRadio(page, game).click();
   await chooseTracking(
     page,
@@ -132,4 +134,24 @@ export async function freeMatch(
   await addPlayers(page, names);
   await page.getByRole('button', { name: 'Avvia partita' }).click();
   await expect(page).toHaveURL(/\/partite\/[0-9a-f-]{36}$/);
+}
+
+/**
+ * Answers the first question of the new match and new tournament wizards: «Sì, siamo al BT».
+ * A new match then moves on to the game; a tournament keeps the same step.
+ */
+export async function atBt(page: Page) {
+  // The shared server has a single play space: the question is not asked and the wizard starts
+  // at the game (or, for a tournament, at its format).
+  await page
+    .getByRole('heading', {
+      name: /State giocando al Bite the Trouble\?|A cosa giocate\?|Che serata è\?/,
+    })
+    .first()
+    .waitFor();
+  const yes = page.getByRole('radio', { name: /Sì, siamo al BT/ });
+  if (!(await yes.isVisible())) return;
+  await yes.click();
+  const next = page.getByRole('button', { name: 'Scegli il gioco' });
+  if (await next.isVisible()) await next.click();
 }

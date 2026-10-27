@@ -755,9 +755,7 @@ export class Backend {
     this.player(id);
     // Without a filter this is the labelled personal history; with one, a single play space
     // (null: the unclassified data from before play spaces).
-    const all = this.store
-      .tournamentsForPlayer(id)
-      .filter((t) => inPlaySpaces(t, playSpaceId));
+    const all = this.store.tournamentsForPlayer(id).filter((t) => inPlaySpaces(t, playSpaceId));
     const filtered = all.filter(
       (t) =>
         (!options.status || t.status === options.status) &&

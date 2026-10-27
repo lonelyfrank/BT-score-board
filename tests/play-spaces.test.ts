@@ -500,6 +500,29 @@ describe('merge integrity', () => {
     expect(twice.memberIds).toEqual(['a', 'b']);
   });
 
+  it('keeps the play spaces of a crew when an editor that ignores them saves it', () => {
+    const base: Crew = {
+      id: randomUUID(),
+      name: 'Amici',
+      memberIds: ['a'],
+      tournamentIds: [],
+      excludedTournamentIds: [],
+      autoShare: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      playSpaceIds: ['s1'],
+      favoritePlaySpaceId: 's1',
+    };
+    const { playSpaceIds: _p, favoritePlaySpaceId: _f, ...edited } = base;
+    const saved = withMembership(
+      base,
+      { ...edited, name: 'Amici veri' },
+      '2026-02-01T00:00:00.000Z',
+    );
+    expect(saved.playSpaceIds).toEqual(['s1']);
+    expect(saved.favoritePlaySpaceId).toBe('s1');
+  });
+
   it('removing a member from a crew keeps the player and their history', async () => {
     const e = await phone();
     const a = await player(e, 'Ann');

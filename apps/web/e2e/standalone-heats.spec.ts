@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addPlayers, enterScore, freeMatch, guardNetwork, newTournament } from './helpers';
+import { addPlayers, enterScore, freeMatch, guardNetwork, newTournament, atBt } from './helpers';
 const names = (n: number) =>
   Array.from({ length: n }, (_, i) => `Seat${String(i + 1).padStart(2, '0')}`);
 const editor = (page: Page) => page.getByRole('dialog', { name: 'Organizza manche' });
@@ -20,6 +20,7 @@ test('custom slots, swaps, heat order, reset and offline reopening at 320px', as
   await page.setViewportSize({ width: 320, height: 760 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/partite/nuova');
+  await atBt(page);
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
   await addPlayers(page, names(13));
   await page.getByRole('radio', { name: 'Manuale', exact: true }).click();
