@@ -4,7 +4,7 @@ import {
   type Backend,
 } from '../../../../packages/application/src/services/backend.js';
 import { uuid } from '../../../../packages/application/src/portable.js';
-import { DomainError } from '../../../../packages/domain/src/index.js';
+import { DomainError, type Crew } from '../../../../packages/domain/src/index.js';
 import {
   LocalEngine,
   readBackup,
@@ -266,5 +266,55 @@ export class LocalGameAdapter implements GameAdapter {
     } catch (error) {
       throw toApiError(error);
     }
+  }
+  private async run<T>(work: (engine: LocalEngine) => Promise<T>): Promise<T> {
+    const engine = await this.connect();
+    try {
+      return await work(engine);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }
+
+  /** Levels, statistics and records of every player on this device. */
+  progression() {
+    return this.run(async (e) => e.progression());
+  }
+  crews() {
+    return this.run(async (e) => e.socialData().crews);
+  }
+  links() {
+    return this.run(async (e) => e.socialData().links);
+  }
+  crewProgression(id: string) {
+    return this.run(async (e) => e.crewProgression(id));
+  }
+  crewTournaments(id: string) {
+    return this.run(async (e) => e.crewTournaments(id).map(toSummary));
+  }
+  /** Every tournament, to choose what a crew shares beyond its automatic rule. */
+  allTournaments() {
+    return this.read((_, store) =>
+      store.listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 }).items.map(toSummary),
+    );
+  }
+  saveCrew(crew: Omit<Crew, 'updatedAt' | 'createdAt'> & { createdAt?: string }) {
+    return this.run((e) => e.saveCrew(crew));
+  }
+  deleteCrew(id: string) {
+    return this.run((e) => e.deleteCrew(id));
+  }
+  /** Two records of the same person: the older one is kept, the other is deactivated. */
+  linkPlayers(a: string, b: string) {
+    return this.run((e) => e.linkPlayers(a, b));
+  }
+  exportCrew(id: string) {
+    return this.run((e) => e.exportCrew(id));
+  }
+  previewMerge(backup: BackupFile) {
+    return this.run((e) => e.previewMerge(backup));
+  }
+  mergeBackup(backup: BackupFile) {
+    return this.run((e) => e.mergeBackup(backup));
   }
 }

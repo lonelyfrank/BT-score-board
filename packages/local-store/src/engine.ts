@@ -1,14 +1,28 @@
 import { Backend } from '../../application/src/services/backend.js';
 import { uuid } from '../../application/src/portable.js';
-import { DomainError, type Context } from '../../domain/src/index.js';
+import {
+  DomainError,
+  computeProgression,
+  crewTournaments,
+  linkDirection,
+  linkResolver,
+  playerCard,
+  tournamentPlayerIds,
+  type Context,
+  type Crew,
+  type Progression,
+} from '../../domain/src/index.js';
 import { MemoryStore } from './memory-store.js';
 import {
   openLocalDatabase,
+  type BackupData,
   type LocalDatabase,
   type LocalMeta,
   type OpenOptions,
+  type SocialData,
 } from './indexeddb.js';
 import { createBackup, type BackupFile } from './backup.js';
+import { mergeBackupData, type MergeReport } from './merge.js';
 
 export interface EngineOptions {
   database?: OpenOptions;
@@ -43,6 +57,7 @@ export class LocalEngine {
   private store!: MemoryStore;
   private backend!: Backend;
   private meta!: LocalMeta;
+  private social!: SocialData;
   private queue: Promise<unknown> = Promise.resolve();
   private listeners = new Set<(event: EngineEvent) => void>();
   private channel: BroadcastChannel | null = null;
@@ -142,6 +157,7 @@ export class LocalEngine {
     });
     this.backend = new Backend(this.store, this.options.context);
     this.meta = loaded.meta;
+    this.social = loaded.social;
   }
   private refresh(revision: number) {
     void this.enqueue(async () => {
@@ -215,6 +231,190 @@ export class LocalEngine {
       await this.reload();
       this.broadcast();
       this.emit({ type: 'changed', origin: 'import' });
+    });
+  }
+  /** Crews, player cards and links as committed. */
+  socialData(): SocialData {
+    this.ensureOpen();
+    return structuredClone(this.social);
+  }
+  /** Levels, statistics and records over every tournament on the device and the cards received. */
+  progression(): Progression {
+    this.ensureOpen();
+    return computeProgression(this.allTournaments(), {
+      cards: this.social.cards,
+      links: this.social.links,
+    });
+  }
+  /** The same, over what a crew shares: its records are the records among its members. */
+  crewProgression(crewId: string): Progression {
+    const crew = this.crew(crewId);
+    const members = new Set(crew.memberIds.map(linkResolver(this.social.links)));
+    return computeProgression(this.crewTournaments(crewId), {
+      cards: this.social.cards.filter((c) => members.has(c.playerId)),
+      links: this.social.links,
+    });
+  }
+  crewTournaments(crewId: string) {
+    return crewTournaments(
+      this.crew(crewId),
+      this.allTournaments(),
+      linkResolver(this.social.links),
+    );
+  }
+  private allTournaments() {
+    return this.store.listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 }).items;
+  }
+  private crew(id: string) {
+    this.ensureOpen();
+    const crew = this.social.crews.find((c) => c.id === id);
+    if (!crew) throw new DomainError('CREW_NOT_FOUND', 'Crew not found', 404);
+    return crew;
+  }
+  /** Creates or updates a crew; `updatedAt` is set here, for merges between devices. */
+  saveCrew(crew: Omit<Crew, 'updatedAt' | 'createdAt'> & { createdAt?: string }): Promise<Crew> {
+    const at = this.now();
+    const saved: Crew = { ...crew, createdAt: crew.createdAt ?? at, updatedAt: at };
+    return this.writeSocial({ crews: [saved] }).then(() => saved);
+  }
+  /** Removes the crew from this device only: other members keep their copy. */
+  deleteCrew(id: string): Promise<void> {
+    return this.writeSocial({ deleteCrews: [id] });
+  }
+  /**
+   * Records that two player records are the same person. The older one is kept (see
+   * linkDirection); crews point to it and the other is deactivated, so it leaves new line-ups
+   * but its history stays and counts for the kept one.
+   */
+  async linkPlayers(a: string, b: string): Promise<{ kept: string; linked: string }> {
+    const [pa, pb] = this.read((_, store) => [store.getPlayer(a), store.getPlayer(b)]);
+    if (!pa || !pb || a === b)
+      throw new DomainError('PLAYER_NOT_FOUND', 'Choose two different players', 404);
+    const link = { ...linkDirection(pa, pb), createdAt: this.now() };
+    const crews = this.social.crews
+      .filter((c) => c.memberIds.includes(link.from))
+      .map((c) => ({
+        ...c,
+        memberIds: [...new Set(c.memberIds.map((id) => (id === link.from ? link.to : id)))],
+        updatedAt: link.createdAt,
+      }));
+    await this.writeSocial({ links: [link], crews });
+    const linked = link.from === a ? pa : pb;
+    if (linked.status === 'active')
+      await this.write((backend) => backend.updatePlayer(linked.id, { status: 'inactive' }));
+    return { kept: link.to, linked: link.from };
+  }
+  private writeSocial(changes: Partial<SocialData> & { deleteCrews?: string[] }) {
+    return this.enqueue(async () => {
+      this.ensureOpen();
+      try {
+        this.meta = await this.db.writeSocial(changes, this.meta.revision, this.now());
+      } catch (error) {
+        if (error instanceof DomainError && error.code === 'STALE_DATA') {
+          await this.reload();
+          this.emit({ type: 'changed', origin: 'remote' });
+        }
+        throw error;
+      }
+      const replace = <T>(list: T[], items: T[] | undefined, key: (item: T) => string) => {
+        const map = new Map(list.map((item) => [key(item), item]));
+        for (const item of items ?? []) map.set(key(item), item);
+        return [...map.values()];
+      };
+      const deleted = new Set(changes.deleteCrews ?? []);
+      this.social = {
+        crews: replace(this.social.crews, changes.crews, (c) => c.id).filter(
+          (c) => !deleted.has(c.id),
+        ),
+        cards: replace(this.social.cards, changes.cards, (c) => c.playerId),
+        links: replace(this.social.links, changes.links, (l) => l.from),
+      };
+      this.broadcast();
+      this.emit({ type: 'changed', origin: 'local' });
+    });
+  }
+  /**
+   * A crew package: the crew, the tournaments it shares with their players and history, and a
+   * card per member with the level and bests this device knows of (from all its data), so the
+   * level follows the person. Nothing else on the device is included.
+   */
+  exportCrew(crewId: string): Promise<BackupFile> {
+    return this.enqueue(async () => {
+      const crew = this.crew(crewId);
+      const { data, meta } = await this.db.exportAll();
+      const at = this.now();
+      const resolve = linkResolver(data.links);
+      const tournaments = crewTournaments(crew, data.tournaments, resolve);
+      const ids = new Set(tournaments.map((t) => t.id));
+      const playerIds = new Set([...crew.memberIds, ...tournaments.flatMap(tournamentPlayerIds)]);
+      for (const id of [...playerIds]) playerIds.add(resolve(id));
+      const links = data.links.filter((l) => playerIds.has(l.from) || playerIds.has(l.to));
+      for (const l of links) playerIds.add(l.from).add(l.to);
+      const events = new Set(tournaments.map((t) => t.eventId).filter((id) => id !== null));
+      const progression = computeProgression(data.tournaments, {
+        cards: data.cards,
+        links: data.links,
+      });
+      const cards = [...new Set(crew.memberIds.map(resolve))]
+        .map((id) => progression.players.get(id))
+        .filter((p) => p !== undefined)
+        .map((p) => playerCard(p, at));
+      const subset: BackupData = {
+        players: data.players.filter((p) => playerIds.has(p.id)),
+        events: data.events.filter((e) => events.has(e.id)),
+        tournaments,
+        audit: data.audit.filter((a) => a.tournamentId !== null && ids.has(a.tournamentId)),
+        outbox: data.outbox.filter((o) => ids.has(o.tournamentId)),
+        commands: [],
+        crews: [crew],
+        cards,
+        links,
+      };
+      return createBackup(
+        subset,
+        { deviceId: meta.deviceId, revision: meta.revision, app: this.options.app ?? 'unknown' },
+        at,
+        'crew',
+      );
+    });
+  }
+  /** What merging a verified backup or crew package would change, without writing anything. */
+  previewMerge(backup: BackupFile): Promise<MergeReport> {
+    return this.enqueue(async () => {
+      this.ensureOpen();
+      const { data } = await this.db.exportAll();
+      return mergeBackupData(data, backup.data).report;
+    });
+  }
+  /**
+   * Adds a verified backup or crew package to the local data (see mergeBackupData) in one
+   * transaction: the union or nothing. Nothing local is removed.
+   */
+  mergeBackup(backup: BackupFile): Promise<MergeReport> {
+    return this.enqueue(async () => {
+      this.ensureOpen();
+      const { data } = await this.db.exportAll();
+      const merged = mergeBackupData(data, backup.data);
+      if (merged.report.unchanged) return merged.report;
+      try {
+        this.meta = await this.db.replaceAll(
+          merged.data,
+          { deviceId: backup.source.deviceId, exportedAt: backup.exportedAt },
+          this.meta.revision,
+          this.now(),
+          'merge',
+        );
+      } catch (error) {
+        if (error instanceof DomainError && error.code === 'STALE_DATA') {
+          await this.reload();
+          this.emit({ type: 'changed', origin: 'remote' });
+        }
+        throw error;
+      }
+      await this.reload();
+      this.broadcast();
+      this.emit({ type: 'changed', origin: 'import' });
+      return merged.report;
     });
   }
   private shutdown(reason: 'upgrade' | 'error') {

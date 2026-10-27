@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Search } from 'lucide-react';
-import { api, nickname, type Player, type PlayerStatus } from '../services/api';
+import { ChevronRight, Search, Users } from 'lucide-react';
+import { api, localData, nickname, type Player, type PlayerStatus } from '../services/api';
 import { tournamentPath } from '../services/session';
 import { games, type GameMode } from '../services/rules';
 import {
@@ -17,6 +17,7 @@ import {
   Segmented,
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
+import { FxName, LevelChip, ProgressPanel, useProgression } from '../components/Progression';
 
 type Filter = PlayerStatus | 'all';
 const PAGE = 100;
@@ -57,6 +58,8 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
       if (!('status' in patch)) close();
     },
   });
+  const progression = useProgression();
+  const level = progression.data?.players.get(player.id);
   const s = stats.data;
   const current = update.data ?? player;
   const active = current.status === 'active';
@@ -66,7 +69,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
         <span className="profile-title">
           <Avatar name={player.displayName} avatar={avatar} className="ring selected" />
           <span>
-            {player.displayName}
+            <FxName name={player.displayName} p={level} />
             <small>
               {[nickname(current), active ? 'Attivo' : 'Disattivato'].filter(Boolean).join(' · ')}
             </small>
@@ -76,6 +79,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
       close={close}
     >
       <ErrorMessage error={stats.error ?? history.error ?? update.error} />
+      {level && <ProgressPanel p={level} />}
       {s && (
         <>
           <div className="stat-tiles">
@@ -248,7 +252,52 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
         </p>
       </form>
+      {localData && <LinkDuplicate player={player} close={close} />}
     </Modal>
+  );
+}
+
+/**
+ * The same person created twice (e.g. on two phones): linking keeps the older record, sums
+ * matches and levels on it and deactivates the other. Not undone from here.
+ */
+function LinkDuplicate({ player, close }: { player: Player; close: () => void }) {
+  const client = useQueryClient();
+  const [other, setOther] = useState('');
+  const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.players('', 0) });
+  const link = useMutation({
+    mutationFn: () => localData!.linkPlayers(player.id, other),
+    onSuccess: () => {
+      void client.invalidateQueries();
+      close();
+    },
+  });
+  const candidates = players.data?.items.filter((p) => p.id !== player.id) ?? [];
+  return (
+    <details className="link-duplicate">
+      <summary>È un doppione di un altro giocatore?</summary>
+      <p className="hint">
+        Se la stessa persona è stata creata due volte, collegale: partite, statistiche e livello si
+        sommano sul profilo più vecchio, l’altro viene disattivato.
+      </p>
+      <label className="field">
+        Stessa persona di
+        <select value={other} onChange={(e) => setOther(e.target.value)}>
+          <option value="">Scegli…</option>
+          {candidates.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.displayName}
+              {p.nickname ? ` “${p.nickname}”` : ''}
+              {p.status === 'inactive' ? ' (disattivato)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <ErrorMessage error={link.error} />
+      <button disabled={!other || link.isPending} onClick={() => link.mutate()}>
+        Collega
+      </button>
+    </details>
   );
 }
 
@@ -264,6 +313,7 @@ export function Players() {
     queryFn: () => api.players(search.trim(), offset, status),
   });
   const page = query.data;
+  const progression = useProgression();
   return (
     <>
       <Header
@@ -271,6 +321,16 @@ export function Players() {
         action={<AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />}
       />
       <main className="content">
+        {localData && (
+          <Link className="crew-link" to="/compagnie">
+            <Users aria-hidden="true" />
+            <span>
+              <strong>Compagnie</strong>
+              <small>Condividi partite e livelli con gli amici</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        )}
         <div className="search-field">
           <Search aria-hidden="true" />
           <input
@@ -308,10 +368,21 @@ export function Players() {
               >
                 <Avatar name={p.displayName} avatar={p.avatar} />
                 <span>
-                  <span>{p.displayName}</span>
-                  <small>{nickname(p) || 'Nessun soprannome'}</small>
+                  <FxName name={p.displayName} p={progression.data?.players.get(p.id)} />
+                  <small>
+                    {[
+                      progression.data?.players.get(p.id)?.cosmetics.levelTitle,
+                      nickname(p) || (progression.data ? '' : 'Nessun soprannome'),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Nessun soprannome'}
+                  </small>
                 </span>
-                {p.status === 'inactive' ? <b className="off-tag">DISATTIVATO</b> : <span />}
+                {p.status === 'inactive' ? (
+                  <b className="off-tag">DISATTIVATO</b>
+                ) : (
+                  <LevelChip p={progression.data?.players.get(p.id)} />
+                )}
                 <ChevronRight aria-hidden="true" />
               </button>
             </li>

@@ -9,7 +9,7 @@ import {
   type Tournament,
 } from '../../domain/src/index.js';
 import { assertTournamentIntegrity } from './integrity.js';
-import { SCHEMA_VERSION, dataStores, type BackupData } from './indexeddb.js';
+import { SCHEMA_VERSION, dataStores, socialStores, type BackupData } from './indexeddb.js';
 
 export const BACKUP_FORMAT = 'bt-darts-scoreboard-backup';
 export const BACKUP_FORMAT_VERSION = 1;
@@ -20,6 +20,8 @@ export interface BackupFile {
   schemaVersion: number;
   exportedAt: string;
   source: { deviceId: string; revision: number; app: string };
+  /** `crew`: a crew package, only its shared tournaments and its members (merged, never restored). */
+  scope?: 'full' | 'crew';
   counts: Record<(typeof dataStores)[number], number>;
   integrity: { algorithm: 'SHA-256'; digest: string };
   data: BackupData;
@@ -29,6 +31,9 @@ export interface BackupSummary {
   deviceId: string;
   counts: BackupFile['counts'];
   tournaments: { name: string; status: string; createdAt: string }[];
+  scope: 'full' | 'crew';
+  /** The crews carried, by name (a crew package carries one). */
+  crews: string[];
 }
 
 const hex64 = /^[0-9a-f]{64}$/;
@@ -42,6 +47,7 @@ const envelope = z.object({
     revision: z.number().int().nonnegative(),
     app: z.string().max(64),
   }),
+  scope: z.enum(['full', 'crew']).optional(),
   counts: z.record(z.string(), z.number().int().nonnegative()),
   integrity: z.object({ algorithm: z.literal('SHA-256'), digest: z.string().regex(hex64) }),
   data: z.unknown(),
@@ -49,6 +55,24 @@ const envelope = z.object({
 const tournament = s.tournamentResponse.extend({
   status: z.enum(['draft', 'registration', 'ready', 'active', 'paused', 'completed', 'cancelled']),
 });
+const crew = z.object({
+  id: s.id,
+  name: z.string().min(1).max(120),
+  memberIds: z.array(s.id),
+  tournamentIds: z.array(s.id),
+  excludedTournamentIds: z.array(s.id),
+  autoShare: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+const best = z.object({ value: z.number().int().nonnegative(), achievedAt: z.string() });
+const card = z.object({
+  playerId: s.id,
+  xp: z.number().int().nonnegative(),
+  bests: z.record(z.string(), best),
+  updatedAt: z.string(),
+});
+const link = z.object({ from: s.id, to: s.id, createdAt: z.string() });
 const data = z.strictObject({
   players: z.array(s.playerResponse),
   events: z.array(s.eventResponse),
@@ -64,6 +88,10 @@ const data = z.strictObject({
       createdAt: z.string(),
     }),
   ),
+  // Absent from backups written before crews existed.
+  crews: z.array(crew).default([]),
+  cards: z.array(card).default([]),
+  links: z.array(link).default([]),
 });
 
 const invalid = (code: string, message: string) => new DomainError(code, message, 422);
@@ -75,12 +103,16 @@ async function digest(text: string) {
   return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 const countsOf = (d: BackupData) =>
-  Object.fromEntries(dataStores.map((store) => [store, d[store].length])) as BackupFile['counts'];
+  // `?? []`: files written before a store existed lack it (see readBackup).
+  Object.fromEntries(
+    dataStores.map((store) => [store, (d[store] ?? []).length]),
+  ) as BackupFile['counts'];
 
 export async function createBackup(
   backupData: BackupData,
   source: BackupFile['source'],
   exportedAt: string,
+  scope: 'full' | 'crew' = 'full',
 ): Promise<BackupFile> {
   return {
     format: BACKUP_FORMAT,
@@ -88,6 +120,7 @@ export async function createBackup(
     schemaVersion: SCHEMA_VERSION,
     exportedAt,
     source,
+    scope,
     counts: countsOf(backupData),
     integrity: { algorithm: 'SHA-256', digest: await digest(JSON.stringify(backupData)) },
     data: backupData,
@@ -118,7 +151,10 @@ export async function readBackup(text: string): Promise<BackupFile> {
   }
   const content = parsed.data as BackupData;
   const counts = countsOf(content);
-  if (dataStores.some((store) => head.data.counts[store] !== counts[store]))
+  const declared = (store: (typeof dataStores)[number]) =>
+    head.data.counts[store] ??
+    ((socialStores as readonly string[]).includes(store) ? 0 : undefined);
+  if (dataStores.some((store) => declared(store) !== counts[store]))
     throw invalid('BACKUP_INTEGRITY', 'The backup record counts do not match');
   verifyReferences(content);
   return { ...(head.data as Omit<BackupFile, 'data'>), data: content };
@@ -141,7 +177,8 @@ function upgradeData(raw: unknown, schemaVersion: number): unknown {
   }
 }
 
-function verifyReferences(d: BackupData) {
+/** Unique keys and valid references, as required of a backup (and of a merge result). */
+export function verifyReferences(d: BackupData) {
   const unique = <T>(items: T[], key: (item: T) => string | number, what: string) => {
     const keys = new Set(items.map(key));
     if (keys.size !== items.length) throw invalid('BACKUP_INVALID', `Duplicate ${what} in backup`);
@@ -153,6 +190,9 @@ function verifyReferences(d: BackupData) {
   unique(d.audit, (a) => a.sequence, 'audit sequences');
   unique(d.outbox, (o) => o.sequence, 'event sequences');
   unique(d.commands, (c) => c.key, 'command keys');
+  unique(d.crews, (c) => c.id, 'crews');
+  unique(d.cards, (c) => c.playerId, 'player cards');
+  unique(d.links, (l) => l.from, 'player links');
   for (const t of d.tournaments) {
     try {
       assertTournamentIntegrity(
@@ -181,5 +221,7 @@ export function summarizeBackup(backup: BackupFile): BackupSummary {
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .slice(0, 5)
       .map((t) => ({ name: t.name, status: t.status, createdAt: t.createdAt })),
+    scope: backup.scope ?? 'full',
+    crews: backup.data.crews.map((c) => c.name),
   };
 }

@@ -15,6 +15,7 @@ import {
 import { usePwa } from '../services/pwa';
 import { gameModes, games } from '../services/rules';
 import { Header, ErrorMessage, Modal } from '../components/ui';
+import { MergeFlow } from './Crews';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const dateTime = (iso: string | null) =>
@@ -67,6 +68,7 @@ function DeviceData() {
   const storage = useQuery({ queryKey: ['storage-info'], queryFn: storageInfo });
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState<{ backup: BackupFile; summary: BackupSummary }>();
+  const [merging, setMerging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const exportBackup = useMutation({
     mutationFn: async (mode: 'download' | 'share') => {
@@ -204,7 +206,16 @@ function DeviceData() {
         )}
         <ErrorMessage error={exportBackup.error ?? readFile.error} />
       </section>
-      {preview && (
+      {preview && (merging || preview.summary.scope === 'crew') && (
+        <MergeFlow
+          {...preview}
+          close={() => {
+            setPreview(undefined);
+            setMerging(false);
+          }}
+        />
+      )}
+      {preview && !merging && preview.summary.scope !== 'crew' && (
         <Modal
           title="Ripristinare questo backup?"
           close={() => !importBackup.isPending && setPreview(undefined)}
@@ -225,6 +236,13 @@ function DeviceData() {
           )}
           {hasData ? (
             <>
+              <p>
+                <strong>Unisci</strong> aggiunge i dati del backup a quelli del telefono senza
+                cancellare nulla (ad esempio il backup di un altro telefono).
+              </p>
+              <button className="primary" onClick={() => setMerging(true)}>
+                Unisci ai dati attuali
+              </button>
               <p className="warning-text">
                 Sostituirà tutti i dati attuali di questo dispositivo (
                 {count(counts.players, 'giocatore', 'giocatori')},{' '}
@@ -242,7 +260,7 @@ function DeviceData() {
           )}
           <ErrorMessage error={importBackup.error} />
           <button
-            className="primary"
+            className={hasData ? 'outline' : 'primary'}
             disabled={importBackup.isPending}
             onClick={() => importBackup.mutate()}
           >

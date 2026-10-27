@@ -174,7 +174,8 @@ describe('Upgrade of data written before game modes', () => {
     expect(data.tournaments[0].gameMode).toBeUndefined();
     const file = {
       ...(await createBackup(
-        data,
+        // Written before crews existed: the file has no crews, cards or links.
+        data as unknown as Parameters<typeof createBackup>[0],
         { deviceId: 'old-phone', revision: 3, app: '0.2.0' },
         new Date().toISOString(),
       )),

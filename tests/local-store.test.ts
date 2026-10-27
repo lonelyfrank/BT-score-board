@@ -341,8 +341,11 @@ describe('Local schema and storage errors', () => {
     expect(raw.version).toBe(SCHEMA_VERSION);
     expect([...raw.objectStoreNames].sort()).toEqual([
       'audit',
+      'cards',
       'commands',
+      'crews',
       'events',
+      'links',
       'meta',
       'outbox',
       'players',

@@ -15,6 +15,7 @@ import { TournamentList } from './features/Tournaments';
 import { TournamentSetup } from './features/TournamentSetup';
 import { TournamentDetail } from './features/TournamentDetail';
 import { Events } from './features/Events';
+import { CrewDetail, Crews } from './features/Crews';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/app.css';
@@ -42,7 +43,15 @@ function App() {
         if (event.type !== 'changed') return;
         if (event.origin !== 'local') void queries.invalidateQueries();
         else
-          for (const key of ['session', 'recent-results', 'local-status'])
+          for (const key of [
+            'session',
+            'recent-results',
+            'local-status',
+            'progression',
+            'crews',
+            'crew-progression',
+            'crew-tournaments',
+          ])
             void queries.invalidateQueries({ queryKey: [key] });
       }),
     [queries],
@@ -65,6 +74,8 @@ function App() {
           <Route path="/hiscore/:id" element={<TournamentDetail />} />
           <Route path="/serate" element={<Events />} />
           <Route path="/giocatori" element={<Players />} />
+          <Route path="/compagnie" element={<Crews />} />
+          <Route path="/compagnie/:id" element={<CrewDetail />} />
           <Route path="/impostazioni" element={<Settings />} />
           <Route
             path="*"

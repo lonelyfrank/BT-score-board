@@ -470,3 +470,53 @@ test('seven players in a free Hi-Score match play two heats with one ranking', a
   // The winner played in the second heat: the ranking is one, across the heats.
   await expect(page.locator('.final-rows li.first')).toContainText('P5');
 });
+
+test('crews: existing players are offered a crew, whose package carries matches and levels to a friend', async ({
+  page,
+  browser,
+}) => {
+  await freeMatch(page, 'Hi-Score', ['Nora', 'Otto'], true);
+  await enterScore(page, 'Nora', 640);
+  await enterScore(page, 'Otto', 500);
+  await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
+
+  // Data from before crews: the Home asks, without a dialog in the way.
+  await page.goto('/');
+  const ask = page.getByRole('region', { name: 'Crea la tua compagnia' });
+  await expect(ask).toContainText('2 giocatori');
+  await ask.getByRole('button', { name: 'Crea compagnia' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Nuova compagnia' });
+  await expect(sheet.getByRole('checkbox', { checked: true })).toHaveCount(2);
+  await sheet.getByLabel('Nome').fill('Giovedì');
+  await sheet.getByRole('button', { name: 'Crea compagnia' }).click();
+  await expect(page).toHaveURL(/\/compagnie\/[0-9a-f-]{36}$/);
+  await expect(page.locator('.crew-ranking li').first()).toContainText('Nora');
+  await expect(page.locator('.record-list')).toContainText('640 punti');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /Scarica pacchetto/ }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^bt-compagnia-giovedi-\d{4}-\d{2}-\d{2}\.json$/);
+
+  // A friend's phone merges the package: crew, match and levels arrive.
+  const device = await browser.newContext({ baseURL: 'http://127.0.0.1:3108' });
+  const other = await device.newPage();
+  await other.goto('/compagnie');
+  await other.getByLabel('Unisci un pacchetto').setInputFiles((await file.path())!);
+  const dialog = other.getByRole('dialog', { name: 'Pacchetto «Giovedì»' });
+  await expect(dialog).toContainText('2 giocatori nuovi');
+  await expect(dialog).toContainText('1 torneo nuovo');
+  await dialog.getByRole('button', { name: 'Unisci' }).click();
+  const merged = other.getByRole('dialog', { name: 'Dati uniti' });
+  await merged.getByRole('button', { name: 'Fatto' }).click();
+  await expect(other.getByRole('link', { name: /Giovedì/ })).toBeVisible();
+  await other.goto('/giocatori');
+  await expect(other.getByRole('button', { name: /Nora/ })).toContainText('Lv 1');
+
+  // The same package again adds nothing.
+  await other.goto('/compagnie');
+  await other.getByLabel('Unisci un pacchetto').setInputFiles((await file.path())!);
+  await expect(other.getByRole('dialog', { name: 'Pacchetto «Giovedì»' })).toContainText(
+    'Hai già tutti questi dati',
+  );
+  await device.close();
+});

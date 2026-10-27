@@ -7,11 +7,13 @@ import {
   ChevronRight,
   HardDriveDownload,
   Lock,
+  Users,
 } from 'lucide-react';
 import { CheersIcon, CrossedDarts, CrowdIcon } from '../components/BrandIcons';
 import { api, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
+import { CrewOnboarding } from './Crews';
 
 export function Home() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
@@ -104,7 +106,18 @@ export function Home() {
             </span>
             <ChevronRight />
           </Link>
+          {localData && (
+            <Link className="home-card" to="/compagnie">
+              <Users strokeWidth={1.5} />
+              <span>
+                <strong>COMPAGNIE</strong>
+                <small>Partite e livelli con gli amici</small>
+              </span>
+              <ChevronRight />
+            </Link>
+          )}
         </nav>
+        <CrewOnboarding />
         {locked && (
           <Link className="home-locked" to="/impostazioni">
             <Lock aria-hidden="true" />

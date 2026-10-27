@@ -10,7 +10,10 @@ import {
   DomainError,
   upgradePlayer,
   upgradeTournament,
+  type Crew,
   type Player,
+  type PlayerCard,
+  type PlayerLink,
   type PubEvent,
   type Tournament,
 } from '../../domain/src/index.js';
@@ -43,6 +46,9 @@ export interface LocalSchema extends DBSchema {
   audit: { key: number; value: AuditRecord; indexes: { tournamentId: string } };
   outbox: { key: number; value: OutboxRecord; indexes: { tournamentId: string } };
   commands: { key: string; value: CommandRecord; indexes: { createdAt: string } };
+  crews: { key: string; value: Crew };
+  cards: { key: string; value: PlayerCard };
+  links: { key: string; value: PlayerLink };
 }
 export type LocalStoreName = StoreNames<LocalSchema>;
 export interface BackupData {
@@ -52,7 +58,17 @@ export interface BackupData {
   audit: AuditRecord[];
   outbox: OutboxRecord[];
   commands: CommandRecord[];
+  crews: Crew[];
+  cards: PlayerCard[];
+  links: PlayerLink[];
 }
+/** Crews, player cards and links: shared between friends, written outside the Backend. */
+export interface SocialData {
+  crews: Crew[];
+  cards: PlayerCard[];
+  links: PlayerLink[];
+}
+export const socialStores = ['crews', 'cards', 'links'] as const;
 export const dataStores = [
   'players',
   'events',
@@ -60,6 +76,7 @@ export const dataStores = [
   'audit',
   'outbox',
   'commands',
+  ...socialStores,
 ] as const;
 const allStores: LocalStoreName[] = ['meta', ...dataStores];
 
@@ -113,6 +130,13 @@ export const migrations: Migration[] = [
     const tournaments = transaction.objectStore('tournaments');
     for (let cursor = await tournaments.openCursor(); cursor; cursor = await cursor.continue())
       await cursor.update(upgradeTournament(cursor.value));
+  },
+  // 4: crews, player cards (levels from other devices) and links between duplicate players.
+  // Existing data is untouched: levels and records are derived from it.
+  (db) => {
+    db.createObjectStore('crews', { keyPath: 'id' });
+    db.createObjectStore('cards', { keyPath: 'playerId' });
+    db.createObjectStore('links', { keyPath: 'from' });
   },
 ];
 export const SCHEMA_VERSION = migrations.length;
@@ -186,8 +210,18 @@ export async function openLocalDatabase(options: OpenOptions = {}): Promise<Loca
   return local;
 }
 
+/** A social store, empty when the database predates it (schema 3 or older). */
+const social = <S extends (typeof socialStores)[number]>(
+  tx: IDBPTransaction<LocalSchema, LocalStoreName[], 'readonly'>,
+  store: S,
+): Promise<LocalSchema[S]['value'][]> =>
+  tx.objectStoreNames.contains(store)
+    ? (tx.objectStore(store).getAll() as Promise<LocalSchema[S]['value'][]>)
+    : Promise.resolve([]);
+
 export interface LoadedState {
   snapshot: Snapshot;
+  social: SocialData;
   sequences: { audit: number; outbox: number };
   meta: LocalMeta;
 }
@@ -214,8 +248,13 @@ export class LocalDatabase {
   private async begin<Mode extends 'readonly' | 'readwrite'>(
     mode: Mode,
   ): Promise<IDBPTransaction<LocalSchema, LocalStoreName[], Mode>> {
+    // Only the stores of this schema version: tests and old tabs may run an older one.
     const open = () =>
-      this.db.transaction(allStores, mode, mode === 'readwrite' ? { durability: 'strict' } : {});
+      this.db.transaction(
+        allStores.filter((store) => this.db.objectStoreNames.contains(store)),
+        mode,
+        mode === 'readwrite' ? { durability: 'strict' } : {},
+      );
     try {
       return open();
     } catch (error) {
@@ -230,19 +269,27 @@ export class LocalDatabase {
       const tx = await this.begin('readonly');
       const lastKey = async (store: 'audit' | 'outbox') =>
         ((await tx.objectStore(store).openKeyCursor(null, 'prev'))?.key as number | undefined) ?? 0;
-      const [players, events, tournaments, commands, meta, audit, outbox] = await Promise.all([
-        tx.objectStore('players').getAll(),
-        tx.objectStore('events').getAll(),
-        tx.objectStore('tournaments').getAll(),
-        tx.objectStore('commands').index('createdAt').getAll(IDBKeyRange.lowerBound(commandsSince)),
-        tx.objectStore('meta').get('local'),
-        lastKey('audit'),
-        lastKey('outbox'),
-      ]);
+      const [players, events, tournaments, commands, meta, audit, outbox, crews, cards, links] =
+        await Promise.all([
+          tx.objectStore('players').getAll(),
+          tx.objectStore('events').getAll(),
+          tx.objectStore('tournaments').getAll(),
+          tx
+            .objectStore('commands')
+            .index('createdAt')
+            .getAll(IDBKeyRange.lowerBound(commandsSince)),
+          tx.objectStore('meta').get('local'),
+          lastKey('audit'),
+          lastKey('outbox'),
+          social(tx, 'crews'),
+          social(tx, 'cards'),
+          social(tx, 'links'),
+        ]);
       await tx.done;
       if (!meta) throw storageError('STORAGE_FAILED', 'Local metadata is missing');
       return {
         snapshot: { players, events, tournaments, commands },
+        social: { crews, cards, links },
         sequences: { audit, outbox },
         meta,
       };
@@ -296,23 +343,88 @@ export class LocalDatabase {
   exportAll(): Promise<{ data: BackupData; meta: LocalMeta }> {
     return this.run(async () => {
       const tx = await this.begin('readonly');
-      const [players, events, tournaments, audit, outbox, commands, meta] = await Promise.all([
-        tx.objectStore('players').getAll(),
-        tx.objectStore('events').getAll(),
-        tx.objectStore('tournaments').getAll(),
-        tx.objectStore('audit').getAll(),
-        tx.objectStore('outbox').getAll(),
-        tx.objectStore('commands').getAll(),
-        tx.objectStore('meta').get('local'),
-      ]);
+      const [players, events, tournaments, audit, outbox, commands, crews, cards, links, meta] =
+        await Promise.all([
+          tx.objectStore('players').getAll(),
+          tx.objectStore('events').getAll(),
+          tx.objectStore('tournaments').getAll(),
+          tx.objectStore('audit').getAll(),
+          tx.objectStore('outbox').getAll(),
+          tx.objectStore('commands').getAll(),
+          social(tx, 'crews'),
+          social(tx, 'cards'),
+          social(tx, 'links'),
+          tx.objectStore('meta').get('local'),
+        ]);
       await tx.done;
-      return { data: { players, events, tournaments, audit, outbox, commands }, meta: meta! };
+      return {
+        data: { players, events, tournaments, audit, outbox, commands, crews, cards, links },
+        meta: meta!,
+      };
     });
   }
-  /** Replaces every data store in one transaction: either the whole backup or nothing. */
+  /**
+   * Replaces every data store in one transaction: either the whole backup or nothing. A
+   * `restore` takes the backup as the latest one; a `merge` writes the union computed from the
+   * local data, which stays a change to back up.
+   */
   replaceAll(
     data: BackupData,
     source: { deviceId: string; exportedAt: string },
+    expectedRevision: number,
+    now: string,
+    kind: 'restore' | 'merge' = 'restore',
+  ): Promise<LocalMeta> {
+    return this.run(async () => {
+      const tx = await this.begin('readwrite');
+      const done = tx.done;
+      done.catch(() => undefined);
+      try {
+        const meta = (await tx.objectStore('meta').get('local'))!;
+        if (meta.revision !== expectedRevision) {
+          tx.abort();
+          throw new DomainError('STALE_DATA', 'The data was changed in another tab', 409);
+        }
+        const next: LocalMeta = {
+          ...meta,
+          revision: meta.revision + 1,
+          lastCommitAt: now,
+          ...(kind === 'restore'
+            ? { lastBackupAt: source.exportedAt, changesSinceBackup: 0 }
+            : { changesSinceBackup: meta.changesSinceBackup + 1 }),
+          lastImport: { at: now, ...source },
+        };
+        const writes = requests();
+        for (const store of dataStores) writes.add(tx.objectStore(store).clear());
+        for (const p of data.players) writes.add(tx.objectStore('players').add(p));
+        for (const e of data.events) writes.add(tx.objectStore('events').add(e));
+        for (const t of data.tournaments) writes.add(tx.objectStore('tournaments').add(t));
+        for (const a of data.audit) writes.add(tx.objectStore('audit').add(a));
+        for (const o of data.outbox) writes.add(tx.objectStore('outbox').add(o));
+        for (const c of data.commands) writes.add(tx.objectStore('commands').add(c));
+        for (const c of data.crews) writes.add(tx.objectStore('crews').add(c));
+        for (const c of data.cards) writes.add(tx.objectStore('cards').add(c));
+        for (const l of data.links) writes.add(tx.objectStore('links').add(l));
+        writes.add(tx.objectStore('meta').put(next));
+        writes.add(done);
+        await writes.wait();
+        return next;
+      } catch (error) {
+        try {
+          tx.abort();
+        } catch {
+          /* Already finished or aborted. */
+        }
+        throw failure(tx.error ?? error);
+      }
+    });
+  }
+  /**
+   * Saves crews, cards and links, and deletes crews, in one transaction that counts as a data
+   * change (same revision check as a command).
+   */
+  writeSocial(
+    changes: Partial<SocialData> & { deleteCrews?: string[] },
     expectedRevision: number,
     now: string,
   ): Promise<LocalMeta> {
@@ -330,18 +442,13 @@ export class LocalDatabase {
           ...meta,
           revision: meta.revision + 1,
           lastCommitAt: now,
-          lastBackupAt: source.exportedAt,
-          changesSinceBackup: 0,
-          lastImport: { at: now, ...source },
+          changesSinceBackup: meta.changesSinceBackup + 1,
         };
         const writes = requests();
-        for (const store of dataStores) writes.add(tx.objectStore(store).clear());
-        for (const p of data.players) writes.add(tx.objectStore('players').add(p));
-        for (const e of data.events) writes.add(tx.objectStore('events').add(e));
-        for (const t of data.tournaments) writes.add(tx.objectStore('tournaments').add(t));
-        for (const a of data.audit) writes.add(tx.objectStore('audit').add(a));
-        for (const o of data.outbox) writes.add(tx.objectStore('outbox').add(o));
-        for (const c of data.commands) writes.add(tx.objectStore('commands').add(c));
+        for (const c of changes.crews ?? []) writes.add(tx.objectStore('crews').put(c));
+        for (const id of changes.deleteCrews ?? []) writes.add(tx.objectStore('crews').delete(id));
+        for (const c of changes.cards ?? []) writes.add(tx.objectStore('cards').put(c));
+        for (const l of changes.links ?? []) writes.add(tx.objectStore('links').put(l));
         writes.add(tx.objectStore('meta').put(next));
         writes.add(done);
         await writes.wait();
