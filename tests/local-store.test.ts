@@ -61,6 +61,7 @@ async function startedMatch(engine: LocalEngine, players = 4) {
     ids.push((await engine.write((b) => b.createPlayer({ displayName: `Player ${i + 1}` }))).id);
   let t = await engine.write((b) =>
     b.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'Venerdì',
       mode: 'QUICK_HIGH_SCORE',
       recording: 'turns',
@@ -300,6 +301,7 @@ describe('Backup and restore', () => {
     const engine = await open();
     let t = await engine.write((b) =>
       b.createTournament({
+        playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
         name: 'Finale',
         mode: 'QUICK_HIGH_SCORE',
         recording: 'turns',
@@ -348,8 +350,10 @@ describe('Local schema and storage errors', () => {
       'links',
       'meta',
       'outbox',
+      'playSpaces',
       'players',
       'tournaments',
+      'variants',
     ]);
     raw.close();
     let runs = 0;

@@ -70,6 +70,8 @@ export const updateEvent = createEvent
   .extend({ status: z.enum(['planned', 'active', 'completed', 'cancelled']).optional() });
 export const createTournament = z.strictObject({
   name,
+  /** Mandatory: every new tournament counts for exactly one play space. */
+  playSpaceId: id,
   eventId: id.nullable().optional(),
   mode: tournamentFormat,
   gameMode: gameMode.default('HI_SCORE'),
@@ -79,6 +81,29 @@ export const createTournament = z.strictObject({
   tournamentConfiguration: tournamentConfiguration.prefault({}),
 });
 export const command = z.strictObject({ expectedVersion: version });
+/** Moves a started or finished tournament to another play space: explicit, confirmed, audited. */
+export const moveTournament = z.strictObject({
+  expectedVersion: version,
+  playSpaceId: id,
+  confirm: z.literal(true),
+  reason: z.string().trim().max(240).optional(),
+});
+export const createPlaySpace = z.strictObject({
+  name,
+  place: z.string().trim().max(160).nullable().optional(),
+  targetDescription: z.string().trim().max(240).nullable().optional(),
+});
+export const playSpaceResponse = z.object({
+  id,
+  name: z.string(),
+  place: z.string().nullable(),
+  targetDescription: z.string().nullable(),
+  canonical: z.boolean(),
+  createdBy: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  version,
+});
 export const registerPlayer = command.extend({
   playerId: id,
   seed: z.number().int().min(1).max(256).nullable().optional(),
@@ -442,6 +467,8 @@ export const tournamentResponse = z.object({
   startedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
   deletedAt: z.string().nullable().optional(),
+  playSpaceId: id.nullable().optional(),
+  lineage: z.array(z.string()).optional(),
   version,
   entries: z.array(entryResponse),
   stages: z.array(stageResponse),

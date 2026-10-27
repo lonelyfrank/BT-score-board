@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Backend } from '../packages/application/src/index.js';
 import {
+  BT_PLAY_SPACE_ID,
   crewTournaments,
   linkResolver,
   matchById,
@@ -52,6 +53,7 @@ const player = (engine: LocalEngine, displayName: string) =>
 async function play(engine: LocalEngine, ids: [string, string], totals: [number, number]) {
   let t = await engine.write((b) =>
     b.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'Sfida',
       mode: 'SINGLE_MATCH',
       gameMode: 'HI_SCORE',
@@ -102,7 +104,9 @@ describe('crews between phones', () => {
     // Ann's private match is not on phone B, but her level is: it came with her card.
     expect(xp(b, ann.id)).toBe(xp(a, ann.id));
     expect(b.progression().players.get(ann.id)!.breakdown.elsewhere).toBeGreaterThan(0);
-    expect(b.crewProgression(crew.id).records.HI_SCORE).toMatchObject({ playerId: ann.id });
+    expect(b.crewProgression(crew.id, BT_PLAY_SPACE_ID).records.HI_SCORE).toMatchObject({
+      playerId: ann.id,
+    });
 
     // Merging the same package again changes nothing.
     expect((await b.mergeBackup(pack)).unchanged).toBe(true);
@@ -194,7 +198,7 @@ describe('crews between phones', () => {
     await b.importBackup(full, { replaceExisting: false });
     expect(b.socialData().crews).toHaveLength(1);
     const report = await b.mergeBackup(full);
-    expect(report.unchanged).toBe(true);
+    expect(report).toMatchObject({ unchanged: true });
   });
 
   it('upgrades a phone with data from before crews, keeping everything', async () => {
@@ -207,8 +211,14 @@ describe('crews between phones', () => {
     engines.splice(engines.indexOf(old), 1);
 
     const upgraded = await phone(name);
-    expect(SCHEMA_VERSION).toBe(5);
-    expect(upgraded.socialData()).toEqual({ crews: [], cards: [], links: [] });
+    expect(SCHEMA_VERSION).toBe(6);
+    expect(upgraded.socialData()).toEqual({
+      crews: [],
+      cards: [],
+      links: [],
+      playSpaces: [],
+      variants: [],
+    });
     expect(upgraded.read((_, s) => s.getTournament(t.id))!.status).toBe('completed');
     // Levels come from the existing matches straight away.
     expect(xp(upgraded, ann.id)).toBeGreaterThan(0);

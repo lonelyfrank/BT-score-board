@@ -2,7 +2,9 @@ import { z } from 'zod';
 import * as s from '../../contracts/src/index.js';
 import { sha256Hex } from '../../application/src/portable.js';
 import {
+  BT_PLAY_SPACE_ID,
   DomainError,
+  linkResolver,
   upgradePlayer,
   upgradeTournament,
   type Player,
@@ -64,6 +66,10 @@ const crew = z.object({
   autoShare: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  joinedAt: z.record(z.string(), z.string()).optional(),
+  removedMembers: z.array(z.object({ playerId: s.id, removedAt: z.string() })).optional(),
+  playSpaceIds: z.array(s.id).optional(),
+  favoritePlaySpaceId: s.id.nullable().optional(),
 });
 const best = z.object({ value: z.number().int().nonnegative(), achievedAt: z.string() });
 const card = z.object({
@@ -71,6 +77,25 @@ const card = z.object({
   xp: z.number().int().nonnegative(),
   bests: z.record(z.string(), best),
   updatedAt: z.string(),
+  contributions: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(200),
+        source: z.string().min(1).max(100),
+        xp: z.number().int().nonnegative(),
+        at: z.string(),
+      }),
+    )
+    .optional(),
+  legacy: z.object({ xp: z.number().int().nonnegative(), at: z.string() }).optional(),
+});
+const playSpace = s.playSpaceResponse;
+const variant = z.object({
+  id: z.string().min(1).max(200),
+  tournamentId: s.id,
+  tournament,
+  receivedAt: z.string(),
+  source: z.string().max(128),
 });
 const link = z.object({ from: s.id, to: s.id, createdAt: z.string() });
 const data = z.strictObject({
@@ -92,6 +117,8 @@ const data = z.strictObject({
   crews: z.array(crew).default([]),
   cards: z.array(card).default([]),
   links: z.array(link).default([]),
+  playSpaces: z.array(playSpace).default([]),
+  variants: z.array(variant).default([]),
 });
 
 const invalid = (code: string, message: string) => new DomainError(code, message, 422);
@@ -149,7 +176,11 @@ export async function readBackup(text: string): Promise<BackupFile> {
     const issue = parsed.error.issues[0]!;
     throw invalid('BACKUP_INVALID', `Invalid backup data at ${issue.path.join('.')}`);
   }
-  const content = parsed.data as BackupData;
+  // Idempotent: data from before play spaces comes out unclassified (null), never guessed.
+  const content = {
+    ...parsed.data,
+    tournaments: (parsed.data.tournaments as Tournament[]).map(upgradeTournament),
+  } as BackupData;
   const counts = countsOf(content);
   const declared = (store: (typeof dataStores)[number]) =>
     head.data.counts[store] ??
@@ -193,6 +224,27 @@ export function verifyReferences(d: BackupData) {
   unique(d.crews, (c) => c.id, 'crews');
   unique(d.cards, (c) => c.playerId, 'player cards');
   unique(d.links, (l) => l.from, 'player links');
+  const spaces = unique(d.playSpaces, (p) => p.id, 'play spaces');
+  unique(d.variants, (v) => v.id, 'tournament variants');
+  // The canonical space is implicit: a stored record claiming its id is never accepted, and a
+  // space is never recognised by its name.
+  if (spaces.has(BT_PLAY_SPACE_ID) || d.playSpaces.some((p) => p.canonical))
+    throw invalid('BACKUP_INVALID', 'A backup cannot define the canonical play space');
+  spaces.add(BT_PLAY_SPACE_ID);
+  for (const t of d.tournaments)
+    if (t.playSpaceId && !spaces.has(t.playSpaceId))
+      throw invalid('BACKUP_INVALID', `Tournament "${t.name}" refers to an unknown play space`);
+  for (const c of d.crews)
+    for (const id of [...(c.playSpaceIds ?? []), c.favoritePlaySpaceId ?? ''])
+      if (id && !spaces.has(id))
+        throw invalid('BACKUP_INVALID', `Crew "${c.name}" refers to an unknown play space`);
+  for (const v of d.variants)
+    if (!tournaments.has(v.tournamentId))
+      throw invalid('BACKUP_INVALID', 'A tournament variant refers to a missing tournament');
+  const aliases = linkResolver(d.links);
+  for (const l of d.links)
+    if (l.from === l.to || aliases(l.to) === l.from || !players.has(l.from) || !players.has(l.to))
+      throw invalid('BACKUP_INVALID', 'Player links loop or refer to missing players');
   for (const t of d.tournaments) {
     try {
       assertTournamentIntegrity(

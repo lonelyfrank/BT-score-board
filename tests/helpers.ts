@@ -14,6 +14,7 @@ export function fixture(
   scoring: Record<string, unknown> = {},
 ) {
   let tournament = backend.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Friday at the pub',
     mode,
     // These scenarios exercise the legacy turn-by-turn entry; results.test.ts covers results.

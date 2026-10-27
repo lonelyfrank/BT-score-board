@@ -46,6 +46,7 @@ function competition(
   } = {},
 ) {
   let t = b.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Flexible V1.3.1',
     mode: options.mode ?? 'SINGLE_MATCH',
     gameMode: options.game ?? 'HI_SCORE',
@@ -264,6 +265,7 @@ describe('Flexible heat invariants V1.3.1', () => {
       expect(heatCapacity(t)).toBe(game === 'ODD_EVEN' ? 2 : 4);
       expect(() =>
         b.createTournament({
+          playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
           name: 'Invalid',
           mode: 'SINGLE_MATCH',
           gameMode: game,

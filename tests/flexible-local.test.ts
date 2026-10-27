@@ -63,7 +63,12 @@ async function night(engine: LocalEngine, count = 9) {
   for (let i = 0; i < count; i++)
     ids.push((await engine.write((b) => b.createPlayer({ displayName: `Player ${i + 1}` }))).id);
   let t = await engine.write((b) =>
-    b.createTournament({ name: 'Hi-Score Night', mode: 'QUICK_HIGH_SCORE', tracking: 'FLEXIBLE' }),
+    b.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'Hi-Score Night',
+      mode: 'QUICK_HIGH_SCORE',
+      tracking: 'FLEXIBLE',
+    }),
   );
   t = await engine.write((b) =>
     exec(b, t, 'ComposeEntries', {
@@ -197,7 +202,12 @@ describe('Upgrade of data written by the previous version (schema 2)', () => {
     for (let i = 0; i < 3; i++)
       ids.push((await old.write((b) => b.createPlayer({ displayName: `Veterano ${i + 1}` }))).id);
     let t = await old.write((b) =>
-      b.createTournament({ name: 'Serata 2025', mode: 'SINGLE_MATCH', gameMode: 'HI_SCORE' }),
+      b.createTournament({
+        playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+        name: 'Serata 2025',
+        mode: 'SINGLE_MATCH',
+        gameMode: 'HI_SCORE',
+      }),
     );
     for (const id of ids)
       t = await old.write((b) => exec(b, t, 'RegisterPlayer', { playerId: id }));
@@ -223,7 +233,7 @@ describe('Upgrade of data written by the previous version (schema 2)', () => {
   it('migrates schema 2 in place: entries become singles, results and players intact', async () => {
     const { tournamentId, matchId, players } = await schema2Database();
     const engine = await open();
-    expect(SCHEMA_VERSION).toBe(5);
+    expect(SCHEMA_VERSION).toBe(6);
     const t = engine.read((b) => b.tournament(tournamentId));
     expect(t.tracking).toBe('FINAL_ONLY');
     expect(t.entries.map((e) => [e.kind, e.members.map((m) => m.playerId)])).toEqual(

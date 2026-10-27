@@ -7,6 +7,7 @@ import {
   type Tournament,
 } from '../../domain/src/index.js';
 import type { ListOptions, Page, Store } from '../../application/src/ports.js';
+import { uuid } from '../../application/src/portable.js';
 import { assertTournamentIntegrity } from './integrity.js';
 
 export type AuditRecord = Operation & { sequence: number };
@@ -266,6 +267,9 @@ export class MemoryStore implements Store {
       (id) => !!this.current(overlay.players, this.players, id),
       (id) => !!this.current(overlay.events, this.events_, id),
     );
+    // One stamp per version: the provenance that tells a continued copy from an independent one.
+    if (!existing || existing.version !== t.version)
+      t.lineage = [...(t.lineage ?? existing?.lineage ?? []), uuid().slice(0, 8)];
     overlay.tournaments.set(t.id, clone(t));
   }
   listTournaments(o: ListOptions) {

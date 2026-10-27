@@ -52,6 +52,7 @@ async function evening(engine: LocalEngine) {
   const event = await engine.write((b) => b.createEvent({ name: 'Venerdì al pub' }));
   let t = await engine.write((b) =>
     b.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'Hi-Score Night',
       mode: 'QUICK_HIGH_SCORE',
       eventId: event.id,

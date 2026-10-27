@@ -42,7 +42,13 @@ function attempt(work: () => unknown) {
   }
 }
 // Observable state of a store after a scenario: everything a client or an export can read.
+// Lineage stamps are random provenance kept by the local store only.
+const withoutLineage = <T>(value: T): T =>
+  JSON.parse(JSON.stringify(value, (key, v) => (key === 'lineage' ? undefined : v)));
 function observe(store: Store, backend: Backend, tournamentIds: string[]) {
+  return withoutLineage(observeRaw(store, backend, tournamentIds));
+}
+function observeRaw(store: Store, backend: Backend, tournamentIds: string[]) {
   const all = { limit: 1000, offset: 0 };
   const players = store.listPlayers(all);
   return {

@@ -1,6 +1,7 @@
 import type { Match, Player, Tournament, TournamentEntry } from './model.js';
 
 const current = (t: Tournament) =>
+  t.playSpaceId !== undefined &&
   !!t.gameMode &&
   !!t.recording &&
   !!t.tracking &&
@@ -47,6 +48,8 @@ export function upgradeTournament(raw: Tournament): Tournament {
   const config = t.tournamentConfiguration;
   return {
     ...t,
+    // Before play spaces: unclassified, assigned later by the user (never guessed).
+    playSpaceId: t.playSpaceId ?? null,
     gameMode: t.gameMode ?? 'HI_SCORE',
     recording: t.recording ?? 'turns',
     tracking: t.tracking ?? 'FINAL_ONLY',

@@ -59,6 +59,7 @@ function game(
   const people = new Map<string, string>();
   for (const name of units.flat()) people.set(name, backend.createPlayer({ displayName: name }).id);
   let t = backend.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Serata guidata',
     mode: options.mode ?? 'SINGLE_MATCH',
     gameMode: options.gameMode ?? 'HI_SCORE',

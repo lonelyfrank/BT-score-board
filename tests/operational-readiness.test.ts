@@ -56,6 +56,7 @@ function tournament(
   } = {},
 ) {
   let t = backend.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Serata al Bite the Trouble',
     mode: options.mode ?? 'QUICK_HIGH_SCORE',
     gameMode: 'HI_SCORE',
@@ -77,7 +78,11 @@ describe('Participants and teams of a real evening', () => {
     const a = backend.createPlayer({ displayName: 'Marco' }).id;
     const b = backend.createPlayer({ displayName: 'Marco' }).id;
     expect(a).not.toBe(b);
-    let t = backend.createTournament({ name: 'x', mode: 'QUICK_HIGH_SCORE' });
+    let t = backend.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'x',
+      mode: 'QUICK_HIGH_SCORE',
+    });
     t = run(backend, t, 'RegisterPlayer', { playerId: a });
     t = run(backend, t, 'RegisterPlayer', { playerId: b });
     expect(t.entries.map((e) => e.playerId)).toEqual([a, b]);
@@ -85,7 +90,11 @@ describe('Participants and teams of a real evening', () => {
     // A registered player is reused by another tournament without being created again.
     const other = run(
       backend,
-      backend.createTournament({ name: 'y', mode: 'QUICK_HIGH_SCORE' }),
+      backend.createTournament({
+        playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+        name: 'y',
+        mode: 'QUICK_HIGH_SCORE',
+      }),
       'RegisterPlayer',
       { playerId: a },
     );

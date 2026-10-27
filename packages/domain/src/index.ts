@@ -19,3 +19,4 @@ export * from './progression/levels.js';
 export * from './progression/records.js';
 export * from './progression/profile.js';
 export * from './crews/crews.js';
+export * from './playspaces/playspaces.js';

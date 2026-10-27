@@ -251,6 +251,55 @@ export class Backend {
     });
   }
   /**
+   * Moves a tournament (with every round, heat and result) to another play space. The change
+   * is one versioned, audited write: the scoreboards of both spaces are derived from the
+   * tournaments, so they are recomputed together and no result is counted twice.
+   */
+  moveTournament(id: string, input: unknown) {
+    this.authorize();
+    const data = s.moveTournament.parse(input);
+    return this.store.transaction(() => {
+      const t = this.tournament(id);
+      d.ensure(
+        t.version === data.expectedVersion,
+        'VERSION_CONFLICT',
+        'Tournament version has changed',
+      );
+      d.ensure(
+        t.playSpaceId !== data.playSpaceId,
+        'SAME_PLAY_SPACE',
+        'Already in this play space',
+        409,
+      );
+      const next: d.Tournament = { ...t, playSpaceId: data.playSpaceId, version: t.version + 1 };
+      this.store.saveTournament(next, t.version);
+      this.audit('TournamentMoved', t.playSpaceId ?? null, data.playSpaceId, {
+        tournamentId: id,
+        ...(data.reason ? { reason: data.reason } : {}),
+      });
+      return next;
+    });
+  }
+  /**
+   * Puts a stored variant in place of the tournament it conflicts with (an explicit decision):
+   * one versioned, audited write. The caller keeps the replaced copy as a variant first.
+   */
+  adoptVariant(variant: d.Tournament) {
+    this.authorize();
+    return this.store.transaction(() => {
+      const current = this.tournament(variant.id);
+      const next: d.Tournament = {
+        ...variant,
+        version: Math.max(current.version, variant.version) + 1,
+      };
+      this.store.saveTournament(next, current.version);
+      this.audit('TournamentVariantAdopted', current.version, next.version, {
+        tournamentId: variant.id,
+      });
+      return next;
+    });
+  }
+  /**
    * Takes a tournament out of every list and statistic (or puts it back). Nothing is erased: an
    * admin can restore it, and the audit keeps who removed it. One in progress must be cancelled
    * first.
@@ -691,9 +740,13 @@ export class Backend {
         }));
     });
   }
-  history(id: string, options: ListOptions) {
+  history(id: string, options: ListOptions, playSpaceId?: string | null) {
     this.player(id);
-    const all = this.store.tournamentsForPlayer(id);
+    // Without a filter this is the labelled personal history; with one, a single play space
+    // (null: the unclassified data from before play spaces).
+    const all = this.store
+      .tournamentsForPlayer(id)
+      .filter((t) => playSpaceId === undefined || (t.playSpaceId ?? null) === playSpaceId);
     const filtered = all.filter(
       (t) =>
         (!options.status || t.status === options.status) &&
@@ -711,10 +764,11 @@ export class Backend {
    * result changes them at the next read. Games are kept apart; Hi-Score totals only compare
    * with the same rounds and darts.
    */
-  statistics(id: string): z.output<typeof s.statisticsResponse> {
+  statistics(id: string, playSpaceId?: string | null): z.output<typeof s.statisticsResponse> {
     this.player(id);
     const tournaments = this.store
       .tournamentsForPlayer(id)
+      .filter((t) => playSpaceId === undefined || (t.playSpaceId ?? null) === playSpaceId)
       .filter((t) => t.startedAt !== null && t.status !== 'cancelled');
     type Row = z.output<typeof s.statisticsResponse>['byGameMode'][number] & { totals: number[] };
     const rows = new Map<string, Row>();

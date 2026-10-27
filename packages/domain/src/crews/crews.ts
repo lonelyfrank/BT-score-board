@@ -16,6 +16,16 @@ export interface Crew {
   autoShare: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Membership as dated operations, so that merging an old copy cannot bring a removed member
+   * back: the latest operation per player wins, a removal wins a tie. Absent in older crews:
+   * their members count as joined when the crew was created.
+   */
+  joinedAt?: Record<string, string>;
+  removedMembers?: { playerId: string; removedAt: string }[];
+  /** Play spaces the friends meet at; the favourite is only a default for new matches. */
+  playSpaceIds?: string[];
+  favoritePlaySpaceId?: string | null;
 }
 
 /**
@@ -86,18 +96,73 @@ export function crewTournaments(
 
 const union = (...lists: string[][]) => [...new Set(lists.flat())];
 
+const joinedOf = (c: Crew, playerId: string) => c.joinedAt?.[playerId] ?? c.createdAt;
+const removedOf = (c: Crew, playerId: string) =>
+  c.removedMembers?.find((r) => r.playerId === playerId)?.removedAt ?? null;
+
 /**
- * Merges two copies of the same crew. Members and shared tournaments are added from both; for
- * settings and for a tournament chosen in one copy and excluded in the other, the copy changed
- * last wins.
+ * Records the membership operations between the stored crew and the edited one: who joined and
+ * who was removed, with the time. Removing a person from a crew deletes neither the player, nor
+ * their history, nor their membership in other crews or play spaces.
+ */
+export function withMembership(previous: Crew | undefined, next: Crew, at: string): Crew {
+  const before = new Set(previous?.memberIds ?? []);
+  const after = new Set(next.memberIds);
+  const joinedAt = { ...(previous?.joinedAt ?? {}), ...(next.joinedAt ?? {}) };
+  const removed = new Map(
+    [...(previous?.removedMembers ?? []), ...(next.removedMembers ?? [])].map((r) => [
+      r.playerId,
+      r.removedAt,
+    ]),
+  );
+  for (const id of after) {
+    if (!before.has(id)) {
+      joinedAt[id] = at;
+    } else joinedAt[id] ??= previous ? joinedOf(previous, id) : at;
+  }
+  for (const id of before) if (!after.has(id)) removed.set(id, at);
+  return {
+    ...next,
+    joinedAt,
+    removedMembers: [...removed].map(([playerId, removedAt]) => ({ playerId, removedAt })),
+  };
+}
+
+/**
+ * Merges two copies of the same crew. Settings and tournaments follow the copy changed last;
+ * membership follows the dated operations of both copies, so a removal made on one phone
+ * survives an old copy from another, while a later re-join survives an old removal.
  */
 export function mergeCrew(a: Crew, b: Crew): Crew {
   const [older, newer] = a.updatedAt <= b.updatedAt ? [a, b] : [b, a];
   const included = new Set(newer.tournamentIds);
   const excluded = new Set(newer.excludedTournamentIds);
+  const people = union(newer.memberIds, older.memberIds, [
+    ...(newer.removedMembers ?? []).map((r) => r.playerId),
+    ...(older.removedMembers ?? []).map((r) => r.playerId),
+  ]);
+  const later = (x: string | null, y: string | null) => (x && y ? (x > y ? x : y) : (x ?? y));
+  const joinedAt: Record<string, string> = {};
+  const removedMembers: { playerId: string; removedAt: string }[] = [];
+  const memberIds: string[] = [];
+  for (const id of people) {
+    // A copy that lists the member and never recorded a join: joined at its creation.
+    const join = (c: Crew) =>
+      c.memberIds.includes(id) || c.joinedAt?.[id] ? joinedOf(c, id) : null;
+    const joined = later(join(newer), join(older));
+    const removed = later(removedOf(newer, id), removedOf(older, id));
+    if (joined) joinedAt[id] = joined;
+    if (removed) removedMembers.push({ playerId: id, removedAt: removed });
+    if (joined && (!removed || joined > removed)) memberIds.push(id);
+  }
   return {
     ...newer,
-    memberIds: union(newer.memberIds, older.memberIds),
+    memberIds,
+    joinedAt,
+    removedMembers,
+    ...(newer.playSpaceIds || older.playSpaceIds
+      ? { playSpaceIds: union(newer.playSpaceIds ?? [], older.playSpaceIds ?? []) }
+      : {}),
     tournamentIds: union(newer.tournamentIds, older.tournamentIds).filter(
       (id) => !excluded.has(id),
     ),

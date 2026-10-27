@@ -2742,6 +2742,18 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "playSpaceId": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "lineage": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "version": {
                             "type": "integer",
                             "minimum": 0,
@@ -5166,6 +5178,18 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "playSpaceId": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "lineage": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "version": {
                             "type": "integer",
                             "minimum": 0,
@@ -5556,6 +5580,12 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 120
+                  },
+                  "playSpaceId": {
+                    "default": "00000000-0000-4000-8000-00000000b7d1",
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
                   "eventId": {
                     "nullable": true,
@@ -6051,6 +6081,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -7617,6 +7659,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -9667,6 +9721,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -17216,6 +17282,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -19295,6 +19373,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -20891,6 +20981,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -22687,6 +22789,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -24283,6 +24397,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -25881,6 +26007,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -27477,6 +27615,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -29075,6 +29225,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -30672,6 +30834,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -32268,6 +32442,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -33883,6 +34069,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -35479,6 +35677,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -37094,6 +37304,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -38703,6 +38925,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -40311,6 +40545,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -41907,6 +42153,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -43517,6 +43775,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -45119,6 +45389,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -46739,6 +47021,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -48368,6 +48662,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -49970,6 +50276,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -51574,6 +51892,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -53176,6 +53506,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -54786,6 +55128,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -56388,6 +56742,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -58037,6 +58403,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -59645,6 +60023,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -61269,6 +61659,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -62912,6 +63314,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -64525,6 +64939,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -66134,6 +66560,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -67742,6 +68180,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -69418,6 +69868,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -71042,6 +71504,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -72672,6 +73146,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",
@@ -74343,6 +74829,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -75974,6 +76472,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -77588,6 +78098,18 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -79196,6 +79718,18 @@
                     "deletedAt": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "playSpaceId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineage": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
                     "version": {
                       "type": "integer",

@@ -48,7 +48,11 @@ function exec(
 }
 async function hiScoreNight(engine: LocalEngine, players = 6) {
   let t = await engine.write((b) =>
-    b.createTournament({ name: 'Hi-Score Night', mode: 'QUICK_HIGH_SCORE' }),
+    b.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'Hi-Score Night',
+      mode: 'QUICK_HIGH_SCORE',
+    }),
   );
   for (let i = 0; i < players; i++) {
     const p = await engine.write((b) => b.createPlayer({ displayName: `Player ${i + 1}` }));
@@ -112,6 +116,7 @@ describe('Upgrade of data written before game modes', () => {
     const p = await old.write((b) => b.createPlayer({ displayName: 'Veterano' }));
     let t = await old.write((b) =>
       b.createTournament({
+        playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
         name: 'Torneo 2025',
         mode: 'QUICK_HIGH_SCORE',
         recording: 'turns',

@@ -14,6 +14,7 @@ import {
   type Player,
   type PlayerCard,
   type PlayerLink,
+  type PlaySpace,
   type PubEvent,
   type Tournament,
 } from '../../domain/src/index.js';
@@ -25,6 +26,17 @@ import type {
   Snapshot,
 } from './memory-store.js';
 
+/**
+ * A copy of a tournament that does not continue the one held here (see ancestry): kept until a
+ * person decides, and never counted by any scoreboard.
+ */
+export interface TournamentVariant {
+  id: string;
+  tournamentId: string;
+  tournament: Tournament;
+  receivedAt: string;
+  source: string;
+}
 export const DATABASE_NAME = 'bt-darts-scoreboard';
 
 export interface LocalMeta {
@@ -49,6 +61,8 @@ export interface LocalSchema extends DBSchema {
   crews: { key: string; value: Crew };
   cards: { key: string; value: PlayerCard };
   links: { key: string; value: PlayerLink };
+  playSpaces: { key: string; value: PlaySpace };
+  variants: { key: string; value: TournamentVariant };
 }
 export type LocalStoreName = StoreNames<LocalSchema>;
 export interface BackupData {
@@ -61,14 +75,19 @@ export interface BackupData {
   crews: Crew[];
   cards: PlayerCard[];
   links: PlayerLink[];
+  /** The play spaces created here (the canonical one is implicit and never stored). */
+  playSpaces: PlaySpace[];
+  variants: TournamentVariant[];
 }
-/** Crews, player cards and links: shared between friends, written outside the Backend. */
+/** Crews, cards, links and play spaces: shared between friends, written outside the Backend. */
 export interface SocialData {
   crews: Crew[];
   cards: PlayerCard[];
   links: PlayerLink[];
+  playSpaces: PlaySpace[];
+  variants: TournamentVariant[];
 }
-export const socialStores = ['crews', 'cards', 'links'] as const;
+export const socialStores = ['crews', 'cards', 'links', 'playSpaces', 'variants'] as const;
 export const dataStores = [
   'players',
   'events',
@@ -144,6 +163,16 @@ export const migrations: Migration[] = [
     db.createObjectStore('crews', { keyPath: 'id' });
     db.createObjectStore('cards', { keyPath: 'playerId' });
     db.createObjectStore('links', { keyPath: 'from' });
+  },
+  // 6: play spaces. Existing tournaments become unclassified (playSpaceId null): they stay in
+  // the history and feed no scoreboard until the user assigns them. Nothing is deleted, and
+  // running it again changes nothing (upgradeTournament is idempotent).
+  async (db, transaction) => {
+    db.createObjectStore('playSpaces', { keyPath: 'id' });
+    db.createObjectStore('variants', { keyPath: 'id' });
+    const tournaments = transaction.objectStore('tournaments');
+    for (let cursor = await tournaments.openCursor(); cursor; cursor = await cursor.continue())
+      await cursor.update(upgradeTournament(cursor.value));
   },
 ];
 export const SCHEMA_VERSION = migrations.length;
@@ -276,27 +305,38 @@ export class LocalDatabase {
       const tx = await this.begin('readonly');
       const lastKey = async (store: 'audit' | 'outbox') =>
         ((await tx.objectStore(store).openKeyCursor(null, 'prev'))?.key as number | undefined) ?? 0;
-      const [players, events, tournaments, commands, meta, audit, outbox, crews, cards, links] =
-        await Promise.all([
-          tx.objectStore('players').getAll(),
-          tx.objectStore('events').getAll(),
-          tx.objectStore('tournaments').getAll(),
-          tx
-            .objectStore('commands')
-            .index('createdAt')
-            .getAll(IDBKeyRange.lowerBound(commandsSince)),
-          tx.objectStore('meta').get('local'),
-          lastKey('audit'),
-          lastKey('outbox'),
-          social(tx, 'crews'),
-          social(tx, 'cards'),
-          social(tx, 'links'),
-        ]);
+      const [
+        players,
+        events,
+        tournaments,
+        commands,
+        meta,
+        audit,
+        outbox,
+        crews,
+        cards,
+        links,
+        playSpaces,
+        variants,
+      ] = await Promise.all([
+        tx.objectStore('players').getAll(),
+        tx.objectStore('events').getAll(),
+        tx.objectStore('tournaments').getAll(),
+        tx.objectStore('commands').index('createdAt').getAll(IDBKeyRange.lowerBound(commandsSince)),
+        tx.objectStore('meta').get('local'),
+        lastKey('audit'),
+        lastKey('outbox'),
+        social(tx, 'crews'),
+        social(tx, 'cards'),
+        social(tx, 'links'),
+        social(tx, 'playSpaces'),
+        social(tx, 'variants'),
+      ]);
       await tx.done;
       if (!meta) throw storageError('STORAGE_FAILED', 'Local metadata is missing');
       return {
         snapshot: { players, events, tournaments, commands },
-        social: { crews, cards, links },
+        social: { crews, cards, links, playSpaces, variants },
         sequences: { audit, outbox },
         meta,
       };
@@ -350,22 +390,48 @@ export class LocalDatabase {
   exportAll(): Promise<{ data: BackupData; meta: LocalMeta }> {
     return this.run(async () => {
       const tx = await this.begin('readonly');
-      const [players, events, tournaments, audit, outbox, commands, crews, cards, links, meta] =
-        await Promise.all([
-          tx.objectStore('players').getAll(),
-          tx.objectStore('events').getAll(),
-          tx.objectStore('tournaments').getAll(),
-          tx.objectStore('audit').getAll(),
-          tx.objectStore('outbox').getAll(),
-          tx.objectStore('commands').getAll(),
-          social(tx, 'crews'),
-          social(tx, 'cards'),
-          social(tx, 'links'),
-          tx.objectStore('meta').get('local'),
-        ]);
+      const [
+        players,
+        events,
+        tournaments,
+        audit,
+        outbox,
+        commands,
+        crews,
+        cards,
+        links,
+        playSpaces,
+        variants,
+        meta,
+      ] = await Promise.all([
+        tx.objectStore('players').getAll(),
+        tx.objectStore('events').getAll(),
+        tx.objectStore('tournaments').getAll(),
+        tx.objectStore('audit').getAll(),
+        tx.objectStore('outbox').getAll(),
+        tx.objectStore('commands').getAll(),
+        social(tx, 'crews'),
+        social(tx, 'cards'),
+        social(tx, 'links'),
+        social(tx, 'playSpaces'),
+        social(tx, 'variants'),
+        tx.objectStore('meta').get('local'),
+      ]);
       await tx.done;
       return {
-        data: { players, events, tournaments, audit, outbox, commands, crews, cards, links },
+        data: {
+          players,
+          events,
+          tournaments,
+          audit,
+          outbox,
+          commands,
+          crews,
+          cards,
+          links,
+          playSpaces,
+          variants,
+        },
         meta: meta!,
       };
     });
@@ -412,6 +478,8 @@ export class LocalDatabase {
         for (const c of data.crews) writes.add(tx.objectStore('crews').add(c));
         for (const c of data.cards) writes.add(tx.objectStore('cards').add(c));
         for (const l of data.links) writes.add(tx.objectStore('links').add(l));
+        for (const p of data.playSpaces) writes.add(tx.objectStore('playSpaces').add(p));
+        for (const v of data.variants) writes.add(tx.objectStore('variants').add(v));
         writes.add(tx.objectStore('meta').put(next));
         writes.add(done);
         await writes.wait();
@@ -431,7 +499,7 @@ export class LocalDatabase {
    * change (same revision check as a command).
    */
   writeSocial(
-    changes: Partial<SocialData> & { deleteCrews?: string[] },
+    changes: Partial<SocialData> & { deleteCrews?: string[]; deleteVariants?: string[] },
     expectedRevision: number,
     now: string,
   ): Promise<LocalMeta> {
@@ -456,6 +524,10 @@ export class LocalDatabase {
         for (const id of changes.deleteCrews ?? []) writes.add(tx.objectStore('crews').delete(id));
         for (const c of changes.cards ?? []) writes.add(tx.objectStore('cards').put(c));
         for (const l of changes.links ?? []) writes.add(tx.objectStore('links').put(l));
+        for (const p of changes.playSpaces ?? []) writes.add(tx.objectStore('playSpaces').put(p));
+        for (const v of changes.variants ?? []) writes.add(tx.objectStore('variants').put(v));
+        for (const id of changes.deleteVariants ?? [])
+          writes.add(tx.objectStore('variants').delete(id));
         writes.add(tx.objectStore('meta').put(next));
         writes.add(done);
         await writes.wait();

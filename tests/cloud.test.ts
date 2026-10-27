@@ -36,7 +36,11 @@ describe('engine on Durable Object SQL', () => {
   it('keeps commands durable and moves data through a backup', async () => {
     const a = server();
     const player = await a.adapter.createPlayer('Anna');
-    const t = await a.adapter.createTournament({ name: 'Venerdì', mode: 'QUICK_HIGH_SCORE' });
+    const t = await a.adapter.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'Venerdì',
+      mode: 'QUICK_HIGH_SCORE',
+    });
     await a.adapter.tournamentCommand(t, 'players', { playerId: player.id });
     expect(a.db.revision()).toBe(3);
     // A new engine over the same storage (an evicted object woken up) sees everything.
@@ -192,7 +196,11 @@ describe('permissions on the engine', () => {
       setup,
       'ip',
     );
-    const t = await adapter.createTournament({ name: 'Prova', mode: 'QUICK_HIGH_SCORE' });
+    const t = await adapter.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'Prova',
+      mode: 'QUICK_HIGH_SCORE',
+    });
     const run = (who: typeof me, method: string, ...args: unknown[]) =>
       dispatch(adapter, who, method, args, accounts);
     await expect(run(player, 'removeTournament', t.id, true)).rejects.toMatchObject({
@@ -295,7 +303,11 @@ describe('permissions on the engine', () => {
     const { accounts, adapter } = server();
     const me = await owner(accounts);
     const p = await adapter.createPlayer('Anna');
-    const t = await adapter.createTournament({ name: 'T', mode: 'QUICK_HIGH_SCORE' });
+    const t = await adapter.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'T',
+      mode: 'QUICK_HIGH_SCORE',
+    });
     const forged = { ...t, name: 'Falso', entries: [] };
     const after = (await dispatch(adapter, me, 'tournamentCommand', [
       forged,

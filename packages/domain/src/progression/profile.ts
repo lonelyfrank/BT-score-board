@@ -64,6 +64,10 @@ export type PersonalBests = Partial<Record<GameMode, PersonalBest>>;
 export interface PlayerProgression {
   playerId: string;
   xp: number;
+  /** Where the XP comes from, so that it can be told apart from the same XP seen elsewhere. */
+  contributions: XpContribution[];
+  /** XP known only as an aggregate from an older card (kept as legacy, not reconciled). */
+  legacyXp: { xp: number; at: string } | null;
   progress: LevelProgress;
   breakdown: XpBreakdown;
   stats: PlayerStats;
@@ -84,10 +88,34 @@ export interface Progression {
  */
 export interface PlayerCard {
   playerId: string;
+  /** Total at the time of writing. Readers use `contributions` when present (see below). */
   xp: number;
   bests: PersonalBests;
   updatedAt: string;
+  /**
+   * The XP as identifiable contributions, one per match (or tournament), player and rule. The
+   * same contribution met twice counts once, and a match this device knows is recomputed from
+   * its own data, so a correction or a cancellation replaces what the card said.
+   */
+  contributions?: XpContribution[];
+  /**
+   * XP from before contributions existed: an aggregate without provenance. It cannot be split
+   * by match, so it is kept as it is and never mixed up with identified contributions.
+   */
+  legacy?: { xp: number; at: string };
 }
+
+/** One identified grant of XP. `source` is the match (or tournament) it comes from. */
+export interface XpContribution {
+  id: string;
+  source: string;
+  xp: number;
+  at: string;
+}
+
+/** The legacy aggregate of a card: explicit, or the whole `xp` of a card without contributions. */
+export const cardLegacy = (card: PlayerCard): { xp: number; at: string } | null =>
+  card.legacy ?? (card.contributions ? null : { xp: card.xp, at: card.updatedAt });
 
 export function mergeCards(a: PlayerCard, b: PlayerCard): PlayerCard {
   const bests: PersonalBests = { ...a.bests };
@@ -95,19 +123,35 @@ export function mergeCards(a: PlayerCard, b: PlayerCard): PlayerCard {
     const spec = recordSpecs[game];
     if (spec && takesRecord(spec, best, bests[game])) bests[game] = best;
   }
-  return {
+  const [older, newer] = a.updatedAt <= b.updatedAt ? [a, b] : [b, a];
+  const contributions = new Map<string, XpContribution>();
+  for (const c of [...(older.contributions ?? []), ...(newer.contributions ?? [])])
+    contributions.set(c.id, c);
+  // Two aggregates cannot be told apart or added: the larger one stands, as before.
+  const legacies = [cardLegacy(a), cardLegacy(b)].filter((l) => l !== null);
+  const legacy = legacies.sort((x, y) => y.xp - x.xp)[0];
+  const merged: PlayerCard = {
     playerId: a.playerId,
+    // Informational: the total as last written by a device. Readers derive XP from the rest.
     xp: Math.max(a.xp, b.xp),
     bests,
-    updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt,
+    updatedAt: newer.updatedAt,
   };
+  if (a.contributions || b.contributions) merged.contributions = [...contributions.values()];
+  if (legacy && (a.contributions || b.contributions)) merged.legacy = legacy;
+  merged.xp = cardTotal(merged);
+  return merged;
 }
+const cardTotal = (c: PlayerCard) =>
+  c.contributions ? c.contributions.reduce((sum, x) => sum + x.xp, 0) + (c.legacy?.xp ?? 0) : c.xp;
 
 export const playerCard = (p: PlayerProgression, updatedAt: string): PlayerCard => ({
   playerId: p.playerId,
   xp: p.xp,
   bests: p.bests,
   updatedAt,
+  contributions: p.contributions,
+  ...(p.legacyXp ? { legacy: p.legacyXp } : {}),
 });
 
 function levelEffect(level: number): NameEffect {
@@ -133,6 +177,13 @@ export interface ProgressionOptions {
   cards?: readonly PlayerCard[];
   /** Duplicate player records: XP and records go to the record each one is linked to. */
   links?: readonly PlayerLink[];
+  /**
+   * Ids of every match and tournament this device holds, removed ones included: a card
+   * contribution from one of them is superseded by the local data, whatever it says now.
+   */
+  knownSources?: Iterable<string>;
+  /** false: no record is claimed (a personal view is not a competitive ranking). Default true. */
+  records?: boolean;
 }
 
 /**
@@ -160,6 +211,16 @@ export function computeProgression(
   );
 
   type Acc = Omit<PlayerProgression, 'progress' | 'cosmetics' | 'xp'>;
+  const claimsRecords = options.records !== false;
+  type Rule = 'participation' | 'win' | 'tournament' | 'tournamentWon' | 'personalBest';
+  const grant = (p: Acc, rule: Rule, source: string, xp: number, at: string) => {
+    p.contributions.push({ id: `${rule}|${source}|${p.playerId}`, source, xp, at });
+    const b = p.breakdown;
+    if (rule === 'participation') b.participation += xp;
+    else if (rule === 'win') b.wins += xp;
+    else if (rule === 'personalBest') b.personalBest += xp;
+    else b.tournaments += xp;
+  };
   const acc = new Map<string, Acc>();
   const dayCount = new Map<string, number>();
   const records: Partial<Record<GameMode, RecordHolding>> = {};
@@ -168,6 +229,8 @@ export function computeProgression(
     if (!p) {
       p = {
         playerId,
+        contributions: [],
+        legacyXp: null,
         breakdown: { participation: 0, wins: 0, tournaments: 0, personalBest: 0, elsewhere: 0 },
         stats: { matches: 0, wins: 0, tournamentsCompleted: 0, tournamentsWon: 0 },
         bests: {},
@@ -179,7 +242,8 @@ export function computeProgression(
   };
   const claim = (game: GameMode, holding: Omit<RecordHolding, 'game' | 'spec'>) => {
     const spec = recordSpecs[game]!;
-    if (takesRecord(spec, holding, records[game])) records[game] = { game, spec, ...holding };
+    if (claimsRecords && takesRecord(spec, holding, records[game]))
+      records[game] = { game, spec, ...holding };
   };
 
   for (const { t, m, at } of played) {
@@ -198,8 +262,8 @@ export function computeProgression(
         const day = (dayCount.get(dayKey) ?? 0) + 1;
         dayCount.set(dayKey, day);
         if (day <= xpRules.dailyMatchCap) {
-          p.breakdown.participation += xpRules.participation;
-          if (won) p.breakdown.wins += xpRules.win;
+          grant(p, 'participation', m.id, xpRules.participation, at);
+          if (won) grant(p, 'win', m.id, xpRules.win, at);
         }
       }
       if (!spec) continue;
@@ -208,7 +272,7 @@ export function computeProgression(
       const p = of(resolve(entry.playerId));
       const best = p.bests[t.gameMode];
       if (takesRecord(spec, { value, achievedAt: at }, best)) {
-        if (best) p.breakdown.personalBest += xpRules.personalBest;
+        if (best) grant(p, 'personalBest', m.id, xpRules.personalBest, at);
         p.bests[t.gameMode] = { value, achievedAt: at };
       }
       claim(t.gameMode, {
@@ -232,10 +296,11 @@ export function computeProgression(
       for (const playerId of membersOf(entry)) {
         const p = of(playerId);
         p.stats.tournamentsCompleted++;
-        p.breakdown.tournaments += xpRules.tournamentCompleted;
+        const doneAt = t.completedAt ?? '';
+        grant(p, 'tournament', t.id, xpRules.tournamentCompleted, doneAt);
         if (won) {
           p.stats.tournamentsWon++;
-          p.breakdown.tournaments += xpRules.tournamentWon;
+          grant(p, 'tournamentWon', t.id, xpRules.tournamentWon, doneAt);
         }
       }
     }
@@ -245,17 +310,40 @@ export function computeProgression(
     const b = p.breakdown;
     return b.participation + b.wins + b.tournaments + b.personalBest + b.elsewhere;
   };
-  // A card can only add: its XP replaces the derived one when higher, its bests compete.
+  // What this device holds decides about a match or tournament it knows, removed ones included.
+  const known = new Set(options.knownSources ?? []);
+  for (const t of tournaments) {
+    known.add(t.id);
+    for (const m of t.matches) known.add(m.id);
+  }
   const cards = new Map<string, PlayerCard>();
   for (const card of options.cards ?? []) {
     const playerId = resolve(card.playerId);
-    const known = cards.get(playerId);
+    const earlier = cards.get(playerId);
     const own = { ...card, playerId };
-    cards.set(playerId, known ? mergeCards(known, own) : own);
+    cards.set(playerId, earlier ? mergeCards(earlier, own) : own);
   }
   for (const card of cards.values()) {
     const p = of(card.playerId);
-    p.breakdown.elsewhere += Math.max(0, card.xp - xpOf(p));
+    const derived = [...p.contributions];
+    const legacy = cardLegacy(card);
+    // Identified contributions from matches this device does not know, each counted once.
+    // Those dated before a legacy aggregate are taken to be inside it.
+    const have = new Set(derived.map((c) => c.id));
+    for (const c of card.contributions ?? []) {
+      if (known.has(c.source) || have.has(c.id) || (legacy && c.at <= legacy.at)) continue;
+      have.add(c.id);
+      p.contributions.push(c);
+      p.breakdown.elsewhere += c.xp;
+    }
+    if (legacy) {
+      // An aggregate without provenance: kept, not reconciled. What the local data derives up to
+      // its date may or may not be inside it, so it counts once (the larger of the two);
+      // everything dated later is new activity and is added.
+      const before = derived.filter((c) => c.at <= legacy.at).reduce((sum, c) => sum + c.xp, 0);
+      p.breakdown.elsewhere += Math.max(0, legacy.xp - before);
+      p.legacyXp = legacy;
+    }
     for (const [game, best] of Object.entries(card.bests) as [GameMode, PersonalBest][]) {
       const spec = recordSpecs[game];
       if (!spec) continue;

@@ -28,6 +28,7 @@ function create(
   } = {},
 ) {
   let t = backend.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Serata al pub',
     mode: options.mode ?? 'QUICK_HIGH_SCORE',
     gameMode: options.gameMode ?? 'HI_SCORE',
@@ -509,7 +510,12 @@ describe('Single match and statistics', () => {
     expect(t.results.map((r) => r.finalPlacement)).toEqual([3, 1, 2]);
     // A tied Hi-Score match waits for a decision before ending.
     const players = t.entries.map((e) => e.playerId);
-    let hs = backend.createTournament({ name: 'HS', mode: 'SINGLE_MATCH', gameMode: 'HI_SCORE' });
+    let hs = backend.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: 'HS',
+      mode: 'SINGLE_MATCH',
+      gameMode: 'HI_SCORE',
+    });
     for (const playerId of players.slice(0, 2))
       hs = cmd(backend, hs, 'RegisterPlayer', { playerId });
     hs = cmd(backend, hs, 'StartTournament');

@@ -71,6 +71,7 @@ function tournament(
   } = {},
 ) {
   let t = backend.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Serata al Bite the Trouble',
     mode: options.mode ?? 'QUICK_HIGH_SCORE',
     gameMode: options.gameMode ?? 'HI_SCORE',
@@ -200,6 +201,7 @@ describe('Teams and competitive units', () => {
     const { backend, store } = setup();
     const p = players(backend, 3);
     const t = backend.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'x',
       mode: 'GROUPS',
       tournamentConfiguration: { groupCount: 1 },

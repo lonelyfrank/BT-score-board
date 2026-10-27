@@ -1,11 +1,14 @@
 import {
+  ancestry,
+  BT_PLAY_SPACE_ID,
   linkResolver,
   mergeCards,
   mergeCrew,
   type Player,
+  type PlaySpace,
   type Tournament,
 } from '../../domain/src/index.js';
-import type { BackupData } from './indexeddb.js';
+import type { BackupData, TournamentVariant } from './indexeddb.js';
 import { verifyReferences } from './backup.js';
 
 export interface MergeReport {
@@ -15,11 +18,20 @@ export interface MergeReport {
     added: number;
     updated: number;
     /**
-     * Same version on both sides but different content: two devices changed the same
-     * tournament. The local copy is kept and the other is reported by name.
+     * Copies that do not continue each other (see ancestry): two devices scored the same
+     * tournament independently, or nothing proves that one continues the other. Neither is
+     * overwritten: the local copy stays, the other is kept as a variant (excluded from every
+     * scoreboard) until someone resolves it, and the tournament is reported by name.
      */
     diverged: string[];
   };
+  playSpaces: { added: number; updated: number };
+  /** Variants newly kept by this merge. */
+  variants: number;
+  /** Player links not applied: they would loop, or contradict a link already here. */
+  linksRejected: number;
+  /** History records added: audit entries, application events and idempotency keys. */
+  history: number;
   crews: { added: number; updated: number };
   /** Players whose level arrived or grew with the other device's cards. */
   cards: number;
@@ -32,8 +44,29 @@ export interface MergeReport {
   unchanged: boolean;
 }
 
+const withoutLineage = (t: Tournament) => ({ ...t, lineage: undefined });
+/** A cheap content fingerprint (FNV-1a): the same variant received twice gets the same id. */
+function fingerprint(text: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+const variantOf = (t: Tournament, origin: { at: string; source: string }): TournamentVariant => ({
+  id: `${t.id}:${fingerprint(JSON.stringify(t))}`,
+  tournamentId: t.id,
+  tournament: t,
+  receivedAt: origin.at,
+  source: origin.source,
+});
 const newer = <T extends { updatedAt: string }>(a: T, b: T) => (b.updatedAt > a.updatedAt ? b : a);
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+// Key order and absent-versus-undefined must not make equal records look different.
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
+const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 const normalize = (name: string) => name.trim().toLocaleLowerCase('it-IT').replace(/\s+/g, ' ');
 
 function byKey<T>(
@@ -78,30 +111,69 @@ function byKey<T>(
 export function mergeBackupData(
   local: BackupData,
   incoming: BackupData,
+  origin: { at: string; source: string } = { at: new Date().toISOString(), source: 'backup' },
 ): { data: BackupData; report: MergeReport } {
   const known = new Set(local.players.map((p) => p.id));
   const newPlayers = new Set(incoming.players.map((p) => p.id).filter((id) => !known.has(id)));
   const players = byKey(local.players, incoming.players, (p) => p.id, newer);
   const events = byKey(local.events, incoming.events, (e) => e.id, newer);
   const diverged: string[] = [];
+  const newVariants: TournamentVariant[] = [];
   const tournaments = byKey(
     local.tournaments,
     incoming.tournaments,
     (t) => t.id,
     (mine: Tournament, theirs: Tournament) => {
-      if (theirs.version > mine.version) return theirs;
-      if (theirs.version === mine.version && !same(mine, theirs)) diverged.push(mine.name);
+      // A higher version proves nothing: only provenance tells a continued copy from an
+      // independent one. Without evidence the copies are treated as a conflict.
+      if (same(withoutLineage(mine), withoutLineage(theirs))) return mine;
+      const relation = ancestry(mine, theirs);
+      if (relation === 'older') return theirs;
+      if (relation === 'newer') return mine;
+      diverged.push(mine.name);
+      newVariants.push(variantOf(theirs, origin));
       return mine;
     },
   );
-  const crews = byKey(local.crews, incoming.crews, (c) => c.id, mergeCrew);
-  const cards = byKey(local.cards, incoming.cards, (c) => c.playerId, mergeCards);
-  const links = byKey(
-    local.links,
-    incoming.links,
-    (l) => l.from,
+  const variants = byKey(
+    [...local.variants, ...newVariants].filter(
+      (v, i, all) => all.findIndex((o) => o.id === v.id) === i,
+    ),
+    incoming.variants,
+    (v) => v.id,
     (mine) => mine,
   );
+  const playSpaces = byKey(
+    local.playSpaces.filter((p) => p.id !== BT_PLAY_SPACE_ID),
+    incoming.playSpaces.filter((p) => p.id !== BT_PLAY_SPACE_ID),
+    (p) => p.id,
+    (mine: PlaySpace, theirs: PlaySpace) =>
+      theirs.version > mine.version ||
+      (theirs.version === mine.version && theirs.updatedAt > mine.updatedAt)
+        ? theirs
+        : mine,
+  );
+  const crews = byKey(local.crews, incoming.crews, (c) => c.id, mergeCrew);
+  const cards = byKey(local.cards, incoming.cards, (c) => c.playerId, mergeCards);
+  // A link joins two records of one person. One that loops, or whose source already points
+  // elsewhere here, would make devices resolve the same player differently: it is not applied.
+  let linksRejected = 0;
+  const linkList = [...local.links];
+  for (const l of [...incoming.links].sort(
+    (a, b) => a.createdAt.localeCompare(b.createdAt) || a.from.localeCompare(b.from),
+  )) {
+    const existing = linkList.find((x) => x.from === l.from);
+    if (existing) {
+      if (existing.to !== l.to) linksRejected++;
+      continue;
+    }
+    if (l.from === l.to || linkResolver(linkList)(l.to) === l.from) {
+      linksRejected++;
+      continue;
+    }
+    linkList.push(l);
+  }
+  const links = { items: linkList, added: linkList.length - local.links.length };
   const commands = byKey(
     local.commands,
     incoming.commands,
@@ -114,21 +186,25 @@ export function mergeBackupData(
     let sequence = Math.max(0, ...mine.map((r) => r.sequence));
     const added = [...theirs]
       .sort((a, b) => a.sequence - b.sequence)
-      .filter((r) => !known.has(r.id))
+      .filter((r, i, all) => !known.has(r.id) && all.findIndex((o) => o.id === r.id) === i)
       .map((r) => ({ ...r, sequence: ++sequence }));
-    return [...mine, ...added];
+    return { items: [...mine, ...added], added: added.length };
   };
+  const audit = append(local.audit, incoming.audit);
+  const outbox = append(local.outbox, incoming.outbox);
 
   const data: BackupData = {
     players: players.items,
     events: events.items,
     tournaments: tournaments.items,
-    audit: append(local.audit, incoming.audit),
-    outbox: append(local.outbox, incoming.outbox),
+    audit: audit.items,
+    outbox: outbox.items,
     commands: commands.items,
     crews: crews.items,
     cards: cards.items,
     links: links.items,
+    playSpaces: playSpaces.items,
+    variants: variants.items,
   };
   verifyReferences(data);
 
@@ -137,6 +213,10 @@ export function mergeBackupData(
     events: { added: events.added, updated: events.updated },
     tournaments: { added: tournaments.added, updated: tournaments.updated, diverged },
     crews: { added: crews.added, updated: crews.updated },
+    playSpaces: { added: playSpaces.added, updated: playSpaces.updated },
+    variants: variants.items.length - local.variants.length,
+    linksRejected,
+    history: audit.added + outbox.added + commands.added,
     cards: cards.added + cards.updated,
     homonyms: homonyms(data, newPlayers),
     unchanged: false,
@@ -151,7 +231,11 @@ export function mergeBackupData(
     !crews.added &&
     !crews.updated &&
     !report.cards &&
-    !links.added;
+    !links.added &&
+    !report.playSpaces.added &&
+    !report.playSpaces.updated &&
+    !report.variants &&
+    !report.history;
   return { data, report };
 }
 

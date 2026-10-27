@@ -55,6 +55,7 @@ afterEach(async () => {
 async function setup() {
   const players = await Promise.all(['Ada', 'Bea'].map((name) => adapter.createPlayer(name)));
   let t = await adapter.createTournament({
+    playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
     name: 'Frontend test',
     mode: 'QUICK_HIGH_SCORE',
     recording: 'turns',
@@ -144,7 +145,11 @@ it('resumes the running tournament even when it is beyond the first page of the 
   const m = await setup();
   expect((await activeSession(adapter))?.tournament.id).toBe(m.tournamentId);
   for (let i = 0; i < 100; i++)
-    await adapter.createTournament({ name: `Bozza ${i + 1}`, mode: 'QUICK_HIGH_SCORE' });
+    await adapter.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
+      name: `Bozza ${i + 1}`,
+      mode: 'QUICK_HIGH_SCORE',
+    });
   const first = await adapter.tournaments();
   expect(first.total).toBe(101);
   expect(first.items.some((t) => t.id === m.tournamentId)).toBe(false);

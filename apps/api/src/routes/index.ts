@@ -8,7 +8,12 @@ import {
   scoreCommandPaths,
   tournamentCommandPaths,
 } from '../../../../packages/application/src/index.js';
-import { DomainError, matchById, turnState } from '../../../../packages/domain/src/index.js';
+import {
+  BT_PLAY_SPACE_ID,
+  DomainError,
+  matchById,
+  turnState,
+} from '../../../../packages/domain/src/index.js';
 
 function json(schema: z.ZodType, io: 'input' | 'output' = 'output') {
   const converted = z.toJSONSchema(schema, { io, target: 'openapi-3.0', unrepresentable: 'any' });
@@ -174,7 +179,11 @@ export function registerRoutes(app: FastifyInstance, backend: Backend) {
     'Create tournament',
     s.tournamentResponse,
     (r) => backend.createTournament(r.body),
-    { body: s.createTournament, created: true },
+    {
+      // The shared server has a single play space: Bite the Trouble.
+      body: s.createTournament.extend({ playSpaceId: s.id.default(BT_PLAY_SPACE_ID) }),
+      created: true,
+    },
   );
   route(
     'GET',

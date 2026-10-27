@@ -163,6 +163,7 @@ describe('SQLite reliability', () => {
   it('upgrades a 0001 database: legacy tournaments read as Hi-Score, single matches allowed', () => {
     const path = disk();
     const legacy = new Backend(new MemoryStore()).createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'Old night',
       mode: 'QUICK_HIGH_SCORE',
       recording: 'turns',
@@ -192,6 +193,7 @@ describe('SQLite reliability', () => {
       recording: 'turns',
     });
     const single = backend.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'Free',
       mode: 'SINGLE_MATCH',
       gameMode: '501',

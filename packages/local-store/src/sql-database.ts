@@ -31,6 +31,8 @@ const keyOf: Record<Store, (value: never) => string> = {
   crews: (c: { id: string }) => c.id,
   cards: (c: { playerId: string }) => c.playerId,
   links: (l: { from: string }) => l.from,
+  playSpaces: (p: { id: string }) => p.id,
+  variants: (v: { id: string }) => v.id,
 };
 
 /**
@@ -94,7 +96,13 @@ export class SqlEngineDatabase implements EngineDatabase {
     });
   }
   private social(): SocialData {
-    return { crews: this.rows('crews'), cards: this.rows('cards'), links: this.rows('links') };
+    return {
+      crews: this.rows('crews'),
+      cards: this.rows('cards'),
+      links: this.rows('links'),
+      playSpaces: this.rows('playSpaces'),
+      variants: this.rows('variants'),
+    };
   }
   private lastSequence(store: 'audit' | 'outbox') {
     const row = this.host.sql
@@ -170,7 +178,7 @@ export class SqlEngineDatabase implements EngineDatabase {
     });
   }
   async writeSocial(
-    changes: Partial<SocialData> & { deleteCrews?: string[] },
+    changes: Partial<SocialData> & { deleteCrews?: string[]; deleteVariants?: string[] },
     expectedRevision: number,
     now: string,
   ): Promise<LocalMeta> {
@@ -180,6 +188,10 @@ export class SqlEngineDatabase implements EngineDatabase {
         this.host.sql.exec("DELETE FROM engine_records WHERE store = 'crews' AND key = ?", id);
       for (const c of changes.cards ?? []) this.put('cards', c);
       for (const l of changes.links ?? []) this.put('links', l);
+      for (const p of changes.playSpaces ?? []) this.put('playSpaces', p);
+      for (const v of changes.variants ?? []) this.put('variants', v);
+      for (const id of changes.deleteVariants ?? [])
+        this.host.sql.exec("DELETE FROM engine_records WHERE store = 'variants' AND key = ?", id);
       return {
         ...meta,
         revision: meta.revision + 1,

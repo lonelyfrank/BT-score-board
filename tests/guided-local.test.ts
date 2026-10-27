@@ -68,6 +68,7 @@ async function evening(engine: LocalEngine) {
     ids.push((await engine.write((b) => b.createPlayer({ displayName: n }))).id);
   let t = await engine.write((b) =>
     b.createTournament({
+      playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
       name: 'Hi-Score guidato',
       mode: 'SINGLE_MATCH',
       gameMode: 'HI_SCORE',

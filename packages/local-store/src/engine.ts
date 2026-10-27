@@ -5,11 +5,17 @@ import {
   computeProgression,
   crewTournaments,
   linkDirection,
+  BT_PLAY_SPACE_ID,
+  inPlaySpace,
   linkResolver,
+  playSpaceFields,
   playerCard,
+  withCanonicalPlaySpace,
+  withMembership,
   tournamentPlayerIds,
   type Context,
   type Crew,
+  type PlaySpace,
   type Progression,
 } from '../../domain/src/index.js';
 import { MemoryStore } from './memory-store.js';
@@ -247,21 +253,125 @@ export class LocalEngine {
     this.ensureOpen();
     return structuredClone(this.social);
   }
-  /** Levels, statistics and records over every tournament on the device and the cards received. */
-  progression(): Progression {
+  /**
+   * Personal progression: levels and XP over every tournament on the device (unclassified ones
+   * included) and the cards received. Claims no record: records belong to a play space.
+   */
+  progression(): Progression;
+  /**
+   * The scoreboard of one play space: statistics, personal bests and records derived only from
+   * its tournaments. Cards are not used (they carry no play space), so nothing from another
+   * space, or from before play spaces, can change a number here.
+   */
+  progression(playSpaceId: string): Progression;
+  progression(playSpaceId?: string): Progression {
     this.ensureOpen();
-    return computeProgression(this.allTournaments(), {
-      cards: this.social.cards,
+    if (playSpaceId === undefined)
+      return computeProgression(this.allTournaments(), {
+        cards: this.social.cards,
+        links: this.social.links,
+        knownSources: this.knownSources(),
+        records: false,
+      });
+    this.playSpace(playSpaceId);
+    return computeProgression(inPlaySpace(this.allTournaments(), playSpaceId), {
       links: this.social.links,
     });
   }
-  /** The same, over what a crew shares: its records are the records among its members. */
-  crewProgression(crewId: string): Progression {
+  /** Every match and tournament id held here, removed ones included. */
+  private knownSources() {
+    const ids: string[] = [];
+    const all = this.store.listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 });
+    const removed = this.store.listTournaments({
+      limit: Number.MAX_SAFE_INTEGER,
+      offset: 0,
+      deleted: true,
+    });
+    for (const t of [...all.items, ...removed.items]) ids.push(t.id, ...t.matches.map((m) => m.id));
+    return ids;
+  }
+  /** The play spaces of this installation: the canonical one first, then those created here. */
+  playSpaces(): PlaySpace[] {
+    this.ensureOpen();
+    return withCanonicalPlaySpace(this.social.playSpaces);
+  }
+  playSpace(id: string): PlaySpace {
+    const found = this.playSpaces().find((p) => p.id === id);
+    if (!found) throw new DomainError('PLAY_SPACE_NOT_FOUND', 'Play space not found', 404);
+    return found;
+  }
+  /** Creates a play space (name required). Retried with the same `id`, it creates nothing new. */
+  createPlaySpace(
+    input: { name?: unknown; place?: unknown; targetDescription?: unknown },
+    by: string,
+    id: string = uuid(),
+  ): Promise<PlaySpace> {
+    const fields = playSpaceFields(input);
+    if (!fields.name) throw new DomainError('VALIDATION_ERROR', 'Give the play space a name', 422);
+    const existing = this.social.playSpaces.find((p) => p.id === id);
+    if (existing || id === BT_PLAY_SPACE_ID) return Promise.resolve(existing ?? this.playSpace(id));
+    const at = this.now();
+    const created: PlaySpace = {
+      id,
+      ...fields,
+      name: fields.name,
+      canonical: false,
+      createdBy: by,
+      createdAt: at,
+      updatedAt: at,
+      version: 0,
+    };
+    return this.writeSocial({ playSpaces: [created] }).then(() => created);
+  }
+  /**
+   * Tournaments kept as variants because they conflicted with the local copy. Never counted
+   * by any scoreboard.
+   */
+  variants() {
+    this.ensureOpen();
+    return structuredClone(this.social.variants);
+  }
+  /**
+   * Resolves a conflict explicitly. `keepLocal` drops the variant; `useVariant` puts it in
+   * place of the local copy, which is kept as a variant in turn. Nothing is lost on a crash:
+   * the local copy is stored as a variant before it is replaced.
+   */
+  async resolveVariant(variantId: string, choice: 'keepLocal' | 'useVariant'): Promise<void> {
+    const variant = this.social.variants.find((v) => v.id === variantId);
+    if (!variant) throw new DomainError('VARIANT_NOT_FOUND', 'Variant not found', 404);
+    if (choice === 'keepLocal') return this.writeSocial({ deleteVariants: [variantId] });
+    const local = this.read((_, store) => store.getTournament(variant.tournamentId));
+    if (!local) throw new DomainError('TOURNAMENT_NOT_FOUND', 'Tournament not found', 404);
+    const kept = {
+      id: `${local.id}:${this.now()}`,
+      tournamentId: local.id,
+      tournament: local,
+      receivedAt: this.now(),
+      source: 'replaced',
+    };
+    await this.writeSocial({ variants: [kept] });
+    await this.write((backend) => backend.adoptVariant(variant.tournament));
+    await this.writeSocial({ deleteVariants: [variantId] });
+  }
+  /**
+   * The same, over what a crew shares. Without a play space this is the crew's personal view
+   * (no records); with one, the contextual scoreboard of the crew at that space: only the
+   * crew's tournaments played there.
+   */
+  crewProgression(crewId: string, playSpaceId?: string): Progression {
     const crew = this.crew(crewId);
+    if (playSpaceId !== undefined) {
+      this.playSpace(playSpaceId);
+      return computeProgression(inPlaySpace(this.crewTournaments(crewId), playSpaceId), {
+        links: this.social.links,
+      });
+    }
     const members = new Set(crew.memberIds.map(linkResolver(this.social.links)));
     return computeProgression(this.crewTournaments(crewId), {
       cards: this.social.cards.filter((c) => members.has(c.playerId)),
       links: this.social.links,
+      knownSources: this.knownSources(),
+      records: false,
     });
   }
   crewTournaments(crewId: string) {
@@ -283,7 +393,12 @@ export class LocalEngine {
   /** Creates or updates a crew; `updatedAt` is set here, for merges between devices. */
   saveCrew(crew: Omit<Crew, 'updatedAt' | 'createdAt'> & { createdAt?: string }): Promise<Crew> {
     const at = this.now();
-    const saved: Crew = { ...crew, createdAt: crew.createdAt ?? at, updatedAt: at };
+    const previous = this.social.crews.find((c) => c.id === crew.id);
+    const saved: Crew = withMembership(
+      previous,
+      { ...crew, createdAt: crew.createdAt ?? at, updatedAt: at },
+      at,
+    );
     return this.writeSocial({ crews: [saved] }).then(() => saved);
   }
   /** Removes the crew from this device only: other members keep their copy. */
@@ -303,11 +418,17 @@ export class LocalEngine {
     const link = { ...linkDirection(pa, pb), createdAt: this.now() };
     const crews = this.social.crews
       .filter((c) => c.memberIds.includes(link.from))
-      .map((c) => ({
-        ...c,
-        memberIds: [...new Set(c.memberIds.map((id) => (id === link.from ? link.to : id)))],
-        updatedAt: link.createdAt,
-      }));
+      .map((c) =>
+        withMembership(
+          c,
+          {
+            ...c,
+            memberIds: [...new Set(c.memberIds.map((id) => (id === link.from ? link.to : id)))],
+            updatedAt: link.createdAt,
+          },
+          link.createdAt,
+        ),
+      );
     await this.writeSocial({ links: [link], crews });
     const [kept, linked] = link.from === a ? [pb, pa] : [pa, pb];
     const keep: Record<string, unknown> = {};
@@ -319,7 +440,9 @@ export class LocalEngine {
     });
     return { kept: kept.id, linked: linked.id };
   }
-  private writeSocial(changes: Partial<SocialData> & { deleteCrews?: string[] }) {
+  private writeSocial(
+    changes: Partial<SocialData> & { deleteCrews?: string[]; deleteVariants?: string[] },
+  ) {
     return this.enqueue(async () => {
       this.ensureOpen();
       try {
@@ -343,6 +466,10 @@ export class LocalEngine {
         ),
         cards: replace(this.social.cards, changes.cards, (c) => c.playerId),
         links: replace(this.social.links, changes.links, (l) => l.from),
+        playSpaces: replace(this.social.playSpaces, changes.playSpaces, (p) => p.id),
+        variants: replace(this.social.variants, changes.variants, (v) => v.id).filter(
+          (v) => !(changes.deleteVariants ?? []).includes(v.id),
+        ),
       };
       this.broadcast();
       this.emit({ type: 'changed', origin: 'local' });
@@ -384,6 +511,8 @@ export class LocalEngine {
         crews: [crew],
         cards,
         links,
+        playSpaces: data.playSpaces.filter((p) => tournaments.some((t) => t.playSpaceId === p.id)),
+        variants: [],
       };
       return createBackup(
         subset,
@@ -398,7 +527,8 @@ export class LocalEngine {
     return this.enqueue(async () => {
       this.ensureOpen();
       const { data } = await this.db.exportAll();
-      return mergeBackupData(data, backup.data).report;
+      return mergeBackupData(data, backup.data, { at: this.now(), source: backup.source.deviceId })
+        .report;
     });
   }
   /**
@@ -409,7 +539,10 @@ export class LocalEngine {
     return this.enqueue(async () => {
       this.ensureOpen();
       const { data } = await this.db.exportAll();
-      const merged = mergeBackupData(data, backup.data);
+      const merged = mergeBackupData(data, backup.data, {
+        at: this.now(),
+        source: backup.source.deviceId,
+      });
       if (merged.report.unchanged) return merged.report;
       try {
         this.meta = await this.db.replaceAll(

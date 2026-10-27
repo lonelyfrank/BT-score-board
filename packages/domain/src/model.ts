@@ -328,6 +328,13 @@ export interface Tournament {
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  /**
+   * The play space the results count for. null only for data created before play spaces:
+   * unclassified, shown in the history, excluded from every scoreboard until assigned.
+   */
+  playSpaceId?: string | null;
+  /** One stamp per version (see ancestry): tells a continued copy from an independent one. */
+  lineage?: string[];
   /** Set when an admin removes the tournament: it leaves every list and statistic, and can be restored. */
   deletedAt?: string | null;
   version: number;

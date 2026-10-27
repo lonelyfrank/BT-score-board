@@ -63,6 +63,7 @@ try {
     );
     const create = (name: string, mode: Tournament['mode'], gameMode: Tournament['gameMode']) => {
       let t = backend.createTournament({
+        playSpaceId: '00000000-0000-4000-8000-00000000b7d1',
         name,
         mode,
         gameMode,

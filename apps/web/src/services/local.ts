@@ -118,11 +118,13 @@ export class LocalGameAdapter implements GameAdapter {
   updateEvent(id: string, patch: EventPatch) {
     return this.write((b) => b.updateEvent(id, patch));
   }
-  statistics(id: string) {
-    return this.read((b) => b.statistics(id));
+  /** Statistics of a player; with a play space, only the results played there. */
+  statistics(id: string, playSpaceId?: string | null) {
+    return this.read((b) => b.statistics(id, playSpaceId));
   }
-  async history(id: string) {
-    const page = await this.read((b) => b.history(id, { ...all, offset: 0 }));
+  /** The history of a player: all of it (labelled personal), or one play space's. */
+  async history(id: string, playSpaceId?: string | null) {
+    const page = await this.read((b) => b.history(id, { ...all, offset: 0 }, playSpaceId));
     return { ...page, items: page.items.map(toSummary) };
   }
   async tournaments(offset = 0, eventId?: string, status?: TournamentStatus) {
@@ -157,8 +159,70 @@ export class LocalGameAdapter implements GameAdapter {
         .items.map(toSummary),
     );
   }
-  createTournament(input: CreateTournament) {
+  async createTournament(input: CreateTournament) {
+    // A new tournament always counts for a play space that exists.
+    await this.run(async (e) => e.playSpace(input.playSpaceId));
     return this.write((b) => b.createTournament(input));
+  }
+  playSpaces() {
+    return this.run(async (e) => e.playSpaces());
+  }
+  /** Creates a play space; the same `id` retried creates nothing more. */
+  createPlaySpace(
+    input: { name: string; place?: string | null; targetDescription?: string | null },
+    by = 'local',
+    id?: string,
+  ) {
+    return this.run(async (e) => e.createPlaySpace(input, by, id));
+  }
+  /**
+   * Moves a tournament to another play space. Needs the confirmation, checks the version the
+   * caller saw, is audited, and the scoreboards of both spaces follow in the same commit.
+   */
+  async moveTournament(t: Tournament, playSpaceId: string, reason?: string) {
+    await this.run(async (e) => e.playSpace(playSpaceId));
+    return this.write((b) =>
+      b.moveTournament(t.id, {
+        expectedVersion: t.version,
+        playSpaceId,
+        confirm: true,
+        ...(reason ? { reason } : {}),
+      }),
+    );
+  }
+  /** Tournaments from before play spaces: in the history, on no scoreboard. */
+  unclassifiedTournaments() {
+    return this.read((_, store) =>
+      store
+        .listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 })
+        .items.filter((t) => (t.playSpaceId ?? null) === null)
+        .map(toSummary),
+    );
+  }
+  /** Assigns many unclassified tournaments to a play space in one atomic, confirmed step. */
+  async assignUnclassified(ids: string[], playSpaceId: string, confirm: boolean) {
+    if (!confirm)
+      throw new ApiError('CONFIRMATION_REQUIRED', messages.CONFIRMATION_REQUIRED!);
+    await this.run(async (e) => e.playSpace(playSpaceId));
+    return this.write((b) =>
+      ids.map((id) => {
+        const t = b.tournament(id);
+        if ((t.playSpaceId ?? null) !== null)
+          throw new ApiError('ALREADY_ASSIGNED', 'Questo torneo ha già un punto di incontro.');
+        return b.moveTournament(id, {
+          expectedVersion: t.version,
+          playSpaceId,
+          confirm: true,
+          reason: 'Assegnazione di dati precedenti ai punti di incontro',
+        }).id;
+      }),
+    );
+  }
+  variants() {
+    return this.run(async (e) => e.variants());
+  }
+  resolveVariant(id: string, choice: 'keepLocal' | 'useVariant') {
+    return this.run((e) => e.resolveVariant(id, choice));
   }
   tournamentCommand(t: Tournament, action: TournamentAction, extra: Record<string, unknown> = {}) {
     return this.write((b) =>
@@ -294,9 +358,14 @@ export class LocalGameAdapter implements GameAdapter {
     }
   }
 
-  /** Levels, statistics and records of every player on this device. */
-  progression() {
-    return this.run(async (e) => e.progression());
+  /**
+   * Without a play space: personal levels and XP over everything on this device, no records.
+   * With one: the statistics, bests and records of that space only.
+   */
+  progression(playSpaceId?: string) {
+    return this.run(async (e) =>
+      playSpaceId === undefined ? e.progression() : e.progression(playSpaceId),
+    );
   }
   crews() {
     return this.run(async (e) => e.socialData().crews);
@@ -304,8 +373,8 @@ export class LocalGameAdapter implements GameAdapter {
   links() {
     return this.run(async (e) => e.socialData().links);
   }
-  crewProgression(id: string) {
-    return this.run(async (e) => e.crewProgression(id));
+  crewProgression(id: string, playSpaceId?: string) {
+    return this.run(async (e) => e.crewProgression(id, playSpaceId));
   }
   crewTournaments(id: string) {
     return this.run(async (e) => e.crewTournaments(id).map(toSummary));
