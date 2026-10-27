@@ -12,6 +12,7 @@
     "start": "node dist/apps/api/src/server/main.js",
     "typecheck": "tsc --noEmit && npm run typecheck --prefix apps/web && npm run typecheck --prefix apps/worker",
     "test": "vitest run",
+    "test:workers": "vitest run --config vitest.workers.config.ts",
     "check": "npm run typecheck && vitest run && npm run build",
     "check:release": "npm run format:check && npm run check && npm run smoke && npm run test:e2e",
     "test:e2e": "npm run test:e2e --prefix apps/web",
