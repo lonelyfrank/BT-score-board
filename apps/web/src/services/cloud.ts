@@ -185,6 +185,26 @@ export class CloudAdapter {
     const response = await startAuthentication({ optionsJSON: options }).catch(passkeyError);
     return this.signIn('/passkeys/login', { challengeId, response });
   }
+  /** Wizard: players that nobody plays as yet, which a newcomer may recognise as themselves. */
+  async candidates() {
+    return (
+      await request<{
+        players: { id: string; displayName: string; nickname: string | null }[];
+      }>('/me/candidates')
+    ).players;
+  }
+  /** Wizard: creates the player of this account, merging the ones it recognises as itself. */
+  async createOwnPlayer(displayName: string, nickname: string, mergeIds: string[]) {
+    const { account } = await request<{ account: Account }>('/me/player', {
+      displayName,
+      nickname,
+      mergeIds,
+    });
+    session.set(account);
+    this.revision = null;
+    this.emit({ type: 'changed', origin: 'local' });
+    return account;
+  }
   users() {
     return request<{ users: Account[]; invites: Invite[] }>('/admin/users');
   }

@@ -20,6 +20,7 @@ import { Events } from './features/Events';
 import { Rules } from './features/Rules';
 import { CrewDetail, Crews } from './features/Crews';
 import { Login } from './features/Login';
+import { Welcome } from './components/Welcome';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -57,7 +58,14 @@ function Gate({ children }: { children: React.ReactNode }) {
         </p>
       </main>
     );
-  return account ? <>{children}</> : <Login />;
+  return account ? (
+    <>
+      <Welcome />
+      {children}
+    </>
+  ) : (
+    <Login />
+  );
 }
 /** Creating games is for admins in cloud mode; others see why instead of a form they cannot send. */
 function AdminOnly({ children }: { children: React.ReactNode }) {

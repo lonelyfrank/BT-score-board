@@ -108,7 +108,7 @@ export function AccountSection() {
     </>
   );
 }
-function deviceName() {
+export function deviceName() {
   const ua = navigator.userAgent;
   return /iPhone|iPad/.test(ua)
     ? 'iPhone / iPad'

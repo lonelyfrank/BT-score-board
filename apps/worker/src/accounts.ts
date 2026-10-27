@@ -160,6 +160,14 @@ export class Accounts {
     return row && toAccount(row);
   }
 
+  /** The player an account has just created for itself (only while it has none). */
+  adoptPlayer(userId: string, playerId: string) {
+    this.host.sql.exec(
+      'UPDATE users SET player_id = ? WHERE id = ? AND player_id IS NULL',
+      playerId,
+      userId,
+    );
+  }
   /** Two player records were merged: the account of the absorbed one now plays as the survivor. */
   movePlayer(from: string, to: string) {
     this.host.sql.exec('UPDATE users SET player_id = ? WHERE player_id = ?', to, from);

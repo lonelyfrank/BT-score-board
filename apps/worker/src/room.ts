@@ -6,6 +6,7 @@ import { SqlEngineDatabase } from '../../../packages/local-store/src/sql-databas
 import { LocalGameAdapter } from '../../web/src/services/local.js';
 import { Accounts, isAdmin, type Account } from './accounts.js';
 import { Passkeys, type RelyingParty } from './passkeys.js';
+import { candidates, createOwnPlayer } from './onboarding.js';
 import { dispatch } from './rpc.js';
 import { errorResponse, json, readJson, sessionCookie, sessionToken } from './http.js';
 
@@ -125,6 +126,10 @@ export class GameRoom extends DurableObject<Env> {
         return json(await this.passkeys.registrationOptions(account, rp));
       case 'POST /api/passkeys/register':
         return json({ passkey: await this.passkeys.register(account, body, rp) });
+      case 'GET /api/me/candidates':
+        return json({ players: await candidates(this.adapter, this.accounts, account) });
+      case 'POST /api/me/player':
+        return json({ account: await createOwnPlayer(this.adapter, this.accounts, account, body) });
       case 'POST /api/passkeys/remove':
         this.passkeys.remove(account, body.id);
         return json({ ok: true });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { SqlEngineDatabase, type SqlHost } from '../packages/local-store/src/index.js';
 import { LocalGameAdapter } from '../apps/web/src/services/local.js';
 import { Accounts, hashPassword, verifyPassword } from '../apps/worker/src/accounts.js';
+import { candidates, createOwnPlayer } from '../apps/worker/src/onboarding.js';
 import { dispatch } from '../apps/worker/src/rpc.js';
 
 /** The Durable Object storage API over better-sqlite3: statements run when exec is called. */
@@ -250,6 +251,45 @@ describe('permissions on the engine', () => {
     await expect(
       dispatch(adapter, me, 'linkPlayers', [other.id, merged.kept], accounts),
     ).rejects.toMatchObject({ code: 'BOTH_HAVE_ACCOUNT' });
+  });
+  it('lets a newcomer create their player, merging the records they recognise', async () => {
+    const { accounts, adapter } = server();
+    const me = await owner(accounts);
+    const old = await adapter.createPlayer('Giulia');
+    const taken = await adapter.createPlayer('Marco');
+    const marco = await accounts.createInvite(me, taken.id);
+    await accounts.register(
+      { username: 'marco', password: 'password-2', code: marco.code },
+      setup,
+      'ip',
+    );
+    const invite = await accounts.createInvite(me, null);
+    const newcomer = await accounts.register(
+      { username: 'giulia', password: 'password-3', code: invite.code },
+      setup,
+      'ip',
+    );
+    expect(newcomer.playerId).toBeNull();
+    // Only players nobody plays as are offered, and nobody else's profile can be taken.
+    expect((await candidates(adapter, accounts, newcomer)).map((p) => p.id)).toEqual([old.id]);
+    await expect(
+      createOwnPlayer(adapter, accounts, newcomer, { displayName: 'Giulia', mergeIds: [taken.id] }),
+    ).rejects.toMatchObject({ code: 'PLAYER_TAKEN' });
+
+    const done = await createOwnPlayer(adapter, accounts, newcomer, {
+      displayName: 'Giulia B',
+      nickname: 'Gigi',
+      mergeIds: [old.id],
+    });
+    expect(done.playerId).not.toBeNull();
+    // One active record is left, and the account plays as it.
+    const active = (await adapter.players('', 0, 'active')).items.map((p) => p.id);
+    expect(active).toContain(done.playerId);
+    expect(active.filter((id) => id === old.id || id === done.playerId)).toHaveLength(1);
+    expect(await candidates(adapter, accounts, done)).toEqual([]);
+    await expect(
+      createOwnPlayer(adapter, accounts, done, { displayName: 'Altra' }),
+    ).rejects.toMatchObject({ code: 'ALREADY_LINKED' });
   });
   it('uses the server copy of a tournament and keeps the client version check', async () => {
     const { accounts, adapter } = server();
