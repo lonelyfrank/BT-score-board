@@ -17,6 +17,7 @@ import {
   Switch,
 } from '../components/ui';
 import { FxName, LevelChip, recordValue, useProgression } from '../components/Progression';
+import { useKnowsMe } from '../components/WhoAmI';
 import type { Crew } from '../../../../packages/domain/src/index.js';
 import type {
   BackupFile,
@@ -267,6 +268,7 @@ export function CrewDetail() {
   const crews = useCrews();
   const players = usePlayers();
   const progression = useProgression();
+  const { me } = useKnowsMe();
   const crew = crews.data?.find((c) => c.id === id);
   const crewProgression = useQuery({
     queryKey: ['crew-progression', id],
@@ -365,6 +367,7 @@ export function CrewDetail() {
                 <Avatar name={name(playerId)} avatar={byId.get(playerId)?.avatar} />
                 <span>
                   <FxName name={name(playerId)} p={p} />
+                  {playerId === me && <i className="me-tag">TU</i>}
                   <small>
                     {p
                       ? `${p.cosmetics.levelTitle} · ${p.xp.toLocaleString('it-IT')} XP`
@@ -722,8 +725,10 @@ export function CrewOnboarding() {
   });
   const [hidden, setHidden] = useState(onboarding.dismissed);
   const [creating, setCreating] = useState(false);
+  const { me } = useKnowsMe();
   const active = players.data?.items.filter((p) => p.status === 'active') ?? [];
-  if (hidden || !localData || crews.data?.length !== 0 || active.length < 2) return null;
+  // First the phone must know who owns it: the crew is then offered with them in it.
+  if (hidden || !localData || !me || crews.data?.length !== 0 || active.length < 2) return null;
   const later = (how: 'later' | 'never') => {
     onboarding.dismiss(how);
     setHidden(true);
@@ -750,7 +755,7 @@ export function CrewOnboarding() {
       {creating && (
         <CrewSheet
           players={players.data!.items}
-          initialMembers={active.map((p) => p.id)}
+          initialMembers={[me, ...active.map((p) => p.id).filter((id) => id !== me)]}
           close={() => setCreating(false)}
         />
       )}

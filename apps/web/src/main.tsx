@@ -58,6 +58,7 @@ function App() {
             'recent-results',
             'local-status',
             'progression',
+            'links',
             'crews',
             'crew-progression',
             'crew-tournaments',

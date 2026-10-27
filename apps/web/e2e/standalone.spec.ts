@@ -439,8 +439,16 @@ test('crews: existing players are offered a crew, whose package carries matches 
   await enterScore(page, 'Otto', 500);
   await expect(page.getByRole('heading', { name: 'Partita conclusa' })).toBeVisible();
 
-  // Data from before crews: the Home asks, without a dialog in the way.
+  // The phone does not know its owner yet: the Home asks who they are, among existing players.
   await page.goto('/');
+  await page.getByRole('button', { name: /Chi sei\?/ }).click();
+  await page
+    .getByRole('dialog', { name: 'Chi sei?' })
+    .getByRole('button', { name: /Nora/ })
+    .click();
+  await expect(page.getByRole('button', { name: /Chi sei\?/ })).toHaveCount(0);
+
+  // Data from before crews: the Home then offers a crew, without a dialog in the way.
   const ask = page.getByRole('region', { name: 'Crea la tua compagnia' });
   await expect(ask).toContainText('2 giocatori');
   await ask.getByRole('button', { name: 'Crea compagnia' }).click();
@@ -450,6 +458,21 @@ test('crews: existing players are offered a crew, whose package carries matches 
   await sheet.getByRole('button', { name: 'Crea compagnia' }).click();
   await expect(page).toHaveURL(/\/compagnie\/[0-9a-f-]{36}$/);
   await expect(page.locator('.crew-ranking li').first()).toContainText('Nora');
+  await expect(page.locator('.crew-ranking li').first()).toContainText('TU');
+
+  // Only the owner edits a profile: Otto's is read-only on Nora's phone, hers is editable.
+  await page.goto('/giocatori');
+  await page.getByRole('button', { name: /Otto/ }).click();
+  await expect(page.getByText('Solo Otto può modificare il proprio profilo')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Modifica nome' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sono io' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /Nora/ }).click();
+  await expect(page.getByRole('button', { name: 'Modifica nome' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.goto('/compagnie');
+  await page.getByRole('link', { name: /Giovedì/ }).click();
+  await expect(page).toHaveURL(/\/compagnie\/[0-9a-f-]{36}$/);
   await expect(page.locator('.record-list')).toContainText('640 punti');
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: /Scarica pacchetto/ }).click();

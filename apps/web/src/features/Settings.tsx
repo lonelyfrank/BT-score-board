@@ -16,6 +16,7 @@ import { usePwa, useUpdateHold } from '../services/pwa';
 import { gameModes, games } from '../services/rules';
 import { Header, ErrorMessage, Modal } from '../components/ui';
 import { MergeFlow } from './Crews';
+import { WhoAmISheet, useKnowsMe } from '../components/WhoAmI';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const dateTime = (iso: string | null) =>
@@ -69,6 +70,9 @@ function DeviceData() {
   const [message, setMessage] = useState('');
   const [preview, setPreview] = useState<{ backup: BackupFile; summary: BackupSummary }>();
   const [merging, setMerging] = useState(false);
+  const [choosingMe, setChoosingMe] = useState(false);
+  const knows = useKnowsMe();
+  const myName = knows.players.find((p) => p.id === knows.me)?.displayName;
   const fileInput = useRef<HTMLInputElement>(null);
   const exportBackup = useMutation({
     mutationFn: async (mode: 'download' | 'share') => {
@@ -184,6 +188,16 @@ function DeviceData() {
         )}
         <ErrorMessage error={exportBackup.error ?? readFile.error} />
       </section>
+      <h2 className="set-h">Questo telefono</h2>
+      <div className="card">
+        <div className="row">
+          <span className="k">Io sono</span>
+          <button type="button" className="btn sm" onClick={() => setChoosingMe(true)}>
+            {myName ?? 'Scegli il tuo giocatore'}
+          </button>
+        </div>
+      </div>
+      {choosingMe && <WhoAmISheet close={() => setChoosingMe(false)} />}
       <h2 className="set-h" id="device-title">
         Dati su questo dispositivo
       </h2>

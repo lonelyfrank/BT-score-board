@@ -18,6 +18,8 @@ import {
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
 import { FxName, ProgressPanel, useProgression } from '../components/Progression';
+import { meStore } from '../services/me';
+import { useKnowsMe } from '../components/WhoAmI';
 
 type Filter = PlayerStatus | 'all';
 const PAGE = 100;
@@ -32,6 +34,10 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
   const [nick, setNick] = useState(player.nickname ?? '');
   const [avatar, setAvatar] = useState(player.avatar ?? null);
   const [editing, setEditing] = useState(false);
+  // Only the owner of a profile changes it; everyone in the crew sees it. Until the phone
+  // knows its owner (see the Home) nothing is blocked.
+  const { me } = useKnowsMe();
+  const canEdit = !localData || !me || me === player.id;
   const stats = useQuery({
     queryKey: ['player-stats', player.id],
     queryFn: () => api.statistics(player.id),
@@ -78,7 +84,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
       close={close}
       tall
       footer={
-        editing ? (
+        !canEdit ? undefined : editing ? (
           <>
             <button
               type="button"
@@ -115,7 +121,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
     >
       <ErrorMessage error={stats.error ?? history.error ?? update.error} />
       {level && <ProgressPanel p={level} />}
-      {editing && (
+      {canEdit && editing && (
         <form
           id="profile-name"
           className="sheet-form"
@@ -134,43 +140,52 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           </label>
         </form>
       )}
-      <div className="avatar-row">
-        <span className="field-l" id="avatar-label">
-          Colore avatar
-        </span>
-        <div className="swatches" role="radiogroup" aria-labelledby="avatar-label">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={avatar === null}
-            aria-label="Automatico"
-            className="auto"
-            disabled={update.isPending}
-            onClick={() => {
-              setAvatar(null);
-              update.mutate({ avatar: null });
-            }}
-          >
-            A
-          </button>
-          {Object.entries(avatarPresets).map(([id, color]) => (
+      {canEdit ? (
+        <div className="avatar-row">
+          <span className="field-l" id="avatar-label">
+            Colore avatar
+          </span>
+          <div className="swatches" role="radiogroup" aria-labelledby="avatar-label">
             <button
               type="button"
               role="radio"
-              key={id}
-              aria-checked={avatar === id}
-              aria-label={id}
-              className="swatch"
-              style={{ background: color }}
+              aria-checked={avatar === null}
+              aria-label="Automatico"
+              className="auto"
               disabled={update.isPending}
               onClick={() => {
-                setAvatar(id);
-                update.mutate({ avatar: id });
+                setAvatar(null);
+                update.mutate({ avatar: null });
               }}
-            />
-          ))}
+            >
+              A
+            </button>
+            {Object.entries(avatarPresets).map(([id, color]) => (
+              <button
+                type="button"
+                role="radio"
+                key={id}
+                aria-checked={avatar === id}
+                aria-label={id}
+                className="swatch"
+                style={{ background: color }}
+                disabled={update.isPending}
+                onClick={() => {
+                  setAvatar(id);
+                  update.mutate({ avatar: id });
+                }}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="note">
+          <span>
+            Solo {player.displayName} può modificare il proprio profilo. Tu lo vedi come tutti gli
+            altri della compagnia.
+          </span>
+        </p>
+      )}
       {s && (
         <>
           <div className="card stat3">
@@ -282,8 +297,22 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
       <p className="hint">
         Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
       </p>
-      {localData && <LinkDuplicate player={player} close={close} />}
+      {localData && <ThisIsMe player={player} />}
+      {localData && canEdit && <LinkDuplicate player={player} close={close} />}
     </Modal>
+  );
+}
+
+/** Marks this player as the owner of the phone. */
+function ThisIsMe({ player }: { player: Player }) {
+  const { me } = useKnowsMe();
+  if (me === player.id) return <p className="hint">Questo è il tuo profilo su questo telefono.</p>;
+  // Once the phone knows its owner, changing it is deliberate: Impostazioni → Io sono.
+  if (me) return null;
+  return (
+    <button type="button" className="btn" onClick={() => meStore.set(player.id)}>
+      Sono io
+    </button>
   );
 }
 
@@ -357,6 +386,7 @@ export function Players() {
   });
   const page = query.data;
   const progression = useProgression();
+  const { me } = useKnowsMe();
   return (
     <>
       <Header
@@ -423,6 +453,7 @@ export function Players() {
                 <span>
                   <b>
                     <FxName name={p.displayName} p={progression.data?.players.get(p.id)} />
+                    {p.id === me && <i className="me-tag">TU</i>}
                   </b>
                   <small>
                     {p.status === 'inactive'

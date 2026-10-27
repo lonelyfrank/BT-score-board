@@ -405,3 +405,24 @@
 .card .pair > :only-child {
   grid-column: 1 / -1;
 }
+.me-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bt-accent-primary);
+  color: var(--bt-text-on-accent);
+  font: 700 11px var(--bt-font-ui);
+  font-style: normal;
+  letter-spacing: 0.6px;
+  vertical-align: middle;
+  -webkit-text-fill-color: var(--bt-text-on-accent);
+}
+.who-card {
+  width: 100%;
+  text-align: left;
+  border-color: var(--bt-accent-primary);
+  background: rgba(27, 12, 20, 0.95);
+}
+.who-card > svg:first-child {
+  color: var(--bt-accent-bright);
+}

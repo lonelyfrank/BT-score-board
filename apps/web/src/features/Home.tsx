@@ -16,6 +16,7 @@ import { api, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
 import { CrewOnboarding } from './Crews';
+import { WhoAmICard } from '../components/WhoAmI';
 
 export function Home() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
@@ -119,6 +120,7 @@ export function Home() {
             <ChevronRight aria-hidden="true" />
           </Link>
         )}
+        <WhoAmICard />
         <CrewOnboarding />
         {backup.data?.backupRecommended && (
           <Link className="alert" to="/impostazioni#backup">
