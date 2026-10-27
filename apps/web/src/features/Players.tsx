@@ -17,7 +17,7 @@ import {
   Segmented,
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
-import { FxName, LevelChip, ProgressPanel, useProgression } from '../components/Progression';
+import { FxName, ProgressPanel, useProgression } from '../components/Progression';
 
 type Filter = PlayerStatus | 'all';
 const PAGE = 100;
@@ -31,6 +31,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
   const [name, setName] = useState(player.displayName);
   const [nick, setNick] = useState(player.nickname ?? '');
   const [avatar, setAvatar] = useState(player.avatar ?? null);
+  const [editing, setEditing] = useState(false);
   const stats = useQuery({
     queryKey: ['player-stats', player.id],
     queryFn: () => api.statistics(player.id),
@@ -55,7 +56,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
       api.updatePlayer(player.id, patch),
     onSuccess: (_, patch) => {
       void client.invalidateQueries({ queryKey: ['players'] });
-      if (!('status' in patch)) close();
+      if ('displayName' in patch) close();
     },
   });
   const progression = useProgression();
@@ -63,195 +64,224 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
   const s = stats.data;
   const current = update.data ?? player;
   const active = current.status === 'active';
+  const since = new Date(player.createdAt).toLocaleDateString('it-IT', {
+    day: 'numeric',
+    month: 'long',
+  });
   return (
     <Modal
-      title={
-        <span className="profile-title">
-          <Avatar name={player.displayName} avatar={avatar} className="ring selected" />
-          <span>
-            <FxName name={player.displayName} p={level} />
-            <small>
-              {[nickname(current), active ? 'Attivo' : 'Disattivato'].filter(Boolean).join(' · ')}
-            </small>
-          </span>
-        </span>
-      }
+      title={<FxName name={current.displayName} p={level} />}
+      subtitle={[nickname(current), active ? `Attivo · dal ${since}` : 'Disattivato']
+        .filter(Boolean)
+        .join(' · ')}
+      lead={<Avatar name={player.displayName} avatar={avatar} size="xl" />}
       close={close}
+      tall
+      footer={
+        editing ? (
+          <>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={update.isPending}
+              onClick={() => setEditing(false)}
+            >
+              Annulla
+            </button>
+            <button
+              className="btn cta"
+              form="profile-name"
+              disabled={update.isPending || !name.trim()}
+            >
+              Salva
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={`btn ${active ? 'danger' : ''}`}
+              disabled={update.isPending}
+              onClick={() => update.mutate({ status: active ? 'inactive' : 'active' })}
+            >
+              {active ? 'Disattiva' : 'Riattiva'}
+            </button>
+            <button type="button" className="btn cta" onClick={() => setEditing(true)}>
+              Modifica nome
+            </button>
+          </>
+        )
+      }
     >
       <ErrorMessage error={stats.error ?? history.error ?? update.error} />
       {level && <ProgressPanel p={level} />}
+      {editing && (
+        <form
+          id="profile-name"
+          className="sheet-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            update.mutate({ displayName: name.trim(), nickname: nick.trim() || null, avatar });
+          }}
+        >
+          <label className="field">
+            Nome
+            <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="field">
+            Soprannome
+            <input value={nick} maxLength={120} onChange={(e) => setNick(e.target.value)} />
+          </label>
+        </form>
+      )}
+      <div className="avatar-row">
+        <span className="field-l" id="avatar-label">
+          Colore avatar
+        </span>
+        <div className="swatches" role="radiogroup" aria-labelledby="avatar-label">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={avatar === null}
+            aria-label="Automatico"
+            className="auto"
+            disabled={update.isPending}
+            onClick={() => {
+              setAvatar(null);
+              update.mutate({ avatar: null });
+            }}
+          >
+            A
+          </button>
+          {Object.entries(avatarPresets).map(([id, color]) => (
+            <button
+              type="button"
+              role="radio"
+              key={id}
+              aria-checked={avatar === id}
+              aria-label={id}
+              className="swatch"
+              style={{ background: color }}
+              disabled={update.isPending}
+              onClick={() => {
+                setAvatar(id);
+                update.mutate({ avatar: id });
+              }}
+            />
+          ))}
+        </div>
+      </div>
       {s && (
         <>
-          <div className="stat-tiles">
+          <div className="card stat3">
             <div>
-              <small>TORNEI VINTI</small>
-              <strong className="gold">
-                {s.tournamentsWon}
-                <small>/{s.tournamentsPlayed}</small>
-              </strong>
+              <small>Tornei</small>
+              <strong>{s.tournamentsPlayed}</strong>
             </div>
             <div>
-              <small>PARTITE · VITT.</small>
-              <strong>
-                {s.matchesPlayed} · {percent(s.winRate)}
-              </strong>
+              <small>Vittorie</small>
+              <strong className="gold">{s.tournamentsWon}</strong>
             </div>
             <div>
-              <small>MIGLIOR POS.</small>
+              <small>Miglior pos.</small>
               <strong>{s.bestPlacement ? `${s.bestPlacement}°` : '—'}</strong>
             </div>
           </div>
-          {s.byGameMode.map((r) => (
-            <section className="config-stats" key={`${r.gameMode}-${r.rounds}-${r.dartsPerTurn}`}>
-              <h3>
-                {games[r.gameMode as GameMode].label}
-                {r.rounds !== null && ` · ${r.rounds} round`}
-                {r.dartsPerTurn !== null &&
-                  r.dartsPerTurn !== 3 &&
-                  ` · ${r.dartsPerTurn} freccette`}
-                {` · ${r.tournamentsPlayed} ${r.tournamentsPlayed === 1 ? 'torneo' : 'tornei'}`}
-              </h3>
-              <div>
-                <span>
-                  <strong>{r.matchesPlayed}</strong>
-                  <small>partite</small>
-                </span>
-                <span>
-                  <strong>
-                    {r.wins}/{r.draws}/{r.losses}
-                  </strong>
-                  <small>V/N/P</small>
-                </span>
-                {r.bestScore !== null ? (
-                  <>
-                    <span>
-                      <strong>{r.bestScore}</strong>
-                      <small>record</small>
-                    </span>
-                    <span>
-                      <strong>{r.averageScore!.toFixed(0)}</strong>
-                      <small>media</small>
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span>
-                      <strong>{percent(r.winRate)}</strong>
-                      <small>vittorie</small>
-                    </span>
-                    <span>
-                      <strong>{r.tournamentsWon}</strong>
-                      <small>tornei vinti</small>
-                    </span>
-                  </>
-                )}
-              </div>
-            </section>
-          ))}
-          {s.byGameMode.length > 0 && (
-            <p className="hint">
-              Statistiche separate per modalità: punteggi di giochi diversi non si confrontano.
-              Spareggi e vittorie a tavolino esclusi.
-            </p>
-          )}
           {s.recentMatches.length > 0 && (
-            <section className="player-history" aria-labelledby="matches-title">
-              <h3 id="matches-title">Ultime partite</h3>
-              {s.recentMatches.slice(0, 8).map((x) => (
-                <Link key={x.matchId} to={`/partite/${x.matchId}`}>
+            <section className="list" aria-labelledby="matches-title">
+              <div className="sec-h">
+                <h3 id="matches-title">Ultime partite</h3>
+                <span>
+                  {s.matchesPlayed} partite · {percent(s.winRate)} vinte
+                </span>
+              </div>
+              {s.recentMatches.slice(0, 6).map((x) => (
+                <Link className="mrow" key={x.matchId} to={`/partite/${x.matchId}`}>
                   <span>
-                    {games[x.gameMode as GameMode].label} · vs {x.opponents.join(', ')}{' '}
-                    <small>· {shortDate(x.completedAt)}</small>
+                    {games[x.gameMode as GameMode].label} · vs {x.opponents.join(', ')}
+                    <br />
+                    <small>{shortDate(x.completedAt)}</small>
                   </span>
-                  <strong className={x.outcome === 'win' ? 'place-1' : ''}>
-                    {x.score ?? ''} {outcomeLabel[x.outcome] ?? ''}
-                  </strong>
+                  {x.outcome === 'win' ? (
+                    <span className="chip ok">
+                      {x.score ?? ''} {outcomeLabel[x.outcome]}
+                    </span>
+                  ) : (
+                    <strong>
+                      {x.score ?? ''} {outcomeLabel[x.outcome] ?? ''}
+                    </strong>
+                  )}
                 </Link>
               ))}
+            </section>
+          )}
+          {s.byGameMode.length > 0 && (
+            <section className="list" aria-labelledby="modes-title">
+              <div className="sec-h">
+                <h3 id="modes-title">Per gioco</h3>
+                <span>modalità separate</span>
+              </div>
+              {s.byGameMode.map((r) => (
+                <div
+                  className="mrow mode-stats"
+                  key={`${r.gameMode}-${r.rounds}-${r.dartsPerTurn}`}
+                >
+                  <span>
+                    {games[r.gameMode as GameMode].label}
+                    {r.rounds !== null && ` · ${r.rounds} round`}
+                    {r.dartsPerTurn !== null &&
+                      r.dartsPerTurn !== 3 &&
+                      ` · ${r.dartsPerTurn} freccette`}
+                    <br />
+                    <small>
+                      {r.matchesPlayed} partite · V/N/P {r.wins}/{r.draws}/{r.losses}
+                      {r.bestScore !== null
+                        ? ` · record ${r.bestScore} · media ${r.averageScore!.toFixed(0)}`
+                        : ` · ${percent(r.winRate)} vinte`}
+                    </small>
+                  </span>
+                  <strong>{r.tournamentsWon}</strong>
+                </div>
+              ))}
+              <p className="hint">
+                Punteggi di giochi diversi non si confrontano. Spareggi e vittorie a tavolino
+                esclusi.
+              </p>
             </section>
           )}
         </>
       )}
       {stats.isPending && <Loading />}
       {!!history.data?.length && (
-        <section className="player-history" aria-labelledby="history-title">
-          <h3 id="history-title">Storico</h3>
+        <section className="list" aria-labelledby="history-title">
+          <div className="sec-h">
+            <h3 id="history-title">Storico</h3>
+            <span>piazzamenti ufficiali</span>
+          </div>
           {history.data.map(({ summary, place }) => (
-            <Link key={summary.id} to={tournamentPath(summary)}>
+            <Link className="mrow" key={summary.id} to={tournamentPath(summary)}>
               <span>
-                {summary.name}{' '}
+                {summary.name}
+                <br />
                 <small>
-                  ·{' '}
                   {new Date(summary.createdAt).toLocaleDateString('it-IT', {
                     day: 'numeric',
                     month: 'short',
                   })}
                 </small>
               </span>
-              <strong className={place ? `place-${Math.min(place, 4)}` : ''}>
-                {place ? `${place}°` : '—'}
-              </strong>
+              {place === 1 ? (
+                <span className="chip ok">1°</span>
+              ) : (
+                <strong>{place ? `${place}°` : '—'}</strong>
+              )}
             </Link>
           ))}
         </section>
       )}
-      <form
-        className="sheet-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          update.mutate({ displayName: name.trim(), nickname: nick.trim() || null, avatar });
-        }}
-      >
-        <label className="field">
-          Nome
-          <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label className="field">
-          Soprannome
-          <input value={nick} maxLength={120} onChange={(e) => setNick(e.target.value)} />
-        </label>
-        <fieldset className="avatar-picker">
-          <legend>Avatar (facoltativo)</legend>
-          <div role="radiogroup" aria-label="Colore avatar">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={avatar === null}
-              aria-label="Automatico"
-              className="avatar-auto"
-              onClick={() => setAvatar(null)}
-            >
-              A
-            </button>
-            {Object.entries(avatarPresets).map(([id, color]) => (
-              <button
-                type="button"
-                role="radio"
-                key={id}
-                aria-checked={avatar === id}
-                aria-label={id}
-                style={{ background: color }}
-                onClick={() => setAvatar(id)}
-              />
-            ))}
-          </div>
-        </fieldset>
-        <div className="pair">
-          <button
-            type="button"
-            disabled={update.isPending}
-            onClick={() => update.mutate({ status: active ? 'inactive' : 'active' })}
-          >
-            {active ? 'Disattiva' : 'Riattiva'}
-          </button>
-          <button className="primary" disabled={update.isPending || !name.trim()}>
-            Salva
-          </button>
-        </div>
-        <p className="hint">
-          Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
-        </p>
-      </form>
+      <p className="hint">
+        Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
+      </p>
       {localData && <LinkDuplicate player={player} close={close} />}
     </Modal>
   );
@@ -301,6 +331,9 @@ function LinkDuplicate({ player, close }: { player: Player; close: () => void })
   );
 }
 
+const levelLabel = (p?: { progress: { level: { level: number; title: string } } }) =>
+  p ? `Lv ${p.progress.level.level} ${p.progress.level.title}` : '';
+
 export function Players() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('active');
@@ -312,15 +345,60 @@ export function Players() {
     queryKey: ['players', search.trim(), offset, status],
     queryFn: () => api.players(search.trim(), offset, status),
   });
+  const counts = useQuery({
+    queryKey: ['players', 'counts'],
+    queryFn: async () => {
+      const [a, i] = await Promise.all([
+        api.players('', 0, 'active'),
+        api.players('', 0, 'inactive'),
+      ]);
+      return { active: a.total, inactive: i.total };
+    },
+  });
   const page = query.data;
   const progression = useProgression();
   return (
     <>
       <Header
         title="Giocatori"
+        subtitle={
+          counts.data
+            ? `${counts.data.active} attivi · ${counts.data.inactive} disattivati`
+            : undefined
+        }
+        back={null}
         action={<AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />}
       />
-      <main className="content">
+      <div className="toolbar">
+        <label className="search">
+          <Search aria-hidden="true" />
+          <span className="visually-hidden">Cerca giocatori</span>
+          <input
+            type="search"
+            placeholder="Cerca giocatori"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setOffset(0);
+            }}
+          />
+        </label>
+        <Segmented
+          label="Filtro stato"
+          small
+          value={filter}
+          change={(f) => {
+            setFilter(f);
+            setOffset(0);
+          }}
+          options={[
+            { id: 'active', label: 'Attivi' },
+            { id: 'all', label: 'Tutti' },
+            { id: 'inactive', label: 'Disattivati' },
+          ]}
+        />
+      </div>
+      <main className="lists">
         {localData && (
           <Link className="crew-link" to="/compagnie">
             <Users aria-hidden="true" />
@@ -331,58 +409,32 @@ export function Players() {
             <ChevronRight aria-hidden="true" />
           </Link>
         )}
-        <div className="search-field">
-          <Search aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Cerca giocatori"
-            placeholder="Cerca per nome o soprannome"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setOffset(0);
-            }}
-          />
-        </div>
-        <Segmented
-          label="Filtro stato"
-          value={filter}
-          change={(f) => {
-            setFilter(f);
-            setOffset(0);
-          }}
-          options={[
-            { id: 'active', label: 'Attivi' },
-            { id: 'inactive', label: 'Disattivati' },
-            { id: 'all', label: 'Tutti' },
-          ]}
-        />
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
-        <ul className="player-rows">
+        <ul className="roster">
           {page?.items.map((p) => (
             <li key={p.id}>
               <button
-                className={p.status === 'inactive' ? 'inactive' : ''}
+                type="button"
+                className={`pl ${p.status === 'inactive' ? 'off' : ''}`}
                 onClick={() => setOpen(p)}
               >
                 <Avatar name={p.displayName} avatar={p.avatar} />
                 <span>
-                  <FxName name={p.displayName} p={progression.data?.players.get(p.id)} />
+                  <b>
+                    <FxName name={p.displayName} p={progression.data?.players.get(p.id)} />
+                  </b>
                   <small>
-                    {[
-                      progression.data?.players.get(p.id)?.cosmetics.levelTitle,
-                      nickname(p) || (progression.data ? '' : 'Nessun soprannome'),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || 'Nessun soprannome'}
+                    {p.status === 'inactive'
+                      ? ['disattivato', nickname(p)].filter(Boolean).join(' · ')
+                      : [
+                          levelLabel(progression.data?.players.get(p.id)),
+                          nickname(p) || `dal ${shortDate(p.createdAt)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                   </small>
                 </span>
-                {p.status === 'inactive' ? (
-                  <b className="off-tag">DISATTIVATO</b>
-                ) : (
-                  <LevelChip p={progression.data?.players.get(p.id)} />
-                )}
                 <ChevronRight aria-hidden="true" />
               </button>
             </li>
@@ -393,17 +445,27 @@ export function Players() {
             <p>Puoi crearlo con il tasto +.</p>
           </Empty>
         )}
-        {!!page?.total && (
-          <p className="count">
+        {!!page?.total && page.total > page.items.length && (
+          <p className="hint">
             {offset + 1}–{offset + page.items.length} di {page.total}
           </p>
         )}
         {page && page.total > PAGE && (
-          <div className="pagination">
-            <button disabled={offset === 0} onClick={() => setOffset(offset - PAGE)}>
+          <div className="pair">
+            <button
+              type="button"
+              className="btn"
+              disabled={offset === 0}
+              onClick={() => setOffset(offset - PAGE)}
+            >
               Precedenti
             </button>
-            <button disabled={offset + PAGE >= page.total} onClick={() => setOffset(offset + PAGE)}>
+            <button
+              type="button"
+              className="btn"
+              disabled={offset + PAGE >= page.total}
+              onClick={() => setOffset(offset + PAGE)}
+            >
               Successivi
             </button>
           </div>

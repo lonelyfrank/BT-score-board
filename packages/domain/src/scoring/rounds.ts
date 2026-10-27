@@ -1,6 +1,7 @@
 import {
   ensure,
   type Context,
+  type DartThrow,
   type Match,
   type RoundRecord,
   type RoundValueKind,
@@ -9,6 +10,7 @@ import {
 import { games } from '../games/catalog.js';
 import { heatForEntry } from '../competition/heats.js';
 import { rotate, rotationFor } from '../competition/rotation.js';
+import { assertTurn, evaluateTurn, type TurnEvaluation } from './darts.js';
 
 /** Open-ended games (X01, Odd & Even) still stop somewhere: a guard against typos. */
 export const MAX_OPEN_ROUNDS = 99;
@@ -30,7 +32,8 @@ export interface TrackingSpec {
 
 /**
  * What one progressive value means for the game of the tournament. Only observed values are
- * kept: nothing is deduced (no bust, opening or closing is inferred for X01).
+ * kept: nothing is deduced from a value alone (no bust, opening or closing is inferred for X01;
+ * only darts entered one by one are read with the rules of the game, see darts.ts).
  */
 export function trackingSpec(t: Tournament, m: Match): TrackingSpec {
   const g = games[t.gameMode];
@@ -81,15 +84,29 @@ export function currentRound(m: Match, entryId: string, round: number) {
   );
 }
 
+/**
+ * A turn as the organizer reads it. complete: value recorded. early: recorded, the turn ended
+ * before the third dart (bust, checkout). partial: some darts seen, no value. skipped: not
+ * observed. review: the darts entered give another value than the one recorded. reenter: the
+ * value was annulled and the turn waits for a new one. missing: nothing was ever recorded.
+ */
+export type TurnState =
+  'complete' | 'early' | 'partial' | 'skipped' | 'review' | 'reenter' | 'missing';
 export interface RoundView {
   round: number;
   status: 'recorded' | 'skipped' | 'missing';
   value: number | null;
-  bust: boolean;
   playerId: string | null;
   /** The value replaced an earlier one. */
   corrected: boolean;
   recordId: string | null;
+  state: TurnState;
+  /** Darts of the turn when entered one by one; null when only the value is known. */
+  darts: DartThrow[] | null;
+  /** Value the darts give under the game rules, when they decide it. */
+  dartsValue: number | null;
+  /** X01 bust, recorded as such or given by the darts: the turn is worth nothing. */
+  bust: boolean;
 }
 export interface Progress {
   tournamentEntryId: string;
@@ -109,22 +126,76 @@ export interface Progress {
   official: number | null;
 }
 
+/**
+ * X01: points left before a round, from the standing values of the rounds before it. Null when
+ * one of them is missing or skipped: nothing is assumed about a turn nobody recorded.
+ */
+export function remainingBefore(t: Tournament, m: Match, entryId: string, round: number) {
+  const g = games[t.gameMode];
+  if (g.scoring !== 'remaining') return null;
+  const start = g.startingScore!;
+  if (round === 1) return start;
+  if (trackingSpec(t, m).kind === 'remaining') {
+    const previous = currentRound(m, entryId, round - 1);
+    return previous?.status === 'recorded' ? previous.value : null;
+  }
+  let left = start;
+  for (let r = 1; r < round; r++) {
+    const record = currentRound(m, entryId, r);
+    if (record?.status !== 'recorded') return null;
+    left -= record.value!;
+  }
+  return left >= 0 ? left : null;
+}
+/** The darts of an entry's round evaluated in the context of the rounds before it. */
+export function evaluateRecordDarts(
+  t: Tournament,
+  m: Match,
+  entryId: string,
+  round: number,
+  darts: DartThrow[],
+) {
+  const remaining = remainingBefore(t, m, entryId, round);
+  const ev = evaluateTurn({ game: t.gameMode, round, remaining }, darts);
+  return { ev, value: valueOfDarts(trackingSpec(t, m), ev, remaining) };
+}
+/** The progressive value the darts give: points of the turn, or points left after it. */
+function valueOfDarts(spec: TrackingSpec, ev: TurnEvaluation, remaining: number | null) {
+  if (ev.points === null) return null;
+  if (spec.kind === 'points') return ev.points;
+  if (spec.kind === 'remaining') return remaining === null ? null : remaining - ev.points;
+  return null;
+}
+
 /** An entry's progression: missing rounds are missing, never zero. */
 export function roundProgress(t: Tournament, m: Match, entryId: string): Progress {
   const spec = trackingSpec(t, m);
-  const records = m.rounds.filter((r) => r.tournamentEntryId === entryId && effective(r));
+  const all = m.rounds.filter((r) => r.tournamentEntryId === entryId);
+  const records = all.filter(effective);
   const last = Math.max(0, ...records.map((r) => r.round));
   const count = spec.rounds ?? last;
   const rounds: RoundView[] = Array.from({ length: count }, (_, i) => {
     const r = records.find((x) => x.round === i + 1);
+    const darts = r?.darts ?? null;
+    const evaluated = darts ? evaluateRecordDarts(t, m, entryId, i + 1, darts) : null;
+    const dartsValue = evaluated?.value ?? null;
+    let state: TurnState;
+    if (!r) state = all.some((x) => x.round === i + 1) ? 'reenter' : 'missing';
+    else if (r.status === 'skipped')
+      state = darts?.some((d) => d.kind !== 'unobserved') ? 'partial' : 'skipped';
+    else if (dartsValue !== null && dartsValue !== r.value) state = 'review';
+    else state = darts && darts.length < 3 ? 'early' : 'complete';
     return {
       round: i + 1,
       status: r ? (r.status as 'recorded' | 'skipped') : 'missing',
       value: r?.value ?? null,
-      bust: r?.bust ?? false,
       playerId: r?.playerId ?? null,
       corrected: !!r?.correctsId,
       recordId: r?.id ?? null,
+      state,
+      darts,
+      dartsValue,
+      bust: !!r?.bust || !!evaluated?.ev.bust,
     };
   });
   const values = rounds.filter((r) => r.status === 'recorded').map((r) => r.value!);
@@ -180,9 +251,20 @@ function assertTracking(t: Tournament, m: Match, entryId: string) {
 export interface RecordRoundInput {
   entryId: string;
   round: number;
-  /** null: the round was not observed (skipped), which is not zero. */
-  value: number | null;
-  /** X01: this round's points do not count and the running total is retained. */
+  /**
+   * null: the round was not observed (skipped), which is not zero. Left out with darts that
+   * decide the turn: the value follows from them.
+   */
+  value?: number | null;
+  /**
+   * The darts one by one. Left out on a correction: the darts already entered stay as they
+   * were (a value that no longer matches them is shown for review). null: no detail.
+   */
+  darts?: DartThrow[] | null;
+  /**
+   * X01: this round's points do not count and the running total is retained. Darts that go
+   * past zero mark the bust by themselves.
+   */
   bust?: boolean;
   playerId?: string | null;
   reason?: string | null;
@@ -197,9 +279,9 @@ export interface RecordRoundInput {
 export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c: Context) {
   assertTracking(t, m, input.entryId);
   const spec = trackingSpec(t, m);
-  const bust = input.bust ?? false;
+  const declaredBust = input.bust ?? false;
   ensure(
-    !bust || (games[t.gameMode].scoring === 'remaining' && input.value === null),
+    !declaredBust || (games[t.gameMode].scoring === 'remaining' && input.value == null),
     'INVALID_ROUND',
     'A bust is only valid for X01 and cannot include a round score',
     422,
@@ -211,14 +293,61 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     `Round between 1 and ${limit}`,
     422,
   );
-  if (input.value !== null)
+  let value = input.value;
+  let bust = declaredBust;
+  if (input.darts) {
+    const remaining = remainingBefore(t, m, input.entryId, input.round);
+    const ev = assertTurn({ game: t.gameMode, round: input.round, remaining }, input.darts);
+    const derived = valueOfDarts(spec, ev, remaining);
     ensure(
-      Number.isSafeInteger(input.value) && input.value >= 0 && input.value <= spec.max(input.round),
+      !declaredBust || ev.points === null || ev.bust,
+      'DARTS_MISMATCH',
+      'The darts do not go past zero: this turn is not a bust',
+      422,
+    );
+    bust ||= ev.bust;
+    if (value === undefined && derived !== null) value = derived;
+    else if (value === undefined)
+      ensure(
+        declaredBust,
+        'VALUE_REQUIRED',
+        'The darts do not decide this turn: enter the value shown by the totem',
+        422,
+      );
+    else if (derived !== null && value !== derived)
+      // Darts and value disagree: kept only as an explicit, explained correction.
+      ensure(
+        input.reason?.trim(),
+        'DARTS_MISMATCH',
+        `The darts give ${derived}: correct them or give a reason for another value`,
+        422,
+      );
+  }
+  if (declaredBust && value == null)
+    // A declared bust keeps the running total: 0 points scored, or the points left before.
+    value =
+      t.tournamentConfiguration.x01Entry === 'SCORED'
+        ? 0
+        : (() => {
+            for (let round = input.round - 1; round >= 1; round--) {
+              const earlier = currentRound(m, input.entryId, round);
+              if (earlier?.status === 'recorded' && earlier.value !== null) return earlier.value;
+            }
+            return games[t.gameMode].startingScore!;
+          })();
+  ensure(value !== undefined, 'VALUE_REQUIRED', 'Enter the value of the round', 422);
+  if (value !== null)
+    ensure(
+      Number.isSafeInteger(value) && value >= 0 && value <= spec.max(input.round),
       'INVALID_SCORE',
       `${spec.label}: an integer between 0 and ${spec.max(input.round)}`,
       422,
     );
   const entry = t.entries.find((e) => e.id === input.entryId)!;
+  // Any earlier observation of this round (also corrected or voided): the round was thrown.
+  const earlier = m.rounds
+    .filter((r) => r.tournamentEntryId === input.entryId && r.round === input.round)
+    .at(-1);
   let playerId = input.playerId ?? null;
   if (playerId !== null)
     ensure(
@@ -228,6 +357,8 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
       422,
     );
   else if (entry.members.length === 1) playerId = entry.members[0]!.playerId;
+  // A new value of a round already thrown keeps its thrower, wherever the rotation is now.
+  else if (earlier) playerId = earlier.playerId;
   else if (input.advanceRotation || m.rotations.some((r) => r.entryId === entry.id)) {
     // The team follows a rotation: the expected thrower is the one at the board.
     const rotation = rotationFor(t, m, entry.id);
@@ -246,26 +377,15 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     }
   }
   const previous = currentRound(m, input.entryId, input.round);
-  let value = input.value;
-  if (bust) {
-    value =
-      t.tournamentConfiguration.x01Entry === 'SCORED'
-        ? 0
-        : (() => {
-            for (let round = input.round - 1; round >= 1; round--) {
-              const earlier = currentRound(m, input.entryId, round);
-              if (earlier?.status === 'recorded' && earlier.value !== null) return earlier.value;
-            }
-            return games[t.gameMode].startingScore!;
-          })();
-  }
-  const status = input.value === null && !bust ? 'skipped' : 'recorded';
-  // The same value tapped twice is not a correction.
+  const status = value === null ? 'skipped' : 'recorded';
+  const darts = input.darts !== undefined ? input.darts : (previous?.darts ?? null);
+  // The same value (and darts) tapped twice is not a correction.
   if (
     previous &&
     previous.value === value &&
-    previous.bust === bust &&
-    previous.status === status
+    (previous.bust ?? false) === bust &&
+    previous.status === status &&
+    JSON.stringify(previous.darts ?? null) === JSON.stringify(darts)
   )
     return previous;
   if (previous) previous.status = 'corrected';
@@ -284,9 +404,18 @@ export function recordRound(t: Tournament, m: Match, input: RecordRoundInput, c:
     source: 'manual',
     createdAt: c.now(),
     recordedBy: c.operator,
+    darts: darts ? darts.map((d) => ({ kind: d.kind, sector: d.sector })) : null,
   };
   m.rounds.push(record);
-  if (input.advanceRotation && !previous && entry.members.length > 1) {
+  // A turn chosen by hand or taken back is no longer waiting once it has a value.
+  if (m.guide) {
+    const same = (s: { entryId: string; round: number } | null) =>
+      s?.entryId === input.entryId && s.round === input.round;
+    if (same(m.guide.pick)) m.guide.pick = null;
+    m.guide.replay = m.guide.replay.filter((s) => !same(s));
+  }
+  // Only the first observation of a round moves the rotation: corrections never do.
+  if (input.advanceRotation && !earlier && entry.members.length > 1) {
     const rotation = rotationFor(t, m, entry.id);
     if (!rotation.paused)
       m.rotations = [

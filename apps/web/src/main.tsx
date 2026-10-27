@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { BottomNavigation, Empty } from './components/ui';
+import { BottomNavigation, Empty, scrollToTop } from './components/ui';
 import { AppStatus } from './components/AppStatus';
 import { dataMode, localData } from './services/api';
 import { registerPwa } from './services/pwa';
@@ -15,10 +15,17 @@ import { TournamentList } from './features/Tournaments';
 import { TournamentSetup } from './features/TournamentSetup';
 import { TournamentDetail } from './features/TournamentDetail';
 import { Events } from './features/Events';
+import { Rules } from './features/Rules';
 import { CrewDetail, Crews } from './features/Crews';
 import './styles/fonts.css';
 import './styles/tokens.css';
-import './styles/app.css';
+import './styles/base.css';
+import './styles/home.css';
+import './styles/setup.css';
+import './styles/match.css';
+import './styles/competitions.css';
+import './styles/people.css';
+import './styles/progression.css';
 
 // Standalone reads and writes never touch the network: they must run while offline too.
 const networkMode = dataMode === 'standalone' ? 'always' : 'online';
@@ -29,12 +36,15 @@ const client = new QueryClient({
   },
 });
 function App() {
-  const { pathname } = useLocation();
-  // Match screens stay full-screen; creating a match keeps the bar.
-  const hideNav = pathname.startsWith('/partite/') && pathname !== '/partite/nuova';
+  const { pathname, search } = useLocation();
+  // Match screens and the steps of a flow stay full-screen; choosing the game keeps the bar.
+  const hideNav =
+    (pathname.startsWith('/partite/') && pathname !== '/partite/nuova') ||
+    pathname === '/tornei/nuovo' ||
+    (pathname === '/partite/nuova' && new URLSearchParams(search).has('passo'));
   const queries = useQueryClient();
   useEffect(() => {
-    window.scrollTo(0, 0);
+    scrollToTop();
   }, [pathname]);
   // Commands update the screens through invalidation; other tabs and imports notify here.
   useEffect(
@@ -73,6 +83,7 @@ function App() {
           <Route path="/hiscore" element={<TournamentList highscore />} />
           <Route path="/hiscore/:id" element={<TournamentDetail />} />
           <Route path="/serate" element={<Events />} />
+          <Route path="/regole" element={<Rules />} />
           <Route path="/giocatori" element={<Players />} />
           <Route path="/compagnie" element={<Crews />} />
           <Route path="/compagnie/:id" element={<CrewDetail />} />
@@ -80,9 +91,11 @@ function App() {
           <Route
             path="*"
             element={
-              <Empty title="Pagina non trovata">
-                <Link to="/">Torna alla Home</Link>
-              </Empty>
+              <main className="not-found">
+                <Empty title="Pagina non trovata">
+                  <Link to="/">Torna alla Home</Link>
+                </Empty>
+              </main>
             }
           />
         </Routes>

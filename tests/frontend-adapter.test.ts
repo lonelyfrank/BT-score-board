@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../apps/api/src/server/app.js';
 import { readConfig } from '../apps/api/src/server/config.js';
 import { HttpAdapter } from '../apps/web/src/services/http.js';
+import { activeSession } from '../apps/web/src/services/session.js';
 
 let app: FastifyInstance;
 let adapter: HttpAdapter;
@@ -138,4 +139,24 @@ it('sends only the darts the server does not hold after a lost response', async 
   const recovered = await adapter.submitTurn(await adapter.match(m.id), [20, 20, 20]);
   expect(recovered.scores.filter((s) => !s.voided).map((s) => s.dartIndex)).toEqual([1, 2, 3]);
   expect(recovered.turns.filter((t) => t.status === 'completed')).toHaveLength(1);
+});
+it('resumes the running tournament even when it is beyond the first page of the archive', async () => {
+  const m = await setup();
+  expect((await activeSession(adapter))?.tournament.id).toBe(m.tournamentId);
+  for (let i = 0; i < 100; i++)
+    await adapter.createTournament({ name: `Bozza ${i + 1}`, mode: 'QUICK_HIGH_SCORE' });
+  const first = await adapter.tournaments();
+  expect(first.total).toBe(101);
+  expect(first.items.some((t) => t.id === m.tournamentId)).toBe(false);
+  expect((await activeSession(adapter))?.tournament.id).toBe(m.tournamentId);
+  expect(calls.some((c) => c.path.includes('status=active'))).toBe(true);
+});
+it('sends commands from an insecure LAN origin, where crypto.randomUUID is missing', async () => {
+  const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+  vi.stubGlobal('crypto', { getRandomValues });
+  const m = await adapter.submitTurn(await setup(), 60);
+  expect(m.scores.filter((s) => !s.voided)).toHaveLength(1);
+  const keys = calls.filter((c) => c.key).map((c) => c.key);
+  expect(keys.length).toBeGreaterThan(0);
+  for (const key of keys) expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab]/);
 });

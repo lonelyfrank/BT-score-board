@@ -14,6 +14,7 @@ export * from './competition/entries.js';
 export * from './competition/heats.js';
 export * from './competition/rotation.js';
 export * from './scoring/rounds.js';
+export * from './scoring/darts.js';
 export * from './progression/levels.js';
 export * from './progression/records.js';
 export * from './progression/profile.js';

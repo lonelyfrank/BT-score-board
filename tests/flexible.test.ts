@@ -325,6 +325,7 @@ describe('Heats', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
+      { config: { heatStrategy: 'balanced' } },
     );
     const q = t.matches[0]!;
     expect(sizes(q.heats.map((h) => h.entryIds))).toEqual([3, 3, 3]);
@@ -659,17 +660,9 @@ describe('Progressive scoring', () => {
     );
     const m = t.matches[0]!.id;
     const [a, b] = t.entries.map((x) => x.id);
-    expect(
-      code(() =>
-        run(
-          backend,
-          t,
-          'RecordResult',
-          { winnerEntryId: a },
-          m,
-        ),
-      ),
-    ).toBe('ROUNDS_MISSING');
+    expect(code(() => run(backend, t, 'RecordResult', { winnerEntryId: a }, m))).toBe(
+      'ROUNDS_MISSING',
+    );
     t = round(backend, t, m, a!, 1, 10);
     t = round(backend, t, m, a!, 2, null, { bust: true });
     t = round(backend, t, m, b!, 1, 0);
@@ -680,13 +673,7 @@ describe('Progressive scoring', () => {
       complete: true,
       computed: 291,
     });
-    t = run(
-      backend,
-      t,
-      'RecordResult',
-      { scores: { [a!]: 291, [b!]: 301 }, winnerEntryId: a },
-      m,
-    );
+    t = run(backend, t, 'RecordResult', { scores: { [a!]: 291, [b!]: 301 }, winnerEntryId: a }, m);
     expect(matchById(t, m).winnerEntryId).toBe(a);
   });
   it('keeps the last remaining X01 total when a bust is recorded in remaining-score mode', () => {
@@ -812,7 +799,7 @@ describe('Competitions', () => {
     let t = tournament(
       backend,
       p.map((id) => [id]),
-      { config: { qualifiers: 2 } },
+      { config: { qualifiers: 2, heatStrategy: 'balanced' } },
     );
     const q = t.matches[0]!.id;
     const [h1, h2] = matchById(t, q).heats;

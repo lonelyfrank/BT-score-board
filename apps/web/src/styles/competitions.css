@@ -1,0 +1,359 @@
+/* Tornei e Hi-Score Nights: elenchi, pagina del torneo, gironi, tabellone, finale. */
+
+main.lists {
+  padding-top: 0;
+  gap: 14px;
+}
+main.lists > .list {
+  gap: 8px;
+}
+main.lists .stat3 {
+  margin-top: 2px;
+}
+main.tournament {
+  padding-top: 4px;
+}
+.toolbar:has(> .toptabs) + main {
+  padding-top: 4px;
+}
+.tcard .pips {
+  flex: none;
+  margin-top: 2px;
+}
+.progress-card {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.progress-card .pips {
+  flex: none;
+}
+
+/* Al bersaglio */
+.now.board {
+  gap: 10px;
+}
+.now.board.ready {
+  border-color: var(--bt-border-default);
+  background: var(--bt-surface-sunken);
+  box-shadow: none;
+}
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.board-head .field-l {
+  color: var(--bt-accent-soft);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.now.board.ready .board-head .field-l {
+  color: var(--bt-text-secondary);
+}
+.vs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.vs > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.vs > span:last-child {
+  justify-content: flex-end;
+  text-align: right;
+}
+.vs .nm {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vs b {
+  font: 22px var(--bt-font-score);
+}
+.vs i {
+  font-style: normal;
+  text-align: center;
+  font: 16px var(--bt-font-score);
+  color: var(--bt-text-secondary);
+}
+.board-players {
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+/* Fasi del torneo */
+.tl {
+  display: grid;
+  gap: 6px;
+}
+.tl li {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-card);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tl b {
+  font: 500 16px var(--bt-font-display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl small {
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--bt-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tl .done {
+  border-color: rgba(0, 185, 135, 0.45);
+}
+.tl .done small {
+  color: var(--bt-success-bright);
+}
+.tl .on {
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+}
+.tl .on small {
+  color: var(--bt-accent-soft);
+}
+
+/* Classifica del girone */
+.gt-card {
+  padding: 0 10px;
+  overflow-x: auto;
+}
+.gt {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.gt th {
+  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-align: center;
+  color: var(--bt-text-secondary);
+}
+.gt th:nth-child(1) {
+  width: 22px;
+}
+.gt th:nth-child(2) {
+  text-align: left;
+}
+.gt td {
+  height: 44px;
+  padding: 0 2px;
+  border-top: 1px solid var(--bt-divider);
+  text-align: center;
+  font-size: 16px;
+  color: var(--bt-text-muted);
+}
+.gt td:nth-child(2) {
+  text-align: left;
+  font-weight: 600;
+  color: var(--bt-text-primary);
+}
+.gt td:last-child {
+  font: 19px var(--bt-font-score);
+  color: var(--bt-text-primary);
+}
+.gt tr.q td:first-child {
+  box-shadow: inset 3px 0 0 var(--bt-success);
+}
+.gt .tag {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--bt-warning);
+}
+.gt .tag.ok {
+  color: var(--bt-success-bright);
+}
+.gt.plain th:nth-child(1),
+.gt.plain td:nth-child(1) {
+  width: auto;
+  text-align: left;
+  font-weight: 600;
+  color: var(--bt-text-primary);
+}
+.gt.plain th:nth-child(2),
+.gt.plain td:nth-child(2) {
+  text-align: center;
+  font-weight: 400;
+  color: var(--bt-text-muted);
+}
+.gt-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--bt-text-secondary);
+}
+.gt-legend i {
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--bt-success);
+}
+
+/* Incontri */
+.mrow.match {
+  min-height: 54px;
+}
+.mrow.match.live {
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+}
+.match-vs {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.match-vs small {
+  flex: none;
+  font: 13px var(--bt-font-score);
+  color: var(--bt-text-secondary);
+}
+.match-vs b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--bt-text-secondary);
+}
+.match-vs b.win {
+  color: var(--bt-text-primary);
+}
+.match-vs b.lose {
+  color: var(--bt-text-disabled);
+}
+.match-vs .vs-mid {
+  flex: none;
+  font-size: 15px;
+  color: var(--bt-text-secondary);
+}
+.mrow.match .mini {
+  justify-self: end;
+}
+.mrow.match:has(.mini) {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+/* Tabellone */
+.bracket {
+  margin: 0 calc(-1 * var(--shell-gutter));
+  padding: 0 var(--shell-gutter) 4px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(200px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bracket::-webkit-scrollbar {
+  display: none;
+}
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 8px;
+}
+.bracket-match {
+  padding: 10px 12px;
+  border: 1px solid var(--bt-border-section);
+  border-radius: var(--bt-radius-lg);
+  background: var(--bt-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bracket-match.open {
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+}
+.bracket-match.final {
+  border-color: var(--bt-warning);
+}
+.bracket-match.planned {
+  border-style: dashed;
+  background: transparent;
+}
+.bm-row {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: var(--bt-text-muted);
+}
+.bm-row > span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bm-row small {
+  font: 12px var(--bt-font-score);
+  color: var(--bt-text-secondary);
+}
+.bm-row b {
+  font: 18px var(--bt-font-score);
+}
+.bm-row.win {
+  color: var(--bt-text-primary);
+  font-weight: 600;
+}
+
+/* Finalisti */
+.rk.seeded {
+  grid-template-columns: 46px 36px minmax(0, 1fr) auto;
+}
+.rk .seed {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--bt-accent-soft);
+}
+.rk > strong.muted {
+  font-size: 20px;
+  color: var(--bt-text-secondary);
+}
+.check-row.pick {
+  padding: 0 12px;
+}
+.check-row.pick span {
+  flex: 1;
+}
+.check-row.pick strong {
+  font: 20px var(--bt-font-score);
+}
+.form-reason.muted {
+  color: var(--bt-text-secondary);
+}

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { registerSW } from 'virtual:pwa-register';
 
 interface PwaState {
@@ -7,8 +7,10 @@ interface PwaState {
   offlineReady: boolean;
   /** A new version is installed and waits; it is applied only when the user asks. */
   updateAvailable: boolean;
+  /** Operations in progress that a reload would interrupt (an import, an export). */
+  holds: number;
 }
-let state: PwaState = { supported: false, offlineReady: false, updateAvailable: false };
+let state: PwaState = { supported: false, offlineReady: false, updateAvailable: false, holds: 0 };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<PwaState>) => {
   state = { ...state, ...patch };
@@ -43,7 +45,23 @@ export function usePwa() {
     },
     () => state,
   );
-  return { ...current, applyUpdate: () => void applyUpdate(true) };
+  return {
+    ...current,
+    /** True when the update can be applied now without interrupting anything. */
+    canApply: current.updateAvailable && current.holds === 0,
+    applyUpdate: () => {
+      if (state.holds === 0) void applyUpdate(true);
+    },
+  };
+}
+
+/** Keeps a waiting version from being applied while `active` (e.g. a backup being imported). */
+export function useUpdateHold(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    set({ holds: state.holds + 1 });
+    return () => set({ holds: state.holds - 1 });
+  }, [active]);
 }
 
 /** Screens where a reload would interrupt the organizer: live scoring and setup forms. */

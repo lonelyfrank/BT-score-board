@@ -80,7 +80,7 @@ export function TeamBuilder({
 
   return (
     <div className="team-builder">
-      <div className="options padded stack">
+      <div className="card">
         <Stepper
           label="Giocatori per squadra"
           hint="Le squadre possono restare disomogenee"
@@ -89,10 +89,11 @@ export function TeamBuilder({
           min={1}
           max={MAX_TEAM_MEMBERS}
         />
-        <div className="stack-row">
+        <div className="stepper-row stack">
           <span>Composizione</span>
           <Segmented
             label="Strategia di composizione"
+            small
             value={strategy}
             change={setStrategy}
             options={[
@@ -102,7 +103,7 @@ export function TeamBuilder({
             ]}
           />
         </div>
-        <div className="team-actions">
+        <div className="team-actions stepper-row">
           <button type="button" disabled={disabled || !ids.length} onClick={generate}>
             Genera squadre
           </button>
@@ -128,7 +129,7 @@ export function TeamBuilder({
         {teams.map((team, index) => (
           <li key={team.key} className={team.locked ? 'locked' : ''}>
             <div className="team-head">
-              <span className="seed">{index + 1}</span>
+              <span className="pos">{index + 1}</span>
               {team.playerIds.length > 1 ? (
                 <input
                   aria-label={`Nome della squadra ${index + 1}`}
@@ -204,9 +205,8 @@ export function TeamBuilder({
         ))}
       </ol>
       {picked && (
-        <button type="button" className="dashed" onClick={() => moveHere(null)}>
-          <UserPlus size={16} aria-hidden="true" className="accent-icon" /> {name(picked)} gioca da
-          singolo
+        <button type="button" className="btn dashed" onClick={() => moveHere(null)}>
+          <UserPlus aria-hidden="true" /> {name(picked)} gioca da singolo
         </button>
       )}
       {check.errors.length > 0 && (

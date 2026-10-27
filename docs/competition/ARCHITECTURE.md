@@ -51,7 +51,7 @@ Semantica per gioco (`trackingSpec`): Hi-Score, Exacta e Shanghai punti per roun
 
 ### Rotation Manager
 
-`match.rotations`: ordine dei membri, posizione del tiratore previsto, pausa, cronologia per l'annullamento. Comando `RotateTeam` (`advance`, `undo`, `pause`, `resume`, `reorder`). Avanzare non registra mai un punteggio; `RecordRound` con `advanceRotation` attribuisce il round al tiratore previsto e passa al successivo. In pausa (modalità libera) nessun tiratore viene assunto. La rotazione fra manche è derivata da `heatOverview` (al bersaglio, prossima, giocate, in attesa).
+`match.rotations`: ordine dei membri, posizione del tiratore previsto, pausa, cronologia per l'annullamento. Comando `RotateTeam` (`advance`, `undo`, `pause`, `resume`, `reorder`). Avanzare non registra mai un punteggio; `RecordRound` con `advanceRotation` attribuisce il round al tiratore previsto e passa al successivo. Solo la **prima osservazione** di un round fa avanzare la rotazione: una correzione, o un round annullato e reinserito, eredita il tiratore dell'osservazione precedente e non muove la rotazione (V1.2; prima la correzione veniva attribuita al tiratore successivo). In pausa (modalità libera) nessun tiratore viene assunto. Nell'interfaccia i comandi di rotazione ignorano un secondo tocco prima che il primo sia salvato. La rotazione fra manche è derivata da `heatOverview` (al bersaglio, prossima, giocate, in attesa).
 
 ## Persistenza e migrazioni
 

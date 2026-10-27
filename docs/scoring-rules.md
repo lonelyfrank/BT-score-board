@@ -38,3 +38,17 @@ Le statistiche non sono salvate: si ricalcolano dai risultati, quindi seguono su
 ## Inserimento turno per turno (dati esistenti)
 
 I tornei creati prima dei risultati finali (`recording: 'turns'`) restano Hi-Score con inserimento per turno o per freccetta (`RecordScore`, `CompleteTurn`, `CorrectScore`, `VoidScore`, `CloseQualificationEarly`) e la loro schermata, finché non si concludono. I nuovi tornei usano sempre `recording: 'result'`. Il motore a turni non è più raggiungibile da un torneo nuovo; la sua rimozione è una decisione aperta (vedi report).
+
+## Turni guidati e freccette (V1.3)
+
+Con i round tracciati la partita si segue turno per turno (`matches/turn-manager.ts`): il
+coordinatore ricava dai round chi è al bersaglio, il round e il prossimo tiratore; le sole
+scelte manuali (turno scelto, turni annullati da riproporre, pausa) stanno in `match.guide`.
+
+Le freccette di un turno sono facoltative (`scoring/darts.ts`). `miss` è un tiro fuori (zero),
+`unobserved` una freccetta non vista (mai zero: il totale si legge sul totem); le freccette non
+usate perché il turno è finito prima non si registrano. Regole applicate alle sole freccette
+osservate: somma (Hi-Score, Exacta); solo il numero del round e Shanghai con singolo, doppio e
+triplo (Shanghai); residuo con bust e chiusura (X01), apertura e chiusura con doppio (Double
+In/Out), chiusura con doppio, triplo o bull 50 (Masters). Con un round precedente mancante il
+residuo è sconosciuto e nulla viene dedotto. Dettagli: `docs/release/V1_3_GUIDED_SCORING.md`.

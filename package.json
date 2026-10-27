@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit && npm run typecheck --prefix apps/web",
     "test": "vitest run",
     "check": "npm run typecheck && vitest run && npm run build",
+    "check:release": "npm run format:check && npm run check && npm run smoke && npm run test:e2e",
     "test:e2e": "npm run test:e2e --prefix apps/web",
     "db:migrate": "tsx packages/database/src/migrate.ts",
     "db:backup": "tsx packages/database/src/backup.ts",

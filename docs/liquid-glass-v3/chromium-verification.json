@@ -1,0 +1,34 @@
+{
+  "engine": "chromium",
+  "version": "156.0.8078.4",
+  "checks": [
+    "layout 320x568",
+    "layout 390x844",
+    "layout 844x390",
+    "layout 1440x900",
+    "five routes",
+    "touch input focus hides navigation and closing restores it",
+    "laboratory synchronized selection, light backdrop, opaque fallback, reduced motion",
+    "unsupported backdrop-filter keeps opaque base"
+  ],
+  "performance": {
+    "frosted": {
+      "frames": 119,
+      "medianMs": 16.7,
+      "p95Ms": 16.8,
+      "over32ms": 0
+    },
+    "optical": {
+      "frames": 119,
+      "medianMs": 16.7,
+      "p95Ms": 16.7,
+      "over32ms": 0
+    },
+    "native": {
+      "frames": 119,
+      "medianMs": 16.7,
+      "p95Ms": 16.7,
+      "over32ms": 0
+    }
+  }
+}

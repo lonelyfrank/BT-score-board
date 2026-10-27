@@ -1,0 +1,4 @@
+Comando: npm run smoke
+Exit code: 0
+Eseguito fuori dal sandbox dopo autorizzazione per l'apertura di una porta localhost.
+HTTP smoke passed: compiled build, authentication, create, restart and recovery.

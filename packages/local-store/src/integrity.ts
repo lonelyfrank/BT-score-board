@@ -1,4 +1,11 @@
-import { DomainError, gameModes, type Tournament } from '../../domain/src/index.js';
+import {
+  DomainError,
+  assertDarts,
+  gameModes,
+  validSlotPositions,
+  heatCapacity,
+  type Tournament,
+} from '../../domain/src/index.js';
 
 // Mirrors the SQLite constraints (0001.ts): the domain already enforces these rules, the
 // local store re-checks them so a defect can never be persisted silently on the device.
@@ -91,6 +98,7 @@ export function assertTournamentIntegrity(
       if (h.matchId !== m.id || heatIds.has(h.id) || h.number <= 0) fail('heat');
       if (!['pending', 'ready', 'active', 'completed', 'cancelled'].includes(h.status))
         fail('heat status');
+      if (!validSlotPositions(h, heatCapacity(t))) fail('heat slots');
       heatIds.add(h.id);
       for (const id of h.entryIds) {
         if (!participants.has(id)) fail('heat entry');
@@ -110,12 +118,28 @@ export function assertTournamentIntegrity(
       if (typeof r.bust !== 'boolean') fail('round bust');
       if (r.playerId !== null && !members.get(r.tournamentEntryId)?.includes(r.playerId))
         fail('round player');
+      if (r.darts)
+        try {
+          assertDarts(r.darts);
+        } catch {
+          fail('round darts');
+        }
       roundIds.add(r.id);
       if (r.status !== 'recorded' && r.status !== 'skipped') continue;
       const slot = `${r.tournamentEntryId}:${r.round}`;
       if (roundSlots.has(slot)) fail('duplicate round');
       roundSlots.add(slot);
     }
+    const guide = m.guide;
+    if (
+      guide &&
+      [guide.pick, ...guide.replay].some(
+        (slot) =>
+          slot !== null &&
+          (!participants.has(slot.entryId) || !Number.isInteger(slot.round) || slot.round <= 0),
+      )
+    )
+      fail('turn guide');
     for (const r of m.rotations) {
       const team = members.get(r.entryId);
       if (

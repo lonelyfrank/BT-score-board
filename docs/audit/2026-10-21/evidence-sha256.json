@@ -1,0 +1,17 @@
+{
+  "evidence/check.log": "479ed73395394c754efa842dc6a357c3b67acb0843dbbfd0144263244a9de5ab",
+  "evidence/e2e.txt": "d4d937d10bf1c67eb19c0b6eba5e5e5fb69b08664cc29de529a822833f85340b",
+  "evidence/format.log": "51d89b2b80c5c022eae42e7644d36b1e0b623adaf1a4a16ded3fccb4ed39bf53",
+  "evidence/pagination.json": "f75fe866445aa6c8ecb6d119c04d77b26d1a677c16debe808737744c385cfdfe",
+  "evidence/playwright-summary.json": "d6ce2b92e279671ec4817567e734f9585e141e3772d3a6e4c11527f7263e0d81",
+  "evidence/probes.json": "e66d55b905fd6ad07aa5e95e1716574270295e74a34293792f1a300e0313accb",
+  "evidence/screenshots/01-turno-attivo.png": "bc11815a66860db2a1364a0cad174df2aa74d0d7960412e14a7032d6264b8c97",
+  "evidence/screenshots/02-tre-freccette.png": "0a915fb9dd3214ac1a51324c1197d2d3d3b39c97223238299f461bd61f2f2b43",
+  "evidence/screenshots/03-prossimo-giocatore.png": "3b104d13e303ca5344a143ab0434e7a7fc07de86244aa2d2074fd6ca74019323",
+  "evidence/screenshots/04-round-completato.png": "f13bfcb8c739f055734b49e56df2d385169efdf50c91f57bc7a4929c50444916",
+  "evidence/screenshots/05-matrice-round.png": "05473e88bb4ef241c59b448b1838d981ce55926272601da22cdaa44d17ada696",
+  "evidence/screenshots/06-risultato-finale.png": "d3c06fa2039f96384fa0bff074379f7d6b7443532422dc7e2cc93456406c2ca0",
+  "evidence/screenshots/shared-01-home.png": "da7a9fd8805f72ad3fe65782be73bb937bdfc2061008501d89a08be8b6f96ecd",
+  "evidence/screenshots/shared-06-live-landscape.png": "2567469880f5707fa66e6ce9d177e67459a362d8b7f7bbc9cac3780332cafd3b",
+  "evidence/smoke.txt": "f7723cf7451ef6f1ba415532e0b08f0e942d998ba57a88e3fd8331bf1b9b5c96"
+}

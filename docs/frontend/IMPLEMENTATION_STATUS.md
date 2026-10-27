@@ -1,6 +1,20 @@
-# Stato integrazione frontend — 19 ottobre 2026
+# Stato integrazione frontend — aggiornato alla V1.2 (20 ottobre 2026)
 
-Il frontend usa il motore reale (locale o server); nessun risultato simulato. Dalla Fase 2 l'app registra i risultati finali degli otto giochi del totem Pub Time Darts; non conta dardi né turni.
+> **V1.4 Mobile-first (21 ottobre 2026):** l'interfaccia segue il canvas «BT Darts V1.4 · Mobile-first» (una schermata, un'attività; wizard del torneo a 5 passi, Nuova partita in 2 passi, Regole del totem). Dettagli, scelte e verifiche: [report V1.4](../release/V1_4_MOBILE_FIRST.md). Le descrizioni delle schermate più sotto restano lo storico delle versioni precedenti.
+
+Il frontend usa il motore reale (locale o server); nessun risultato simulato. Dalla Fase 2 l'app registra i risultati finali degli otto giochi del totem Pub Time Darts; non conta dardi né turni. Le sezioni datate più sotto sono lo storico delle fasi precedenti: dove contraddicono questa, vale questa.
+
+## Stato V1.2 — Operational Readiness
+
+| Categoria                         | Contenuto                                                                                                                                                                                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Implementato                      | Otto giochi del totem, partita singola, Hi-Score rapido, gironi ed eliminazione; singoli e squadre disomogenee; manche multiple; tracciamento `FINAL_ONLY` / `ROUND_BY_ROUND` / `FLEXIBLE` con riconciliazione; rotazione dei tiratori; backup/ripristino; PWA |
+| Limitato di proposito             | Nessun collegamento al totem né lettura automatica; classifiche solo sui risultati ufficiali; confronto fra manche solo per Hi-Score e Shanghai; Odd & Even a 2 giocatori; un bersaglio alla volta per torneo; nessuna sincronizzazione fra dispositivi        |
+| Verificato da test automatici     | Vedi [report V1.2](../release/V1_2_OPERATIONAL_READINESS.md#test-e-risultati): Vitest su dominio, IndexedDB, backup e flusso risultati; Playwright standalone, shared, PWA e layout su sei viewport (emulazione Chromium)                                      |
+| Da verificare su smartphone reale | Installazione, tastiera virtuale, safe-area, Safari iOS, Chrome Android, aggiornamento durante una serata: [checklist](../standalone/MOBILE_CHECKLIST.md)                                                                                                      |
+| Previsto per versioni future      | Display spettatore, modalità shared multi-dispositivo, rating per la composizione bilanciata dalle statistiche, composizione a squadre dal pannello iscrizioni di una bozza, audit axe/Lighthouse automatici                                                   |
+
+Novità V1.2 nella registrazione dei risultati: a manche completata nessun giocatore già registrato viene selezionato da solo (una correzione parte da un tocco esplicito); la bozza digitata sopravvive al reload solo con il partecipante per cui è stata scritta; dialog accessibile per chiudere una manche incompleta; conferma «Salvato: nome valore»; quattro posti visibili anche a 320 px; barra nascosta con la tastiera virtuale; aggiornamento PWA trattenuto durante un backup.
 
 Il frontend segue il design **v2 · Backend reale** (canvas BT Darts Score Board, 9 artboard).
 
@@ -21,7 +35,7 @@ Il frontend segue il design **v2 · Backend reale** (canvas BT Darts Score Board
 - Hi-Score accumula punti; non visualizza un residuo 301 fittizio.
 - Quick High Score richiede almeno due giocatori; una partita rapida crea una qualifica con tutti i partecipanti ammessi alla finale. Il risultato dell'incontro non è automaticamente il risultato ufficiale del torneo.
 - Il backend Quick prevede una finale unica, non semifinali 1-vs-4/2-vs-3. Il torneo a gironi supporta invece eliminazione diretta e semifinali.
-- L'API non espone catalogo modalità: la griglia dichiara la sola capacità disponibile HIGH_SCORE. Le altre etichette restano riferimenti visivi non avviabili.
+- (Storico, superato dalla Fase 2) L'API non esponeva il catalogo modalità e la griglia offriva solo HIGH_SCORE: oggi gli otto giochi del totem sono tutti avviabili.
 - Il backend restituisce `scoreboard` nella lettura della partita: media, totale, best e turni vengono calcolati nel dominio esistente.
 - Le regole non sono copiate nel frontend: anteprima dei gironi e accoppiamenti del tabellone usano `distributeGroups` e `seededBracket` del dominio; parità, ordine e qualificati arrivano dalle classifiche del backend.
 - L'annullamento rimuove l'intero ultimo turno (anche se inserito per freccetta); le freccette non ancora confermate si tolgono senza motivo.
@@ -30,7 +44,7 @@ Il frontend segue il design **v2 · Backend reale** (canvas BT Darts Score Board
 
 ## Limiti ancora presenti
 
-- Squadre e set/leg non previsti; nessun conteggio di dardi o turni per i nuovi tornei (lo fa il totem).
+- Set/leg non previsti; nessun conteggio di dardi o turni per i nuovi tornei (lo fa il totem). Le squadre esistono dalla V1.1.
 - Display spettatore dedicato non implementato. PWA, offline e persistenza locale sono disponibili dalla Fase 1 standalone (vedi sotto).
 - Nessun endpoint di restart-leg: non viene esposto un reset fittizio. Annullamento reale tramite VoidScore; fasi finalizzate richiedono la procedura amministrativa di riapertura, non disponibile in questa UI.
 - Nessun MockAdapter in produzione: i test usano API vere e SQLite in memoria; il seed esistente rimane disponibile per demo separate.

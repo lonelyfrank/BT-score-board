@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
-import { ChartNoAxesColumnIncreasing, ChevronUp, Info, Plus, X } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, ChevronUp, Info, Play, Plus, X } from 'lucide-react';
 import { api, ApiError, nickname, type Player, type Tournament } from '../services/api';
 import {
   HI_SCORE_ROUNDS,
   checkComposition,
   comparableAcrossHeats,
   freeMatchLimits,
-  gameModes,
   games,
   heatSizes,
   sideOf,
@@ -19,20 +18,39 @@ import {
   type TeamDraft,
   type Tracking,
 } from '../services/rules';
-import { Avatar, ErrorMessage, Header, Modal, Segmented } from '../components/ui';
-import { DartIcon } from '../components/BrandIcons';
-import { AddPlayerSheet } from '../components/PlayerSheets';
+import { Avatar, ErrorMessage, Header, Segmented } from '../components/ui';
+import { AddPlayerSheet, NewPlayerSheet } from '../components/PlayerSheets';
 import { TeamBuilder } from '../components/TeamBuilder';
 
 type Unit = { key: string; label: string; playerIds: string[]; name: string | null };
 
+/** The eight games as the organizer picks them: Hi-Score first, then the X01 family. */
+export const gameChoices: [GameMode, string][] = [
+  ['HI_SCORE', '7 round · totale più alto'],
+  ['301', 'chiusura esatta'],
+  ['501', 'chiusura esatta'],
+  ['301_DOUBLE_IN_OUT', 'apri e chiudi in doppio'],
+  ['301_MASTERS', 'chiudi con D, T o centro'],
+  ['EXACTA', 'obiettivo 250–350'],
+  ['ODD_EVEN', 'dispari contro pari · in 2'],
+  ['SHANGHAI', 'numeri in sequenza'],
+];
+export const shortDate = (d = new Date()) =>
+  d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+
 /**
- * A free match of any totem game. Round-by-round recording is the default; final-only remains
- * available in the advanced options.
+ * A free match of any totem game, in two steps: the game (with how it is recorded), then who
+ * goes to the totem in throwing order. Round-by-round recording is the default.
  */
 export function Setup() {
-  const [mode, setMode] = useState<GameMode>('HI_SCORE');
-  const [name, setName] = useState('Partita libera');
+  const [params, setParams] = useSearchParams();
+  const step = params.get('passo') === 'giocatori' ? 2 : 1;
+  const [mode, setMode] = useState<GameMode>(
+    () => gameChoices.find(([id]) => id === params.get('gioco'))?.[0] ?? 'HI_SCORE',
+  );
+  const [heatStrategy, setHeatStrategy] = useState<'sequential' | 'balanced' | 'custom'>(
+    'sequential',
+  );
   const [selected, setSelected] = useState<Player[]>([]);
   const [teamMode, setTeamMode] = useState(false);
   const [teams, setTeams] = useState<TeamDraft[]>([]);
@@ -40,11 +58,16 @@ export function Setup() {
   const [tracking, setTracking] = useState<Tracking>('ROUND_BY_ROUND');
   const [x01Entry, setX01Entry] = useState<'REMAINING' | 'SCORED'>('SCORED');
   const [picker, setPicker] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Tournament>();
   const navigate = useNavigate();
   const game = games[mode];
   const { min, max, seats } = freeMatchLimits(mode);
+  const roster = useQuery({
+    queryKey: ['players', '', 0, 'active'],
+    queryFn: () => api.players('', 0, 'active'),
+    enabled: step === 2,
+  });
   const byName = (id: string) => selected.find((p) => p.id === id)?.displayName ?? '?';
   // New players join as singles, removed ones leave their team.
   useEffect(() => {
@@ -71,11 +94,13 @@ export function Setup() {
       )
     : null;
   const uneven = !!check?.warnings.includes('UNEVEN_TEAMS');
-  const heats = units.length > seats ? heatSizes(units.length, seats) : [];
+  const heats =
+    units.length > seats
+      ? heatSizes(units.length, seats, heatStrategy === 'custom' ? 'sequential' : heatStrategy)
+      : [];
   const unitWord = teamMode ? 'squadre' : 'giocatori';
-  const reason = !name.trim()
-    ? 'Inserisci un nome per la partita.'
-    : units.length < min
+  const reason =
+    units.length < min
       ? min === 1
         ? `Aggiungi almeno ${teamMode ? 'una squadra' : 'un giocatore'}.`
         : `Servono almeno ${min} ${unitWord}.`
@@ -91,12 +116,16 @@ export function Setup() {
       let t = draft
         ? await api.tournament(draft.id)
         : await api.createTournament({
-            name: name.trim(),
+            name: `${game.label} · ${shortDate()}`,
             mode: 'SINGLE_MATCH',
             gameMode: mode,
             tracking,
             scoringConfiguration: { kind: 'HIGH_SCORE', turns: HI_SCORE_ROUNDS },
-            tournamentConfiguration: { playingOrder: 'registration', x01Entry },
+            tournamentConfiguration: {
+              playingOrder: 'registration',
+              x01Entry,
+              heatStrategy: heatStrategy === 'custom' ? 'sequential' : heatStrategy,
+            },
           });
       setDraft(t);
       // One command composes every unit: all registered, or none.
@@ -106,9 +135,10 @@ export function Setup() {
         });
       if (['draft', 'registration', 'ready'].includes(t.status))
         t = await api.tournamentCommand(t, 'start');
-      navigate(`/partite/${t.matches[0]!.id}`);
+      navigate(`/partite/${t.matches[0]!.id}${heatStrategy === 'custom' ? '?organize=1' : ''}`, {
+        replace: true,
+      });
     },
-    onSettled: () => setConfirm(false),
   });
   const move = (index: number) => {
     const next = [...selected];
@@ -117,108 +147,114 @@ export function Setup() {
   };
   const locked = !!draft || create.isPending;
   const unlimited = comparableAcrossHeats(mode) || teamMode;
+  const canAdd = (unlimited || selected.length < max) && !locked;
+  const toStep = (n: 1 | 2) =>
+    setParams(n === 2 ? { passo: 'giocatori', gioco: mode } : { gioco: mode });
+  const pool = (roster.data?.items ?? []).filter((p) => !selected.some((x) => x.id === p.id));
+
+  if (step === 1)
+    return (
+      <>
+        <Header title="Nuova partita" subtitle="Passo 1 di 2 · Gioco" back={null} />
+        <div className="toolbar">
+          <div className="wz-prog two" aria-hidden="true">
+            <i className="on" />
+            <i />
+          </div>
+        </div>
+        <main className="setup">
+          <h2 className="wz-title">A cosa giocate?</h2>
+          <div className="gamegrid" role="radiogroup" aria-label="Gioco del totem">
+            {gameChoices.map(([id, sub]) => (
+              <button
+                type="button"
+                key={id}
+                role="radio"
+                aria-checked={mode === id}
+                onClick={() => setMode(id)}
+              >
+                <b>{games[id].label}</b>
+                <small>{sub}</small>
+              </button>
+            ))}
+          </div>
+          <p className="note">
+            <Info aria-hidden="true" />
+            <span>
+              {game.rules} <Link to={`/regole?tab=giochi&gioco=${mode}`}>Regole del totem</Link>
+            </span>
+          </p>
+          <div className="setup-track">
+            <span className="field-l" id="tracking-label">
+              Registrazione
+            </span>
+            <Segmented
+              label="Registrazione"
+              small
+              value={tracking}
+              change={setTracking}
+              options={(['ROUND_BY_ROUND', 'FLEXIBLE', 'FINAL_ONLY'] as Tracking[]).map((id) => ({
+                id,
+                label: trackingLabels[id],
+              }))}
+            />
+            <p className="hint">{trackingHints[tracking]}</p>
+            {game.scoring === 'remaining' && tracking !== 'FINAL_ONLY' && (
+              <>
+                <span className="field-l">Valore di ogni turno</span>
+                <Segmented
+                  label="Valore di ogni turno"
+                  small
+                  value={x01Entry}
+                  change={setX01Entry}
+                  options={[
+                    { id: 'SCORED', label: 'Punti fatti' },
+                    { id: 'REMAINING', label: 'Punti rimasti' },
+                  ]}
+                />
+              </>
+            )}
+          </div>
+        </main>
+        <div className="actionbar">
+          <button type="button" className="btn cta" onClick={() => toStep(2)}>
+            Scegli i giocatori <ArrowRight aria-hidden="true" />
+          </button>
+        </div>
+      </>
+    );
+
   return (
     <>
-      <Header title="Nuova partita" />
-      <main className="content setup-page">
-        <span className="eyebrow">Gioco del totem</span>
-        <div className="mode-grid totem" role="radiogroup" aria-label="Modalità di gioco del totem">
-          {gameModes.map((id) => (
-            <button
-              type="button"
-              key={id}
-              role="radio"
-              aria-checked={mode === id}
-              className={mode === id ? 'selected' : ''}
-              disabled={locked}
-              onClick={() => setMode(id)}
-            >
-              <span>
-                {id === 'HI_SCORE' && <ChartNoAxesColumnIncreasing size={17} strokeWidth={3} />}
-                {games[id].label}
-              </span>
-              <small>
-                {comparableAcrossHeats(id)
-                  ? `${games[id].players.max} per manche`
-                  : games[id].players.min === games[id].players.max
-                    ? `${games[id].players.max} giocatori`
-                    : `${games[id].players.min}–${games[id].players.max} giocatori`}
-              </small>
-            </button>
-          ))}
+      <Header
+        title={`Nuova partita · ${game.label}`}
+        subtitle="Passo 2 di 2 · Giocatori"
+        back={`/partite/nuova?gioco=${mode}`}
+        backLabel="Torna al gioco"
+      />
+      <div className="toolbar">
+        <div className="wz-prog two" aria-hidden="true">
+          <i className="done" />
+          <i className="on" />
         </div>
-        <p className="note">
-          <Info aria-hidden="true" />
-          {game.rules} Il totem calcola i punti: qui si registra il risultato finale (e, se vuoi, i
-          round).
-        </p>
-        <div className="divider" />
-        <fieldset disabled={locked}>
-          <label className="field heading-field">
-            Nome partita
-            <input maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <section className="form-section" aria-labelledby="players-title">
-            <div className="section-head">
-              <h2 id="players-title">
-                Giocatori · {selected.length}
-                {!unlimited && ` (${min === max ? max : `${min}–${max}`})`}
-              </h2>
-              <span>Ordine = ordine di tiro</span>
-            </div>
-            <ol className="order-list">
-              {selected.map((p, i) => (
-                <li key={p.id}>
-                  <span className={`order ${i === 0 ? 'first' : ''}`}>{i + 1}</span>
-                  <Avatar name={p.displayName} className={i === 0 ? 'ring selected' : 'ring'} />
-                  <span className="order-name">
-                    <span>{p.displayName}</span>
-                    <small>
-                      {[
-                        i === 0 && !teamMode ? 'Tira per primo' : '',
-                        teamMode ? '' : (sideOf(mode, i + 1) ?? ''),
-                        nickname(p),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </small>
-                  </span>
-                  <button
-                    type="button"
-                    className="mini"
-                    aria-label={`Anticipa ${p.displayName}`}
-                    disabled={i === 0}
-                    onClick={() => move(i)}
-                  >
-                    <ChevronUp size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className="mini"
-                    aria-label={`Rimuovi ${p.displayName}`}
-                    onClick={() => setSelected(selected.filter((x) => x.id !== p.id))}
-                  >
-                    <X size={16} className="accent-soft" />
-                  </button>
-                </li>
-              ))}
-              {(unlimited || selected.length < max) && (
-                <li className="add-row">
-                  <button type="button" onClick={() => setPicker(true)}>
-                    <Plus aria-hidden="true" className="accent-icon" />
-                    Aggiungi giocatore
-                  </button>
-                </li>
-              )}
-            </ol>
-          </section>
-          <section className="form-section" aria-labelledby="units-title">
-            <div className="section-head">
-              <h2 id="units-title">Singoli o squadre</h2>
-              <span>{teamMode ? `${units.length} squadre` : 'Ognuno per sé'}</span>
-            </div>
+      </div>
+      <main className="setup">
+        <div className="wz-head">
+          <h2 className="wz-title">Chi sale al totem?</h2>
+          <p>
+            In ordine di tiro ·{' '}
+            {unlimited
+              ? `a manche da ${seats} posti`
+              : min === max
+                ? `${max} giocatori`
+                : `da ${min} a ${max} giocatori`}
+          </p>
+        </div>
+        <fieldset disabled={locked} className="setup-players">
+          {selected.length > 1 && (
             <Segmented
               label="Singoli o squadre"
+              small
               value={teamMode ? 'teams' : 'singles'}
               change={(v) => {
                 setTeamMode(v === 'teams');
@@ -237,145 +273,148 @@ export function Setup() {
                 { id: 'teams', label: 'Squadre' },
               ]}
             />
-            {teamMode && (
-              <>
-                <TeamBuilder
-                  players={selected}
-                  teams={teams}
-                  change={(next) => {
-                    setTeams(next);
-                    setUnevenOk(false);
-                  }}
-                  disabled={locked}
-                />
-                <p className="hint">
-                  Ogni squadra occupa un solo posto sul totem e tira a rotazione.
-                </p>
-                {uneven && (
-                  <label className="check-row">
-                    <input
-                      type="checkbox"
-                      checked={unevenOk}
-                      onChange={(e) => setUnevenOk(e.target.checked)}
-                    />
-                    Squadre disomogenee ({check!.sizes.join(' · ')} giocatori): confermo la
-                    composizione
-                  </label>
-                )}
-              </>
+          )}
+          <ol className="list" aria-label="Ordine di tiro">
+            {selected.map((p, i) => (
+              <li key={p.id} className="mv big">
+                <span className={`pos ${i === 0 ? 'first' : ''}`}>{i + 1}</span>
+                <Avatar name={p.displayName} avatar={p.avatar} size="md" />
+                <span className="nm">
+                  <b>{p.displayName}</b>
+                  {(i === 0 || sideOf(mode, i + 1) || nickname(p)) && !teamMode && (
+                    <small>
+                      {[i === 0 ? 'Tira per primo' : '', sideOf(mode, i + 1) ?? '', nickname(p)]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
+                  )}
+                </span>
+                <span className="acts">
+                  <button
+                    type="button"
+                    className="mini"
+                    aria-label={`Anticipa ${p.displayName}`}
+                    disabled={i === 0}
+                    onClick={() => move(i)}
+                  >
+                    <ChevronUp />
+                  </button>
+                  <button
+                    type="button"
+                    className="mini"
+                    aria-label={`Rimuovi ${p.displayName}`}
+                    onClick={() => setSelected(selected.filter((x) => x.id !== p.id))}
+                  >
+                    <X />
+                  </button>
+                </span>
+              </li>
+            ))}
+            {canAdd && (
+              <li>
+                <button
+                  type="button"
+                  className="slot-free"
+                  aria-label="Aggiungi giocatore"
+                  onClick={() => setPicker(true)}
+                >
+                  <Plus aria-hidden="true" /> Posto {selected.length + 1} libero
+                </button>
+              </li>
             )}
-          </section>
-          {heats.length > 0 && (
-            <section className="form-section" aria-labelledby="heats-title">
-              <h2 id="heats-title">Manche</h2>
-              <div className="options padded">
-                <div className="settings-row">
-                  <span>
-                    {heats.length} manche da {seats} posti
-                  </span>
-                  <strong>{heats.join(' · ')}</strong>
-                </div>
-              </div>
+          </ol>
+          {teamMode && (
+            <>
+              <TeamBuilder
+                players={selected}
+                teams={teams}
+                change={(next) => {
+                  setTeams(next);
+                  setUnevenOk(false);
+                }}
+                disabled={locked}
+              />
               <p className="hint">
-                Più {unitWord} dei posti del totem: si gioca a manche e conta una classifica unica
-                per punteggio. Le manche si possono rivedere dopo l’avvio, prima di giocarle.
+                Ogni squadra occupa un solo posto sul totem e tira a rotazione.
+              </p>
+              {uneven && (
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={unevenOk}
+                    onChange={(e) => setUnevenOk(e.target.checked)}
+                  />
+                  Squadre disomogenee ({check!.sizes.join(' · ')} giocatori): confermo la
+                  composizione
+                </label>
+              )}
+            </>
+          )}
+          {heats.length > 0 && (
+            <section className="card pad" aria-labelledby="heats-title">
+              <div className="sec-h">
+                <h3 id="heats-title">{heats.length} manche</h3>
+                <span>{heats.join(' + ')}</span>
+              </div>
+              <Segmented
+                label="Distribuzione nelle manche"
+                small
+                value={heatStrategy}
+                change={setHeatStrategy}
+                options={[
+                  { id: 'sequential', label: 'Riempi' },
+                  { id: 'balanced', label: 'Bilanciata' },
+                  { id: 'custom', label: 'Manuale' },
+                ]}
+              />
+              <p className="hint">
+                Più {unitWord} dei posti del totem: classifica unica per punteggio. Le manche si
+                rivedono dopo l’avvio, prima di giocarle.
               </p>
             </section>
           )}
-          <section className="form-section">
-            <h2>Regole {game.label}</h2>
-            <div className="options">
-              {game.startingScore !== null && (
-                <div className="settings-row">
-                  <span>Punteggio di partenza</span>
-                  <strong>{game.startingScore}</strong>
-                </div>
-              )}
-              {game.rounds !== null && (
-                <div className="settings-row">
-                  <span>{mode === 'SHANGHAI' ? 'Numeri' : 'Round'}</span>
-                  <strong>{mode === 'SHANGHAI' ? `1–${game.rounds}` : game.rounds}</strong>
-                </div>
-              )}
-              {game.target && (
-                <div className="settings-row">
-                  <span>Obiettivo casuale</span>
-                  <strong>
-                    {game.target.min}–{game.target.max}
-                  </strong>
-                </div>
-              )}
-              <div className="settings-row">
-                <span>Da registrare</span>
-                <strong className="accent-soft">
-                  {game.scoreRequired || heats.length ? 'Punteggio finale' : 'Vincitore'}
-                </strong>
+          {canAdd && (
+            <section className="setup-add" aria-labelledby="add-title">
+              <div className="sec-h">
+                <span className="field-l" id="add-title">
+                  Aggiungi
+                </span>
+                <button type="button" className="text-link" onClick={() => setPicker(true)}>
+                  Tutti
+                </button>
               </div>
-            </div>
-            <p className="hint">
-              {game.scoreRequired || heats.length
-                ? 'Alla fine si inserisce il totale di ogni partecipante mostrato dal totem.'
-                : `Alla fine si tocca il vincitore; ${game.scoreLabel.toLowerCase()} facoltativi.`}
-            </p>
-          </section>
-          <details className="advanced">
-            <summary>Opzioni avanzate · {trackingLabels[tracking]}</summary>
-            <div className="options padded stack">
-              <div className="stack-row">
-                <span>Registrazione</span>
-                <Segmented
-                  label="Registrazione"
-                  value={tracking}
-                  change={setTracking}
-                  options={(Object.keys(trackingLabels) as Tracking[]).map((id) => ({
-                    id,
-                    label: trackingLabels[id],
-                  }))}
-                />
+              <div className="chips">
+                {pool.slice(0, 7).map((p) => (
+                  <button
+                    type="button"
+                    className="chip"
+                    key={p.id}
+                    aria-label={`Aggiungi ${p.displayName}`}
+                    onClick={() => setSelected((current) => [...current, p])}
+                  >
+                    <Avatar name={p.displayName} avatar={p.avatar} size="xs" />
+                    {p.displayName}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="chip dashed"
+                  aria-label="Nuovo giocatore"
+                  onClick={() => setCreating(true)}
+                >
+                  <Plus aria-hidden="true" />
+                  Nuovo
+                </button>
               </div>
-              <p className="hint">{trackingHints[tracking]}</p>
-              {game.scoring === 'remaining' && tracking !== 'FINAL_ONLY' && (
-                <div className="stack-row">
-                  <span>Valore di ogni turno</span>
-                  <Segmented
-                    label="Valore di ogni turno"
-                    value={x01Entry}
-                    change={setX01Entry}
-                    options={[
-                      { id: 'REMAINING', label: 'Punti rimasti' },
-                      { id: 'SCORED', label: 'Punti fatti' },
-                    ]}
-                  />
-                </div>
-              )}
-            </div>
-          </details>
+            </section>
+          )}
         </fieldset>
         <ErrorMessage error={create.error} />
         {create.error && draft && (
-          <p>
+          <p className="hint">
             <Link to="/tornei">Controlla la partita salvata</Link> prima di crearne una nuova.
           </p>
         )}
-        <div className="cta-block">
-          <button
-            className="primary cta"
-            disabled={
-              !!reason ||
-              create.isPending ||
-              (!draft && create.error instanceof ApiError && create.error.uncertain)
-            }
-            onClick={() => setConfirm(true)}
-          >
-            <DartIcon className="cta-icon" strokeWidth={2} fill="none" />
-            {create.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'INIZIA PARTITA'}
-          </button>
-          {reason && (
-            <p className="form-reason" role="status">
-              {reason}
-            </p>
-          )}
-        </div>
         {picker && (
           <AddPlayerSheet
             excluded={selected.map((p) => p.id)}
@@ -384,38 +423,42 @@ export function Setup() {
             close={() => setPicker(false)}
           />
         )}
-        {confirm && (
-          <Modal
-            variant="dialog"
-            title={<span className="marker">Pronti al bersaglio?</span>}
-            close={() => !create.isPending && setConfirm(false)}
-          >
-            <p>
-              {name.trim()} · {game.label}
-              {heats.length > 0 && ` · ${heats.length} manche`}
-            </p>
-            <ol className="confirm-order">
-              {units.slice(0, 12).map((u, i) => (
-                <li key={u.key}>
-                  <span>{i + 1}</span>
-                  {u.label}
-                </li>
-              ))}
-              {units.length > 12 && <li>… e altri {units.length - 12}</li>}
-            </ol>
-            <p className="hint">
-              Imposta {game.label} sul totem con lo stesso ordine. Dopo l’avvio i partecipanti non
-              si possono più modificare.
-            </p>
-            <button className="primary" disabled={create.isPending} onClick={() => create.mutate()}>
-              {create.isPending ? 'Avvio…' : 'CONFERMA E INIZIA'}
-            </button>
-            <button disabled={create.isPending} onClick={() => setConfirm(false)}>
-              Modifica
-            </button>
-          </Modal>
+        {creating && (
+          <NewPlayerSheet
+            close={() => setCreating(false)}
+            created={(p) => setSelected((current) => [...current, p])}
+          />
         )}
       </main>
+      <div className="actionbar foot">
+        <div className="ctx">
+          <span>
+            <b>{units.length}</b> al totem · {Math.max(1, heats.length)} manche
+          </span>
+          <span>{reason ? '' : `primo: ${units[0]?.label ?? ''}`}</span>
+        </div>
+        <button type="button" className="btn ghost" disabled={locked} onClick={() => toStep(1)}>
+          <ArrowLeft aria-hidden="true" /> Indietro
+        </button>
+        <button
+          type="button"
+          className="btn cta"
+          disabled={
+            !!reason ||
+            create.isPending ||
+            (!draft && create.error instanceof ApiError && create.error.uncertain)
+          }
+          onClick={() => create.mutate()}
+        >
+          <Play aria-hidden="true" fill="currentColor" />
+          {create.isPending ? 'Avvio…' : draft ? 'Riprendi avvio' : 'Avvia partita'}
+        </button>
+        {reason && (
+          <p className="form-reason" role="status">
+            {reason}
+          </p>
+        )}
+      </div>
     </>
   );
 }

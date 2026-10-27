@@ -19,7 +19,7 @@ Dettagli: [architettura standalone](docs/standalone/ARCHITECTURE.md), [checklist
 
 ## Sviluppo locale
 
-Requisiti: Node **24 LTS** consigliato (verificato con 22.23.1; minimo 22.19). pnpm **12.14.0** è fissato in `package.json`; senza pnpm installato si può usare `npm exec --yes --package pnpm@12.14.0 -- pnpm <comando>`.
+Requisiti: Node **24 LTS** consigliato (verificato con 22.23.1; minimo 22.19). pnpm **12.14.0** è fissato in `package.json` e `pnpm-lock.yaml` è l'unico lockfile (npm non risolve le dipendenze `workspace:*`); senza pnpm installato si può usare `npm exec --yes --package pnpm@12.14.0 -- pnpm <comando>`.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -79,14 +79,16 @@ tests/                 Vitest: dominio, modalità, API, SQLite, equivalenza, Ind
 apps/web/e2e/          Playwright: progetti shared e standalone
 ```
 
+Stato di rilascio e checklist della serata di prova: [V1.2 Operational Readiness](docs/release/V1_2_OPERATIONAL_READINESS.md), [V1.3 Guided Scoring](docs/release/V1_3_GUIDED_SCORING.md), [V1.3.1 Flexible Heats](docs/release/V1_3_1_FLEXIBLE_HEATS.md).
+
 Documenti: [architettura](docs/architecture.md), [modello di dominio](docs/domain-model.md), [regole di punteggio](docs/scoring-rules.md), [modalità torneo](docs/tournament-modes.md), [macchine a stati](docs/state-machines.md), [API](docs/api.md), [OpenAPI](docs/openapi.json), [database](docs/database.md), [test](docs/testing.md), [stato frontend](docs/frontend/IMPLEMENTATION_STATUS.md).
 
 ## Test
 
 ```sh
-pnpm test                                        # 155 test Vitest
+pnpm test                                        # Vitest: dominio, API, SQLite, IndexedDB, adapter
 pnpm --filter @bt/web exec playwright install chromium
-pnpm test:e2e                                    # 13 flussi: 3 shared + 10 standalone/PWA
+pnpm test:e2e                                    # Playwright: shared + standalone/PWA/layout/manche
 ```
 
 Playwright costruisce entrambe le versioni da sé. Fastify gira sulla porta 3107 con SQLite in memoria; la build statica è servita sulla 3108. Per usare un Chromium già installato, impostare `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.

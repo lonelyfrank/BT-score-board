@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUp, ArrowUpDown } from 'lucide-react';
-import { CrownIcon, TrophyEmblem } from '../components/BrandIcons';
+import { ArrowUp, ArrowUpDown, ChevronDown, Info, Pause, Play, UserMinus, X } from 'lucide-react';
+import { CrownIcon } from '../components/BrandIcons';
 import {
   StageTimeline,
   groupSteps,
@@ -15,16 +15,16 @@ import {
   Header,
   Loading,
   Modal,
-  PauseButton,
+  Segmented,
   StatusChip,
   Tabs,
   statusLabel,
-  tournamentTone,
   useTab,
 } from '../components/ui';
 import { api, type Tournament } from '../services/api';
-import { gameOf, isResultRecording } from '../services/rules';
+import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
+  ActionsMenu,
   BackupLink,
   BoardCard,
   DecisionSheet,
@@ -89,30 +89,37 @@ function MatchRow({ t, m, reorder }: { t: Tournament; m: TMatch; reorder?: (() =
       : `${score(a) ?? '—'}–${score(b) ?? '—'}`;
   const content = (
     <>
-      <span className="seq">#{m.sequence}</span>
-      <span className={side(a)}>{a ? entryName(t, a.tournamentEntryId) : '—'}</span>
-      <span className="score">{done || live ? middle : 'vs'}</span>
-      <span className={`right ${side(b)}`}>{b ? entryName(t, b.tournamentEntryId) : 'bye'}</span>
-      <span className={`tag ${live ? 'live' : done && !m.winnerEntryId ? 'tie' : ''}`}>{tag}</span>
+      <span className="match-vs">
+        <small>#{m.sequence}</small>
+        <b className={side(a)}>{a ? entryName(t, a.tournamentEntryId) : '—'}</b>
+        <span className="vs-mid">{done || live ? middle : 'vs'}</span>
+        <b className={side(b)}>{b ? entryName(t, b.tournamentEntryId) : 'bye'}</b>
+      </span>
+      <StatusChip
+        tone={live ? 'live' : done ? (m.winnerEntryId ? 'success' : 'warning') : 'neutral'}
+      >
+        {done && m.winnerEntryId ? `V ${entryName(t, m.winnerEntryId).split(' ')[0]}` : tag}
+      </StatusChip>
     </>
   );
   if (reorder !== undefined)
     return (
-      <div className="match-row">
+      <div className="mrow match">
         {content}
         {reorder && (
           <button
+            type="button"
             className="mini"
             aria-label={`Anticipa incontro #${m.sequence}`}
             onClick={reorder}
           >
-            <ArrowUp size={16} />
+            <ArrowUp />
           </button>
         )}
       </div>
     );
   return (
-    <Link className={`match-row ${live ? 'live' : ''}`} to={`/partite/${m.id}`}>
+    <Link className={`mrow match ${live ? 'live' : ''}`} to={`/partite/${m.id}`}>
       {content}
     </Link>
   );
@@ -136,16 +143,15 @@ function GroupTable({
     'POINTS_SCORE';
   const columns = byScore ? ['G', 'V', 'N', 'P', 'Diff', 'Pti'] : ['G', 'V', 'N', 'P', 'Pti'];
   return (
-    <div className="panel table-panel">
-      <div className="table-scroll">
-        <table>
-          <caption>Classifica {groupLabel(table.groupName)}</caption>
+    <>
+      <div className="card gt-card">
+        <table className="gt" aria-label={`Classifica ${groupLabel(table.groupName)}`}>
           <thead>
             <tr>
               <th scope="col">#</th>
               <th scope="col">Giocatore</th>
               {columns.map((h) => (
-                <th scope="col" className="num" key={h}>
+                <th scope="col" key={h}>
                   {h}
                 </th>
               ))}
@@ -153,33 +159,36 @@ function GroupTable({
           </thead>
           <tbody>
             {table.rows.map((r) => (
-              <tr key={r.tournamentEntryId} className={r.placement <= cut ? 'in' : ''}>
-                <td className="pos">{r.placement}</td>
+              <tr key={r.tournamentEntryId} className={r.placement <= cut ? 'q' : ''}>
+                <td>{r.placement}</td>
                 <td>
                   {entryName(t, r.tournamentEntryId)}
-                  {r.tied && r.played > 0 && <small className="tie-tag">PARI</small>}
-                  {r.withdrawn && <small className="tie-tag">RITIRATO</small>}
-                  {qualified.includes(r.tournamentEntryId) && <small className="q-tag">Q</small>}
+                  {r.tied && r.played > 0 && <span className="tag">PARI</span>}
+                  {r.withdrawn && <span className="tag">RITIRATO</span>}
+                  {qualified.includes(r.tournamentEntryId) && <span className="tag ok">Q</span>}
                 </td>
-                <td className="num muted">{r.played}</td>
-                <td className="num muted">{r.wins}</td>
-                <td className="num muted">{r.draws}</td>
-                <td className="num muted">{r.losses}</td>
-                {byScore && <td className="num muted">{signed(r.difference)}</td>}
-                <td className="num strong">{r.points}</td>
+                <td>{r.played}</td>
+                <td>{r.wins}</td>
+                <td>{r.draws}</td>
+                <td>{r.losses}</td>
+                {byScore && <td>{signed(r.difference)}</td>}
+                <td>{r.points}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <p className="gt-legend">
+        <i aria-hidden="true" />
+        Qualificati: primi {cut} · V {c.winPoints} · N {c.drawPoints} · P {c.lossPoints}
+      </p>
       <p className="hint">
         Ordine:{' '}
         {byScore
           ? 'punti, differenza, punti segnati, scontro diretto (solo tra 2), poi spareggio o decisione.'
-          : 'punti, vittorie, scontro diretto (solo tra 2), poi spareggio o decisione.'}{' '}
-        V {c.winPoints} · N {c.drawPoints} · P {c.lossPoints}.
+          : 'punti, vittorie, scontro diretto (solo tra 2), poi spareggio o decisione.'}
       </p>
-    </div>
+    </>
   );
 }
 
@@ -205,7 +214,7 @@ export function GroupsDetail() {
     return (
       <>
         <Header title="Torneo" back="/tornei" />
-        <main className="content">
+        <main>
           <ErrorMessage error={query.error} retry={retry} />
         </main>
       </>
@@ -308,22 +317,121 @@ export function GroupsDetail() {
   const rounds = [...new Set(selectedMatches.map((m) => m.scheduleRound))].sort((a, b) => a - b);
   const seeds = groupStage?.qualifiedEntryIds ?? [];
   const seedOf = (entry: string) => seeds.indexOf(entry) + 1;
+  const upcoming = ready.filter((m) => m.id !== onBoard?.id).slice(0, 3);
+  const stageAction =
+    !isDraft(t) && !ended ? (
+      groupStage?.status === 'open' ? (
+        <button
+          type="button"
+          className="btn cta"
+          disabled={!canFinalize || mutation.isPending}
+          onClick={() => command('qualification/finalize')}
+        >
+          CONFERMA QUALIFICA
+        </button>
+      ) : groupStage?.status === 'finalized' && !knockout.length ? (
+        <button
+          type="button"
+          className="btn cta"
+          disabled={!active || mutation.isPending}
+          onClick={() => command('finals/generate')}
+        >
+          GENERA TABELLONE
+        </button>
+      ) : knockoutDone ? (
+        <button
+          type="button"
+          className="btn cta"
+          disabled={!active || mutation.isPending}
+          onClick={() => command('elimination/advance')}
+        >
+          PROSSIMO TURNO
+        </button>
+      ) : finalMatch?.status === 'completed' ? (
+        <button
+          type="button"
+          className="btn cta"
+          disabled={!active || !!openTiebreak || !!knockoutTie || mutation.isPending}
+          onClick={() => command('complete')}
+        >
+          CONFERMA RISULTATO FINALE
+        </button>
+      ) : knockout.length > 0 ? (
+        <button type="button" className="btn cta" onClick={() => setTab('bracket')}>
+          VAI AL TABELLONE
+        </button>
+      ) : null
+    ) : null;
   return (
     <>
       <Header
-        title="Torneo"
+        title={t.name}
+        subtitle={[formatLabel(t.mode), gameOf(t).label, `${t.entries.length} giocatori`, eventName]
+          .filter(Boolean)
+          .join(' · ')}
         back="/tornei"
+        backLabel="Indietro ai tornei"
         action={
-          <PauseButton
-            paused={paused}
-            disabled={(!active && !paused) || mutation.isPending}
-            toggle={() => command(paused ? 'resume' : 'pause')}
+          <ActionsMenu
+            actions={[
+              ...(!isDraft(t) && !ended
+                ? [
+                    {
+                      icon: paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />,
+                      label: paused ? 'Riprendi torneo' : 'Metti in pausa il torneo',
+                      hint: paused
+                        ? 'Si torna a registrare risultati'
+                        : 'Nessun risultato finché non riprendi',
+                      run: () => command(paused ? 'resume' : 'pause'),
+                      disabled: (!active && !paused) || mutation.isPending,
+                    },
+                  ]
+                : []),
+              ...(active && isResultRecording(t)
+                ? [
+                    {
+                      icon: <UserMinus aria-hidden="true" />,
+                      label: 'Ritira un giocatore…',
+                      hint: 'Gli incontri da giocare vanno all’avversario a tavolino',
+                      run: () =>
+                        setLeaving(
+                          t.entries.find(
+                            (e) => e.status === 'registered' || e.status === 'qualified',
+                          )?.id ?? '',
+                        ),
+                    },
+                  ]
+                : []),
+              ...(ready.length > 1 && active
+                ? [
+                    {
+                      icon: <ArrowUpDown aria-hidden="true" />,
+                      label: 'Riordina gli incontri',
+                      hint: 'Cambia l’ordine degli incontri da giocare',
+                      run: () => {
+                        setTab('groups');
+                        setReordering(true);
+                      },
+                    },
+                  ]
+                : []),
+              ...(!isDraft(t) && !ended
+                ? [
+                    {
+                      icon: <X aria-hidden="true" />,
+                      label: 'Annulla torneo…',
+                      hint: 'Resta nello storico, esce dalle statistiche',
+                      run: () => setCancel(true),
+                    },
+                  ]
+                : []),
+            ]}
           />
         }
       />
-      <main className="content tournament-page">
+      <div className="toolbar">
         <Tabs
-          label="Sezioni torneo"
+          label="Sezioni del torneo"
           tabs={[
             { id: 'overview', label: 'Panoramica', attention: !!tieToShow },
             { id: 'groups', label: 'Gironi' },
@@ -333,45 +441,31 @@ export function GroupsDetail() {
           value={tab}
           change={setTab}
         />
-        <div className="event-heading">
-          <TrophyEmblem />
-          <div>
-            <h2>{t.name}</h2>
-            <p>
-              {[
-                gameOf(t).label,
-                `${t.entries.length} giocatori`,
-                `${c.groupCount} gironi`,
-                eventName,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          </div>
-          <StatusChip tone={tournamentTone(t.status)}>
-            {statusLabel(t.status).toUpperCase()}
-          </StatusChip>
-        </div>
+        {tab === 'groups' && groups.length > 1 && (
+          <Segmented
+            label="Girone"
+            value={selected?.id ?? ''}
+            change={(id) => setGroup(groups.findIndex((g) => g.id === id))}
+            options={groups.map((g) => ({ id: g.id, label: groupLabel(g.name) }))}
+          />
+        )}
+      </div>
+      <main className="tournament">
         <ErrorMessage error={error} retry={retry} />
         {tab === 'overview' && (
           <>
             {isDraft(t) && <DraftPanel t={t} busy={mutation.isPending} command={command} />}
-            {t.status === 'completed' && (
-              <>
-                <Podium t={t} />
-                <BackupLink />
-              </>
-            )}
+            {t.status === 'completed' && <Podium t={t} />}
             <StageTimeline steps={groupSteps(t)} />
             {tieToShow?.table && tieToShow.group && (
               <TieAlert
                 action={{
-                  label: 'ORGANIZZA SPAREGGIO',
+                  label: 'Spareggio sul totem',
                   disabled: !active || mutation.isPending,
                   run: () => setTie({ table: tieToShow.table!, group: tieToShow.group! }),
                 }}
                 secondary={{
-                  label: 'DECIDE L’ORGANIZZATORE',
+                  label: 'Decido io',
                   disabled: !active || mutation.isPending,
                   run: () => setDecision({ table: tieToShow.table!, group: tieToShow.group! }),
                 }}
@@ -382,7 +476,7 @@ export function GroupsDetail() {
                   .
                 </strong>{' '}
                 {names(t, tieToShow.group)} sono pari al {tieToShow.group[0]!.placement}° posto:
-                decide uno spareggio sul bersaglio o l’organizzatore.
+                decide uno spareggio sul totem o l’organizzatore.
               </TieAlert>
             )}
             {onBoard && !ended && (
@@ -396,103 +490,33 @@ export function GroupsDetail() {
                 }
               />
             )}
-            {!isDraft(t) && !ended && (
-              <div className="stage-actions">
-                {groupStage?.status === 'open' && (
-                  <button
-                    className="primary"
-                    disabled={!canFinalize || mutation.isPending}
-                    onClick={() => command('qualification/finalize')}
-                  >
-                    CONFERMA QUALIFICA
-                  </button>
-                )}
-                {groupStage?.status === 'finalized' && !knockout.length && (
-                  <button
-                    className="primary"
-                    disabled={!active || mutation.isPending}
-                    onClick={() => command('finals/generate')}
-                  >
-                    GENERA TABELLONE
-                  </button>
-                )}
-                {knockoutDone && (
-                  <button
-                    className="primary"
-                    disabled={!active || mutation.isPending}
-                    onClick={() => command('elimination/advance')}
-                  >
-                    PROSSIMO TURNO
-                  </button>
-                )}
-                {finalMatch?.status === 'completed' ? (
-                  <button
-                    className="primary"
-                    disabled={!active || !!openTiebreak || !!knockoutTie || mutation.isPending}
-                    onClick={() => command('complete')}
-                  >
-                    CONFERMA RISULTATO FINALE
-                  </button>
-                ) : (
-                  knockout.length > 0 && (
-                    <button className="primary" onClick={() => setTab('bracket')}>
-                      VAI AL TABELLONE
-                    </button>
-                  )
-                )}
-                <p
-                  role="status"
-                  className={`stage-note ${canFinalize || (groupStage?.status === 'finalized' && !knockout.length) ? 'ok' : ''}`}
-                >
-                  {note}
-                </p>
-              </div>
+            {upcoming.length > 0 && !ended && (
+              <>
+                <div className="sec-h">
+                  <h3>Prossimi</h3>
+                  <span>{knockout.length ? 'a eliminazione diretta' : 'nei gironi'}</span>
+                </div>
+                <div className="list">
+                  {upcoming.map((m) => (
+                    <MatchRow key={m.id} t={t} m={m} />
+                  ))}
+                </div>
+              </>
             )}
-            {!isDraft(t) && !ended && (
-              <div className="pair">
-                <button
-                  className="warning-outline"
-                  disabled={(!active && !paused) || mutation.isPending}
-                  onClick={() => command(paused ? 'resume' : 'pause')}
-                >
-                  {paused ? 'Riprendi torneo' : 'Metti in pausa'}
-                </button>
-                <button className="danger-outline" onClick={() => setCancel(true)}>
-                  Annulla torneo…
-                </button>
-              </div>
-            )}
-            {active && isResultRecording(t) && (
-              <button
-                className="small"
-                onClick={() =>
-                  setLeaving(
-                    t.entries.find((e) => e.status === 'registered' || e.status === 'qualified')
-                      ?.id ?? '',
-                  )
-                }
-              >
-                Ritira un giocatore…
-              </button>
-            )}
+            {t.status === 'completed' && <BackupLink />}
+            <p className="note">
+              <Info aria-hidden="true" />
+              <span>
+                {knockout.length
+                  ? 'Ogni turno a eliminazione diretta richiede un vincitore: niente pareggi.'
+                  : note}
+              </span>
+            </p>
           </>
         )}
         {tab === 'groups' &&
           (groups.length ? (
             <>
-              <div className="chips" role="radiogroup" aria-label="Girone">
-                {groups.map((g, i) => (
-                  <button
-                    key={g.id}
-                    role="radio"
-                    className="chip"
-                    aria-checked={g.id === selected?.id}
-                    onClick={() => setGroup(i)}
-                  >
-                    {groupLabel(g.name)}
-                  </button>
-                ))}
-              </div>
               {selectedTable && (
                 <GroupTable
                   t={t}
@@ -501,22 +525,27 @@ export function GroupsDetail() {
                   qualified={groupStage?.status === 'finalized' ? seeds : []}
                 />
               )}
-              <div className="section-head">
-                <h2>Calendario</h2>
-                {ready.length > 1 && active && (
+              <div className="sec-h">
+                <h3>Incontri</h3>
+                {reordering ? (
                   <button
-                    className="small"
-                    aria-pressed={reordering}
-                    onClick={() => setReordering(!reordering)}
+                    type="button"
+                    className="btn sm"
+                    aria-pressed
+                    onClick={() => setReordering(false)}
                   >
-                    <ArrowUpDown size={16} aria-hidden="true" />
-                    {reordering ? 'Fatto' : 'Riordina'}
+                    Fatto
                   </button>
+                ) : (
+                  <span>
+                    {selectedMatches.filter((m) => m.status === 'completed').length}/
+                    {selectedMatches.length} giocati
+                  </span>
                 )}
               </div>
               {rounds.map((round) => (
-                <section key={round} className="round">
-                  <h3>ROUND {round}</h3>
+                <section key={round} className="list" aria-label={`Round ${round}`}>
+                  <h4 className="group-l">Round {round}</h4>
                   {selectedMatches
                     .filter((m) => m.scheduleRound === round)
                     .map((m) => (
@@ -543,8 +572,8 @@ export function GroupsDetail() {
                     m.status !== 'cancelled',
                 )
                 .map((m) => (
-                  <section key={m.id} className="round">
-                    <h3>SPAREGGIO</h3>
+                  <section key={m.id} className="list">
+                    <h4 className="group-l">Spareggio</h4>
                     <MatchRow t={t} m={m} />
                   </section>
                 ))}
@@ -556,27 +585,26 @@ export function GroupsDetail() {
           ))}
         {tab === 'bracket' && (
           <>
-            <p className="description">
+            <p className="hint">
               {knockout.length
                 ? 'Tabellone generato dai risultati confermati.'
                 : 'Anteprima: il tabellone si genera dopo la conferma della qualifica.'}
             </p>
-            <div
-              className="bracket"
-              style={{
-                gridTemplateColumns: `repeat(${Math.max(knockout.length, 2)}, minmax(150px, 1fr))`,
-              }}
-            >
+            <div className="bracket">
               {knockout.length
                 ? knockout.map((s) => (
-                    <div className="bracket-round" key={s.id}>
-                      <h3>{knockoutTitle(s.kind)}</h3>
+                    <section
+                      className="bracket-round"
+                      key={s.id}
+                      aria-label={knockoutTitle(s.kind)}
+                    >
+                      <h3 className="group-l">{knockoutTitle(s.kind)}</h3>
                       {stageMatches(s.id).map((m, i) => (
                         <article
                           key={m.id}
                           className={`bracket-match ${playable(m) ? 'open' : ''} ${s.kind === 'final' ? 'final' : ''}`}
                         >
-                          <span className="bracket-title">
+                          <span className="field-l">
                             {m.matchType === 'tiebreak'
                               ? 'SPAREGGIO'
                               : `${knockoutTitle(s.kind).toUpperCase()}${stageMatches(s.id).length > 1 ? ` ${i + 1}` : ''}`}
@@ -584,10 +612,10 @@ export function GroupsDetail() {
                           {m.participants.map((p) => (
                             <span
                               key={p.tournamentEntryId}
-                              className={m.winnerEntryId === p.tournamentEntryId ? 'win' : ''}
+                              className={`bm-row ${m.winnerEntryId === p.tournamentEntryId ? 'win' : ''}`}
                             >
-                              <small>S{seedOf(p.tournamentEntryId)}</small>{' '}
-                              {entryName(t, p.tournamentEntryId)}
+                              <small>S{seedOf(p.tournamentEntryId)}</small>
+                              <span>{entryName(t, p.tournamentEntryId)}</span>
                               {m.status === 'completed' && (
                                 <b>
                                   {p.finalScore ??
@@ -599,35 +627,41 @@ export function GroupsDetail() {
                                 t.status === 'completed' && <CrownIcon className="inline-crown" />}
                             </span>
                           ))}
-                          {m.participants.length === 1 && <span className="muted">bye</span>}
+                          {m.participants.length === 1 && <span className="hint">bye</span>}
                           {playable(m) && (
-                            <Link className="outline button" to={`/partite/${m.id}`}>
+                            <Link className="btn sm" to={`/partite/${m.id}`}>
                               Gioca
                             </Link>
                           )}
                         </article>
                       ))}
-                    </div>
+                    </section>
                   ))
                 : [
-                    <div className="bracket-round" key="first">
-                      <h3>{plannedPairs(t).length === 1 ? 'Finale' : 'Primo turno'}</h3>
+                    <section className="bracket-round" key="first">
+                      <h3 className="group-l">
+                        {plannedPairs(t).length === 1 ? 'Finale' : 'Primo turno'}
+                      </h3>
                       {plannedPairs(t).map((pair, i) => (
                         <article className="bracket-match planned" key={i}>
                           {pair.map((x, k) => (
-                            <span key={k}>{x ?? 'bye'}</span>
+                            <span className="bm-row" key={k}>
+                              <span>{x ?? 'bye'}</span>
+                            </span>
                           ))}
                         </article>
                       ))}
-                    </div>,
+                    </section>,
                     plannedPairs(t).length > 1 && (
-                      <div className="bracket-round" key="final">
-                        <h3>Finale</h3>
+                      <section className="bracket-round" key="final">
+                        <h3 className="group-l">Finale</h3>
                         <article className="bracket-match planned final">
-                          <CrownIcon className="inline-crown" />
-                          <span>Vincenti del turno precedente</span>
+                          <span className="bm-row">
+                            <CrownIcon className="inline-crown" />
+                            <span>Vincenti del turno precedente</span>
+                          </span>
                         </article>
-                      </div>
+                      </section>
                     ),
                   ]}
             </div>
@@ -644,40 +678,30 @@ export function GroupsDetail() {
             {tables
               .filter((r) => r.stageKind === 'group' && t.gameMode === 'HI_SCORE')
               .map((table) => (
-                <div className="panel table-panel" key={table.targetId}>
-                  <div className="table-scroll">
-                    <table>
-                      <caption>{groupLabel(table.groupName)} · statistiche</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Giocatore</th>
-                          <th scope="col" className="num">
-                            Segnati
-                          </th>
-                          <th scope="col" className="num">
-                            Media
-                          </th>
-                          <th scope="col" className="num">
-                            {isResultRecording(t) ? 'Record' : 'Best'}
-                          </th>
+                <div className="card gt-card" key={table.targetId}>
+                  <table
+                    className="gt plain"
+                    aria-label={`${groupLabel(table.groupName)} · statistiche`}
+                  >
+                    <thead>
+                      <tr>
+                        <th scope="col">Giocatore</th>
+                        <th scope="col">Segnati</th>
+                        <th scope="col">Media</th>
+                        <th scope="col">{isResultRecording(t) ? 'Record' : 'Best'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {table.rows.map((r) => (
+                        <tr key={r.tournamentEntryId}>
+                          <td>{entryName(t, r.tournamentEntryId)}</td>
+                          <td>{r.scored}</td>
+                          <td>{(isResultRecording(t) ? r.averageScore : r.average).toFixed(1)}</td>
+                          <td>{isResultRecording(t) ? r.bestScore : r.bestTurn}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {table.rows.map((r) => (
-                          <tr key={r.tournamentEntryId}>
-                            <td>{entryName(t, r.tournamentEntryId)}</td>
-                            <td className="num">{r.scored}</td>
-                            <td className="num muted">
-                              {(isResultRecording(t) ? r.averageScore : r.average).toFixed(1)}
-                            </td>
-                            <td className="num muted">
-                              {isResultRecording(t) ? r.bestScore : r.bestTurn}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ))}
             {!tables.length && (
@@ -716,7 +740,29 @@ export function GroupsDetail() {
           />
         )}
         {leaving && (
-          <Modal title="Ritirare un giocatore?" close={() => setLeaving('')}>
+          <Modal
+            title="Ritirare un giocatore?"
+            close={() => setLeaving('')}
+            footer={
+              <>
+                <button type="button" className="btn ghost" onClick={() => setLeaving('')}>
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  className="btn cta"
+                  disabled={!leaveReason.trim() || mutation.isPending}
+                  onClick={() => {
+                    command('entries/withdraw', { entryId: leaving, reason: leaveReason.trim() });
+                    setLeaving('');
+                    setLeaveReason('');
+                  }}
+                >
+                  RITIRA GIOCATORE
+                </button>
+              </>
+            }
+          >
             <p>
               Gli incontri che non ha ancora giocato vanno all’avversario a tavolino; quelli giocati
               restano validi. Un giocatore ritirato non si qualifica.
@@ -733,6 +779,7 @@ export function GroupsDetail() {
                       </option>
                     ))}
                 </select>
+                <ChevronDown aria-hidden="true" />
               </span>
             </label>
             <label className="field">
@@ -744,18 +791,6 @@ export function GroupsDetail() {
               />
             </label>
             <ErrorMessage error={mutation.error} />
-            <button
-              className="primary"
-              disabled={!leaveReason.trim() || mutation.isPending}
-              onClick={() => {
-                command('entries/withdraw', { entryId: leaving, reason: leaveReason.trim() });
-                setLeaving('');
-                setLeaveReason('');
-              }}
-            >
-              RITIRA GIOCATORE
-            </button>
-            <button onClick={() => setLeaving('')}>Annulla</button>
           </Modal>
         )}
         {cancel && (
@@ -765,27 +800,43 @@ export function GroupsDetail() {
             alert
             title="Annullare il torneo?"
             close={() => setCancel(false)}
+            footer={
+              <>
+                <button type="button" className="btn cta" onClick={() => setCancel(false)}>
+                  TIENI IL TORNEO
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    command('cancel');
+                    setCancel(false);
+                  }}
+                >
+                  Sì, annulla definitivamente
+                </button>
+              </>
+            }
           >
             <p>
               Il torneo diventa “annullato”: resta nello storico ma esce dalle statistiche dei
               giocatori. Non si può riattivare.
             </p>
-            <button className="primary" onClick={() => setCancel(false)}>
-              TIENI IL TORNEO
-            </button>
-            <button
-              className="danger-outline"
-              disabled={mutation.isPending}
-              onClick={() => {
-                command('cancel');
-                setCancel(false);
-              }}
-            >
-              Sì, annulla definitivamente
-            </button>
           </Modal>
         )}
       </main>
+      {tab === 'overview' && stageAction && (
+        <div className="actionbar">
+          {stageAction}
+          <p
+            role="status"
+            className={`form-reason ${canFinalize || (groupStage?.status === 'finalized' && !knockout.length) ? 'ok' : 'muted'}`}
+          >
+            {note}
+          </p>
+        </div>
+      )}
     </>
   );
 }

@@ -52,11 +52,6 @@ export interface HighScoreConfiguration {
   maxDartScore: number;
   maxTurnScore: number;
 }
-export interface X01Configuration {
-  kind: 'X01';
-  initialScore: number;
-  doubleOut: boolean;
-}
 export interface TournamentConfiguration {
   qualifiers: number;
   groupCount: number;
@@ -167,6 +162,8 @@ export interface Heat {
   number: number;
   /** Seats on the totem, in throwing order. */
   entryIds: string[];
+  /** Optional physical positions (1-based, increasing), aligned with entryIds. Omitted = contiguous. */
+  slotPositions?: number[];
   /** pending: editable. ready: confirmed, kept by reshuffles. active: at the board. */
   status: HeatStatus;
   startedAt: string | null;
@@ -174,6 +171,18 @@ export interface Heat {
 }
 /** What a progressive value means: points of the round, points left (X01), number reached. */
 export type RoundValueKind = 'points' | 'remaining' | 'progress';
+/**
+ * Where one dart landed, as observed. `miss` is a dart off the board (zero points); `unobserved`
+ * is a dart nobody saw, which is never zero. Darts left unused because the turn ended early are
+ * not recorded at all.
+ */
+export type DartKind = 'single' | 'double' | 'triple' | 'bull25' | 'bull50' | 'miss' | 'unobserved';
+/** One dart of a turn, in throwing order. The points it is worth follow from the game rules. */
+export interface DartThrow {
+  kind: DartKind;
+  /** 1–20 for single, double and triple; null otherwise. */
+  sector: number | null;
+}
 /**
  * One observation of a round, as entered by the organizer. Never official: the final result
  * shown by the totem is. `recorded` and `skipped` (explicitly not observed) are effective;
@@ -196,6 +205,28 @@ export interface RoundRecord {
   source: 'manual';
   createdAt: string;
   recordedBy: string;
+  /**
+   * The darts of the turn, when they were entered one by one (up to three, fewer when the turn
+   * ended early). Absent or null: only the value was entered, the darts stay unknown.
+   */
+  darts?: DartThrow[] | null;
+}
+/** A turn of the match: an entry's round. */
+export interface TurnSlot {
+  entryId: string;
+  round: number;
+}
+/**
+ * The organizer's choices for the turn coordinator. Everything else (who throws, which round)
+ * follows from the rounds recorded, so the position survives a reload or another device.
+ */
+export interface TurnGuide {
+  /** Turn chosen by hand: proposed until a value is recorded for it. */
+  pick: TurnSlot | null;
+  /** Turns taken back with "undo", proposed again in throwing order before going on. */
+  replay: TurnSlot[];
+  /** Free mode: after a confirmation the organizer chooses who throws. */
+  paused: boolean;
 }
 /** Optional throwing rotation inside a team. Advancing it never records a score. */
 export interface Rotation {
@@ -263,6 +294,8 @@ export interface Match {
   /** Progressive observations (tracking ROUND_BY_ROUND or FLEXIBLE). */
   rounds: RoundRecord[];
   rotations: Rotation[];
+  /** Manual choices of the turn coordinator; absent until the first one. */
+  guide?: TurnGuide | null;
 }
 export interface TournamentResult {
   tournamentId: string;

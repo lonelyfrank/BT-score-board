@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChartNoAxesColumnIncreasing, ChevronRight, Plus, Trophy } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 import { api, type PubEvent, type Summary } from '../services/api';
 import { tournamentPath } from '../services/session';
 import {
@@ -11,12 +11,12 @@ import {
   Header,
   Loading,
   Modal,
+  Segmented,
   StatusChip,
-  Tabs,
   statusLabel,
-  tournamentTone,
   type Tone,
 } from '../components/ui';
+import { formatLabel } from '../services/rules';
 
 const eventStatus: Record<PubEvent['status'], [string, Tone]> = {
   active: ['IN CORSO', 'live'],
@@ -38,51 +38,41 @@ function EventCard({ event, tournaments }: { event: PubEvent; tournaments?: Summ
   const [label, tone] = eventStatus[event.status];
   const live = event.status === 'active';
   return (
-    <article className={`event ${live ? 'live' : ''}`}>
+    <article className={`card pad event ${live ? 'live' : ''}`}>
       <div className="event-top">
         <div className="date-tile" aria-hidden={!date}>
           <small>
-            {date ? date.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase() : '—'}
+            {date ? date.toLocaleDateString('it-IT', { month: 'short' }).toUpperCase() : '—'}
           </small>
           <strong>{date ? date.getDate() : '?'}</strong>
-          <small>{date ? date.toLocaleDateString('it-IT', { month: 'short' }) : ''}</small>
         </div>
         <div className="event-title">
           <h2>{event.name}</h2>
-          <span>
+          <p className="hint">
             {[
-              date &&
-                `ore ${date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`,
+              date && date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
               tournaments && count(tournaments.length),
             ]
               .filter(Boolean)
               .join(' · ')}
-          </span>
+          </p>
         </div>
-        <StatusChip tone={tone}>
-          {live && <span className="live-dot" aria-hidden="true" />}
-          {label}
-        </StatusChip>
+        <StatusChip tone={tone}>{live ? 'STASERA' : label}</StatusChip>
       </div>
-      {event.description && <p>{event.description}</p>}
+      {event.description && <p className="hint">{event.description}</p>}
       {tournaments === undefined ? (
         <Loading />
       ) : tournaments.length ? (
-        <div className="event-tournaments">
+        <div className="list">
           {tournaments.map((t) => (
-            <Link key={t.id} className="event-tournament" to={tournamentPath(t)}>
-              {t.mode === 'GROUPS' ? (
-                <Trophy aria-hidden="true" />
-              ) : (
-                <ChartNoAxesColumnIncreasing aria-hidden="true" className="accent-icon" />
-              )}
+            <Link key={t.id} className="mrow" to={tournamentPath(t)}>
               <span>
-                <span>{t.name}</span>
-                <small>{t.mode === 'GROUPS' ? 'A gironi' : 'Hi-Score'}</small>
+                {t.name}
+                <br />
+                <small>
+                  {formatLabel(t.mode)} · {statusLabel(t.status)}
+                </small>
               </span>
-              <StatusChip tone={tournamentTone(t.status)}>
-                {statusLabel(t.status).toUpperCase()}
-              </StatusChip>
               <ChevronRight aria-hidden="true" />
             </Link>
           ))}
@@ -93,11 +83,12 @@ function EventCard({ event, tournaments }: { event: PubEvent; tournaments?: Summ
       <ErrorMessage error={advance.error} />
       {upcoming(event) && (
         <div className="pair">
-          <Link className="button dashed accent" to={`/tornei/nuovo?serata=${event.id}`}>
+          <Link className="btn sm dashed" to={`/tornei/nuovo?serata=${event.id}`}>
             <Plus aria-hidden="true" /> Aggiungi torneo
           </Link>
           <button
-            className={live ? 'success-outline' : 'outline'}
+            type="button"
+            className={`btn sm ${live ? 'ok' : ''}`}
             disabled={advance.isPending}
             onClick={() => advance.mutate()}
           >
@@ -128,8 +119,22 @@ function NewEventSheet({ close }: { close: () => void }) {
     },
   });
   return (
-    <Modal title="Nuova serata" close={close}>
+    <Modal
+      title="Nuova serata"
+      close={close}
+      footer={
+        <>
+          <button type="button" className="btn ghost" onClick={close}>
+            Annulla
+          </button>
+          <button className="btn cta" form="new-event" disabled={!name.trim() || create.isPending}>
+            CREA SERATA
+          </button>
+        </>
+      }
+    >
       <form
+        id="new-event"
         className="sheet-form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -159,19 +164,13 @@ function NewEventSheet({ close }: { close: () => void }) {
           />
         </label>
         <ErrorMessage error={create.error} />
-        <button className="primary" disabled={!name.trim() || create.isPending}>
-          CREA SERATA
-        </button>
-        <button type="button" onClick={close}>
-          Annulla
-        </button>
       </form>
     </Modal>
   );
 }
 
 export function Events() {
-  const [tab, setTab] = useState('up');
+  const [tab, setTab] = useState<'up' | 'past'>('up');
   const [creating, setCreating] = useState(false);
   const events = useQuery({ queryKey: ['events'], queryFn: () => api.events() });
   const list = (events.data?.items ?? [])
@@ -192,18 +191,22 @@ export function Events() {
       <Header
         title="Game Night"
         subtitle="Serate del locale"
+        back="/"
+        backLabel="Indietro alla Home"
         action={<AddButton label="Nuova serata" onClick={() => setCreating(true)} />}
       />
-      <main className="content events-page">
-        <Tabs
+      <div className="toolbar">
+        <Segmented
           label="Serate"
-          tabs={[
+          value={tab}
+          change={setTab}
+          options={[
             { id: 'up', label: 'In programma' },
             { id: 'past', label: 'Concluse' },
           ]}
-          value={tab}
-          change={setTab}
         />
+      </div>
+      <main className="lists">
         <ErrorMessage error={events.error} retry={() => void events.refetch()} />
         {events.isPending && <Loading />}
         {list.map((e, i) => (
@@ -222,15 +225,6 @@ export function Events() {
           Una serata raggruppa più tornei. Ogni torneo gioca su un bersaglio alla volta; l’uso del
           bersaglio tra tornei diversi lo coordina l’organizzatore.
         </p>
-        <div className="graffiti" aria-hidden="true">
-          Good
-          <br />
-          darts
-          <br />
-          good
-          <br />
-          friends
-        </div>
       </main>
       {creating && <NewEventSheet close={() => setCreating(false)} />}
     </>

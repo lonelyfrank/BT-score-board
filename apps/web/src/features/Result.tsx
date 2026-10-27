@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Info, Pencil } from 'lucide-react';
-import { CrownIcon, DartIcon, PaintSplash } from '../components/BrandIcons';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ChevronRight, Pencil, Undo2 } from 'lucide-react';
+import { uuid } from '../../../../packages/application/src/portable.js';
+import { CrownIcon } from '../components/BrandIcons';
 import {
   api,
   ApiError,
@@ -13,10 +14,19 @@ import {
 } from '../services/api';
 import { tournamentPath } from '../services/session';
 import {
+  currentEntry,
+  nextAfter,
+  parseDraft,
+  serializeDraft,
+  type Draft,
+} from '../services/result-flow';
+import {
+  canOrganizeMatch,
   dependenciesOf,
   evaluateResult,
   gameOf,
   maxScore,
+  seatOf,
   sideOf,
   type GameMode,
 } from '../services/rules';
@@ -24,20 +34,16 @@ import {
   Avatar,
   ErrorMessage,
   Header,
+  InBar,
   Modal,
-  Segmented,
+  ScreenBars,
   Switch,
   StatusChip,
   statusLabel,
 } from '../components/ui';
 import { NumberKeypad } from '../components/NumberKeypad';
-import { HeatEditor, HeatTimeline, viewedHeat } from '../components/Heats';
-import {
-  RotationManager,
-  RoundScoreEntry,
-  ScoreReconciliation,
-  progressSummary,
-} from '../components/Rounds';
+import { HeatEditor, HeatTabs, viewedHeat } from '../components/Heats';
+import { RotationManager, ScoreReconciliation } from '../components/Rounds';
 import { DecisionSheet, TieAlert, entryName } from './Tournaments';
 
 type Form = {
@@ -48,7 +54,6 @@ type Form = {
   notes: string;
 };
 const emptyForm: Form = { winner: null, scores: {}, target: '', special: false, notes: '' };
-const newKey = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`.replace('.', '');
 
 /** The form prefilled with what is recorded: corrections start from the current result. */
 function formOf(m: Match): Form {
@@ -74,9 +79,18 @@ const toNumber = (v: string) => (v.trim() === '' ? null : Number(v));
 export function ResultEntry({
   query,
   tournament,
+  embedded = false,
+  review,
+  annotate,
 }: {
   query: UseQueryResult<Match>;
   tournament: UseQueryResult<Tournament>;
+  /** Inside the guided match screen: no header, rounds are entered from Live and the matrix. */
+  embedded?: boolean;
+  /** Opens an entry's rounds when its official value differs from them. */
+  review?: (entryId: string) => void;
+  /** Extra line under a competitor's name (the companion total in the guided screen). */
+  annotate?: (entryId: string) => string | null;
 }) {
   const m = query.data!;
   const t = tournament.data;
@@ -89,8 +103,10 @@ export function ResultEntry({
   const hiScore = game.scoreRequired || heated;
   const tracked = m.tracking !== 'FINAL_ONLY';
   const draftKey = `bt-result:${m.id}`;
-  const [input, setInput] = useState(() => storage.get(`${draftKey}:input`) ?? '');
-  const [selected, setSelected] = useState<string | null>(null);
+  // Digits typed for a competitor survive a reload together with that competitor only.
+  const [restored] = useState(() => parseDraft(storage.get(`${draftKey}:input`)));
+  const [draft, setDraft] = useState<Draft | null>(restored);
+  const [selected, setSelected] = useState<string | null>(restored?.entryId ?? null);
   const [form, setForm] = useState<Form>(() => {
     try {
       return { ...formOf(m), ...JSON.parse(storage.get(`${draftKey}:form`) ?? '{}') };
@@ -104,26 +120,31 @@ export function ResultEntry({
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [flash, setFlash] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState<string | null>(null);
+  const [closingHeat, setClosingHeat] = useState(false);
   const [heatChoice, setHeatChoice] = useState<string | null>(null);
-  const [managing, setManaging] = useState(false);
-  const [entry, setEntry] = useState<'final' | 'rounds'>(() =>
-    m.tracking === 'ROUND_BY_ROUND' ? 'rounds' : 'final',
-  );
+  const [params, setParams] = useSearchParams();
+  const [managing, setManaging] = useState(() => params.get('organize') === '1');
   const [differences, setDifferences] = useState<{
     change: ResultInput;
     rows: { entryId: string; computed: number; official: number }[];
   } | null>(null);
   // One idempotency key per intended result: a repeated tap replays it instead of writing twice.
-  const key = useRef(newKey());
+  const key = useRef(uuid());
   const inFlight = useRef(false);
   useEffect(() => {
     if (!flash) return;
-    const timer = setTimeout(() => setFlash(null), 1800);
+    const timer = setTimeout(() => {
+      setFlash(null);
+      setJustSaved(null);
+    }, 1800);
     return () => clearTimeout(timer);
   }, [flash]);
   const saveInput = (value: string) => {
-    setInput(value);
-    storage.set(`${draftKey}:input`, value);
+    const next = value && current ? { entryId: current, value } : null;
+    setDraft(next);
+    if (next) storage.set(`${draftKey}:input`, serializeDraft(next));
+    else storage.remove(`${draftKey}:input`);
   };
   const saveForm = (next: Form) => {
     setForm(next);
@@ -132,23 +153,26 @@ export function ResultEntry({
 
   const excluded = new Set(m.excludedEntryIds);
   // Over several heats the screen follows one heat: the one at the board by default.
-  const heat = heated ? viewedHeat(overview, heatChoice) : null;
+  const heat = overview.heats.length ? viewedHeat(overview, heatChoice) : null;
   const order = heat
     ? heat.entryIds.map((id) => m.participants.find((p) => p.tournamentEntryId === id)!)
     : [...m.participants].sort((a, b) => a.playingOrder - b.playingOrder);
   const playing = order.filter((p) => !excluded.has(p.tournamentEntryId));
   const name = (id: string) => (t ? entryName(t, id) : 'Giocatore');
   const recorded = (id: string) => m.result?.scores[id] ?? null;
-  const missing = playing.filter((p) => recorded(p.tournamentEntryId) === null);
+  // The whole match, every heat: what the header counts as still to record.
+  const toRecord = m.participants.filter(
+    (p) => !excluded.has(p.tournamentEntryId) && recorded(p.tournamentEntryId) === null,
+  ).length;
+  // Hi-Score: whose total is being typed. Defaults to the next player still without a score;
+  // a recorded one is corrected only after an explicit tap on its card.
+  const current = currentEntry(playing, selected, (id) => recorded(id) !== null);
+  const input = draft && draft.entryId === current ? draft.value : '';
   const entryRoundsReady = (entryId: string) => {
     const progress = m.progress.find((x) => x.tournamentEntryId === entryId);
     return !!progress && progress.rounds.length > 0 && progress.missing.length === 0;
   };
-  // Hi-Score: whose total is being typed. Defaults to the next player still without a score.
-  const current =
-    selected && playing.some((p) => p.tournamentEntryId === selected)
-      ? selected
-      : (missing[0]?.tournamentEntryId ?? playing[0]?.tournamentEntryId ?? null);
+  // ROUND_BY_ROUND: every round recorded or skipped before the official result.
   const roundsReady =
     m.tracking !== 'ROUND_BY_ROUND' ||
     (game.scoreRequired
@@ -161,59 +185,15 @@ export function ResultEntry({
   const paused = t?.status === 'paused';
   const ended = t?.status === 'cancelled';
   const entering = !cancelled && !ended && (!completed || editing);
-  const rounds = tracked && entry === 'rounds' && entering;
   const unit = (id: string) => t?.entries.find((e) => e.id === id);
   const memberName = (playerId: string) =>
     t?.entries.flatMap((e) => e.members).find((x) => x.playerId === playerId)?.displayName ??
     'Giocatore';
-  // Winner games in round mode: the competitor whose rounds are entered.
-  const roundTarget =
-    selected && playing.some((p) => p.tournamentEntryId === selected)
-      ? selected
-      : (current ?? null);
   const refreshed = (fresh: Match) => {
     client.setQueryData(['match', m.id], fresh);
     void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
     void client.invalidateQueries({ queryKey: ['session'] });
-  };
-  const roundSaved = (
-    fresh: Match,
-    roundNumber: number,
-    corrected: boolean,
-    entryId: string,
-  ) => {
-    refreshed(fresh);
-    if (corrected) return;
-    const entries = playing.map((p) => p.tournamentEntryId);
-    const currentIndex = entries.indexOf(entryId);
-    const cyclic = Array.from(
-      { length: entries.length },
-      (_, index) => entries[(currentIndex + index + 1) % entries.length]!,
-    );
-    if (fresh.trackingSpec.rounds !== null) {
-      for (let number = 1; number <= fresh.trackingSpec.rounds; number++) {
-        const next = cyclic.find((candidate) =>
-          fresh.progress
-            .find((progress) => progress.tournamentEntryId === candidate)
-            ?.rounds.some((r) => r.round === number && r.status === 'missing'),
-        );
-        if (next) {
-          setSelected(next);
-          return;
-        }
-      }
-      setSelected(null);
-      setEntry('final');
-      setFlash('Tutti i round registrati · inserisci il risultato finale');
-      return;
-    }
-    const next =
-      cyclic.find((candidate) => {
-        const progress = fresh.progress.find((p) => p.tournamentEntryId === candidate);
-        return (progress?.rounds.length ?? 0) + 1 <= roundNumber;
-      }) ?? cyclic[0];
-    if (next) setSelected(next);
   };
   const heatCommand = useMutation({
     mutationFn: ({
@@ -232,17 +212,12 @@ export function ResultEntry({
   });
   const nextHeat = overview.heats.find((h) => h.heatId === overview.nextHeatId);
   const activeHeat = overview.heats.find((h) => h.heatId === overview.currentHeatId);
-  const canManageHeats =
-    heated &&
-    t?.status === 'active' &&
-    !completed &&
-    !cancelled &&
-    overview.heats.some((h) => h.status === 'pending' || h.status === 'ready');
+  const canManageHeats = t?.status === 'active' && canOrganizeMatch(m);
 
   const mutation = useMutation({
     mutationFn: (input: ResultInput) => api.recordResult(m, input, key.current),
     onSuccess: (fresh, sent) => {
-      key.current = newKey();
+      key.current = uuid();
       client.setQueryData(['match', m.id], fresh);
       void client.invalidateQueries({ queryKey: ['tournament', fresh.tournamentId] });
       void client.invalidateQueries({ queryKey: ['standings', fresh.tournamentId] });
@@ -258,17 +233,24 @@ export function ResultEntry({
       // until the organizer starts the next one.
       if (heat) setHeatChoice(heat.heatId);
       if (hiScore) {
-        saveInput('');
+        const [savedId, value] = Object.entries(sent.scores ?? {})[0] ?? [null, null];
+        setDraft(null);
+        storage.remove(`${draftKey}:input`);
         // Move on to the next player still to record, in playing order.
-        const after = order.findIndex((p) => p.tournamentEntryId === current);
-        const next = [...order.slice(after + 1), ...order.slice(0, after + 1)].find(
-          (p) =>
-            !fresh.excludedEntryIds.includes(p.tournamentEntryId) &&
-            (fresh.result?.scores[p.tournamentEntryId] ?? null) === null,
+        setSelected(
+          nextAfter(
+            order,
+            savedId,
+            (id) =>
+              !fresh.excludedEntryIds.includes(id) && (fresh.result?.scores[id] ?? null) === null,
+          ),
         );
-        setSelected(next?.tournamentEntryId ?? null);
-        const value = sent.scores && Object.values(sent.scores)[0];
-        setFlash(value === null ? 'Punteggio rimosso' : 'Punteggio salvato');
+        setJustSaved(value === null ? null : savedId);
+        setFlash(
+          value === null
+            ? 'Punteggio rimosso'
+            : `Salvato: ${savedId ? name(savedId) : 'punteggio'} ${value}`,
+        );
       } else {
         storage.remove(`${draftKey}:form`);
         setForm(formOf(fresh));
@@ -343,8 +325,7 @@ export function ResultEntry({
     };
     let reason = '';
     let derived: string | null = null;
-    if (!roundsReady)
-      reason = 'Registra o salta tutti i round prima del risultato finale.';
+    if (!roundsReady) reason = 'Registra o salta tutti i round prima del risultato finale.';
     else if (Object.values(scores).some((v) => !Number.isInteger(v) || v < 0 || v > limit))
       reason = `${game.scoreLabel}: da 0 a ${limit}.`;
     else if (
@@ -415,107 +396,110 @@ export function ResultEntry({
       : completed
         ? 'risultato registrato'
         : hiScore
-          ? `${missing.length} da registrare`
+          ? `${toRecord} da registrare`
           : 'da registrare'
   }`;
-  const compact = order.length > 4;
 
-  function card(p: Match['participants'][number]) {
+  const [topBar, setTopBar] = useState<HTMLDivElement | null>(null);
+  const [bottomBar, setBottomBar] = useState<HTMLDivElement | null>(null);
+  const correct = () => {
+    setForm(formOf(m));
+    setEditing(true);
+  };
+  const rowTag = (id: string, chosen: boolean, out: boolean, score: number | null) => {
+    const side = sideOf(m.gameMode as GameMode, seatOf(m, id));
+    return out
+      ? 'Ritirato'
+      : hiScore
+        ? chosen
+          ? 'In inserimento'
+          : score === null
+            ? 'Da inserire'
+            : 'Registrato'
+        : chosen
+          ? 'Vince'
+          : (side ?? (completed ? '' : 'Tocca se vince'));
+  };
+  function row(p: Match['participants'][number]) {
     const id = p.tournamentEntryId;
     const out = excluded.has(id);
     const score = recorded(id);
-    const chosen =
-      hiScore || rounds
-        ? (rounds ? roundTarget : current) === id && entering
-        : (completed && !editing ? winner : (form.winner ?? formResult.derived)) === id;
-    const side = sideOf(m.gameMode as GameMode, p.playingOrder);
-    const tag = out
-      ? 'RITIRATO'
-      : hiScore
-        ? chosen
-          ? 'IN INSERIMENTO'
-          : score === null
-            ? 'DA INSERIRE'
-            : 'REGISTRATO'
-        : chosen
-          ? 'VINCE'
-          : (side ?? (completed ? '' : 'TOCCA SE VINCE'));
+    const chosen = hiScore
+      ? current === id && entering
+      : (completed && !editing ? winner : (form.winner ?? formResult.derived)) === id;
+    const lead = (hiScore && top > 0 && score === top) || (!hiScore && chosen);
     const content = (
       <>
-        {((hiScore && top > 0 && score === top) || (!hiScore && chosen)) && (
-          <CrownIcon className="card-crown" role="img" aria-label="In testa" />
-        )}
-        <Avatar name={name(id)} />
-        <span className="player-name">{name(id)}</span>
+        <span className="n">{seatOf(m, id)}</span>
+        <Avatar name={name(id)} size="md" />
+        <span className="nm">
+          <b>
+            {name(id)}
+            {lead && <CrownIcon className="inline-crown" role="img" aria-label="In testa" />}
+          </b>
+          <small>
+            {[rowTag(id, chosen, out, score), annotate?.(id)].filter(Boolean).join(' · ')}
+          </small>
+        </span>
         <strong>{score ?? '—'}</strong>
-        <span className={`card-tag ${chosen ? 'on' : ''}`}>{tag}</span>
       </>
     );
+    const cls = `rk ${out ? 'out' : ''} ${justSaved === id ? 'just-saved' : ''}`;
     if (!entering || out)
       return (
-        <article
-          role="listitem"
-          key={id}
-          className={`score-card ${chosen ? 'selected' : ''} ${out ? 'out' : ''}`}
-        >
+        <li key={id} className={cls}>
           {content}
-        </article>
+        </li>
       );
     return (
-      <button
-        type="button"
-        role="radio"
-        aria-checked={chosen}
-        key={id}
-        className={`score-card ${chosen ? 'selected' : ''}`}
-        disabled={mutation.isPending || paused}
-        onClick={() => {
-          if (hiScore || rounds) {
-            setSelected(id);
-            saveInput('');
-          } else saveForm({ ...form, winner: form.winner === id ? null : id });
-        }}
-      >
-        {content}
-      </button>
+      <li key={id}>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={chosen}
+          className={cls}
+          disabled={mutation.isPending || paused}
+          onClick={() => {
+            if (hiScore) {
+              setSelected(id);
+              saveInput('');
+            } else saveForm({ ...form, winner: form.winner === id ? null : id });
+          }}
+        >
+          {content}
+        </button>
+      </li>
     );
   }
+  const finalRows = ranked.filter((p) => !excluded.has(p.tournamentEntryId));
+  const podium = finalRows.length >= 3 && finalRows.every((p) => p.placement !== null);
+  const verdict = cancelled
+    ? 'Incontro annullato'
+    : winner
+      ? `Vince ${name(winner).includes(' + ') ? name(winner) : name(winner).split(' ')[0]}!`
+      : 'Pari al primo posto';
 
-  return (
-    <div className="live-page result-page">
-      <Header
-        title={game.label}
-        subtitle={subtitle}
-        back={back}
-        action={
-          completed && !editing && !locked && !ended ? (
-            <button
-              className="icon-button"
-              aria-label="Correggi risultato"
-              onClick={() => {
-                setForm(formOf(m));
-                setEditing(true);
-              }}
-            >
-              <Pencil />
-            </button>
-          ) : undefined
-        }
-      />
-      <main className="live-content">
-        {heated && (
-          <section className="heat-panel" aria-label="Manche">
-            <HeatTimeline
-              overview={overview}
-              viewing={heat?.heatId ?? null}
-              select={(id) => {
-                setHeatChoice(id);
-                setSelected(null);
-              }}
-            />
-            <div className="heat-actions">
+  const content = (
+    <>
+      {embedded && completed && !editing && !locked && !ended && (
+        <button type="button" className="btn sm ghost result-fix" onClick={correct}>
+          <Pencil aria-hidden="true" /> Correggi risultato
+        </button>
+      )}
+      {heated && (
+        <InBar at="top">
+          <HeatTabs
+            overview={overview}
+            viewing={heat?.heatId ?? null}
+            select={(id) => {
+              setHeatChoice(id);
+              setSelected(null);
+            }}
+          />
+          {(heat || (!activeHeat && nextHeat)) && (
+            <div className="heat-bar">
               {heat && (
-                <span className="heat-now">
+                <span>
                   Manche {heat.number} di {overview.heats.length}
                   {heat.missing.length > 0 && heat.status !== 'pending' && heat.status !== 'ready'
                     ? ` · ${heat.missing.length} da inserire`
@@ -524,7 +508,8 @@ export function ResultEntry({
               )}
               {!activeHeat && nextHeat && t?.status === 'active' && !completed && (
                 <button
-                  className="primary"
+                  type="button"
+                  className="btn sm cta"
                   disabled={heatCommand.isPending}
                   onClick={() =>
                     heatCommand.mutate({ action: 'heats/start', heatId: nextHeat.heatId })
@@ -535,400 +520,379 @@ export function ResultEntry({
               )}
               {activeHeat && heat?.heatId === activeHeat.heatId && (
                 <button
+                  type="button"
+                  className="btn sm"
                   disabled={heatCommand.isPending}
-                  onClick={() => {
-                    if (
-                      activeHeat.missing.length &&
-                      !window.confirm(
-                        `Mancano ${activeHeat.missing.length} risultati: completare comunque la manche? Restano da inserire.`,
-                      )
-                    )
-                      return;
-                    heatCommand.mutate({ action: 'heats/complete', heatId: activeHeat.heatId });
-                  }}
+                  onClick={() =>
+                    activeHeat.missing.length
+                      ? setClosingHeat(true)
+                      : heatCommand.mutate({ action: 'heats/complete', heatId: activeHeat.heatId })
+                  }
                 >
                   Completa manche
                 </button>
               )}
-              {canManageHeats && <button onClick={() => setManaging(true)}>Gestisci manche</button>}
+              {canManageHeats && (
+                <button type="button" className="btn sm" onClick={() => setManaging(true)}>
+                  Organizza manche
+                </button>
+              )}
             </div>
-            <ErrorMessage error={heatCommand.error} />
-          </section>
-        )}
-        {tracked && entering && (
-          <>
-            <Segmented
-              label="Cosa inserisci"
-              value={entry}
-              change={(v) => {
-                setEntry(v);
-                saveInput('');
-              }}
-              options={[
-                { id: 'final', label: 'Risultato finale' },
-                { id: 'rounds', label: 'Round per round' },
-              ]}
-            />
-            {entry === 'final' && !roundsReady && (
-              <p className="hint" role="status">
-                {game.scoreRequired
-                  ? 'Registra o salta tutti i round di questo partecipante prima del risultato finale.'
-                  : 'Registra o salta tutti i round prima del risultato finale.'}
-              </p>
-            )}
-          </>
-        )}
-        {compact ? (
-          <ol className="result-list" role="radiogroup" aria-label="Giocatori">
-            {order.map((p) => {
-              const id = p.tournamentEntryId;
-              const out = excluded.has(id);
-              const chosen = entering && (rounds ? roundTarget : current) === id && !out;
-              return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={chosen}
-                    className={chosen ? 'selected' : ''}
-                    disabled={!entering || out || mutation.isPending || paused}
-                    onClick={() => {
-                      setSelected(id);
-                      saveInput('');
-                    }}
-                  >
-                    <span className="order">{p.playingOrder}</span>
-                    <Avatar name={name(id)} />
-                    <span className="result-name">{name(id)}</span>
-                    <small>
-                      {out
-                        ? 'RITIRATO'
-                        : rounds
-                          ? progressSummary(
-                              m,
-                              m.progress.find((x) => x.tournamentEntryId === id),
-                            ).replace('Nessun round registrato', 'nessun round')
-                          : recorded(id) === null
-                            ? 'da inserire'
-                            : ''}
-                    </small>
-                    <strong>{recorded(id) ?? '—'}</strong>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <div
-            className="scoreboard"
-            role={entering ? 'radiogroup' : 'list'}
-            aria-label={hiScore ? 'Punteggi finali' : 'Chi ha vinto?'}
-            style={{ gridTemplateColumns: `repeat(${order.length}, minmax(80px, 1fr))` }}
-          >
-            {order.map(card)}
+          )}
+          <ErrorMessage error={heatCommand.error} />
+        </InBar>
+      )}
+      {!heated && canManageHeats && (
+        <button type="button" className="btn sm" onClick={() => setManaging(true)}>
+          Organizza manche
+        </button>
+      )}
+      {tracked && entering && !roundsReady && (
+        <p className="note warn" role="status">
+          <AlertTriangle aria-hidden="true" />
+          <span>
+            {game.scoreRequired
+              ? 'Registra o salta tutti i round di questo partecipante prima del risultato finale.'
+              : 'Registra o salta tutti i round prima del risultato finale.'}
+          </span>
+        </p>
+      )}
+      {paused && (
+        <p className="note warn" role="status">
+          <AlertTriangle aria-hidden="true" />
+          <span>Torneo in pausa: riprendilo dalla pagina del torneo per registrare risultati.</span>
+        </p>
+      )}
+      {(completed || cancelled) && !editing ? (
+        <section className="result-done" aria-labelledby="result-title">
+          <div className="result-head">
+            <span className="marker">{verdict}</span>
+            {!cancelled && <StatusChip tone="success">RISULTATO UFFICIALE</StatusChip>}
           </div>
-        )}
-        {paused && (
-          <p className="live-warning" role="status">
-            Torneo in pausa: riprendilo dalla pagina del torneo per registrare risultati.
-          </p>
-        )}
-        {rounds && roundTarget && (
-          <>
-            <p className="round-target" role="status" aria-live="polite">
-              Round di <strong>{name(roundTarget)}</strong>
-            </p>
-            {(unit(roundTarget)?.members.length ?? 0) > 1 && (
-              <RotationManager
-                m={m}
-                entryId={roundTarget}
-                playerName={memberName}
-                disabled={paused || !entering}
-                saved={refreshed}
-              />
-            )}
-            <RoundScoreEntry
-              key={roundTarget}
-              m={m}
-              entryId={roundTarget}
-              team={(unit(roundTarget)?.members.length ?? 0) > 1}
-              disabled={paused || mutation.isPending}
-              saved={(fresh, _message, roundNumber, corrected) =>
-                roundSaved(fresh, roundNumber, corrected, roundTarget)
-              }
-              applyComputed={(value) => {
-                if (hiScore) send({ scores: { [roundTarget]: value } });
-                else {
-                  saveForm({ ...form, scores: { ...form.scores, [roundTarget]: String(value) } });
-                  setEntry('final');
-                }
-              }}
-            />
-          </>
-        )}
-        {entering && hiScore && !rounds && (
-          <>
-            {current && (unit(current)?.members.length ?? 0) > 1 && (
-              <RotationManager
-                m={m}
-                entryId={current}
-                playerName={memberName}
-                disabled={paused}
-                saved={refreshed}
-              />
-            )}
-            <div className="score-center single">
-              <div className="score-stage">
-                <div className="turn-row">
-                  <div className="turn-banner" aria-live="polite">
-                    <DartIcon />
-                    <span>{current ? `PUNTEGGIO DI ${name(current)}` : 'TUTTI REGISTRATI'}</span>
-                  </div>
-                </div>
-                <div className="paper-area">
-                  <PaintSplash className="paper-splash" />
-                  <div className={`score-paper ${input ? '' : 'is-empty'}`}>
-                    <output aria-live="polite" aria-label="Punteggio finale da confermare">
-                      {input || (current && recorded(current) !== null ? recorded(current) : '0')}
-                    </output>
-                    <span className="paper-caption">
-                      FINALE DAL TOTEM · {game.rounds ?? m.scoringConfiguration.turns} ROUND · MAX{' '}
-                      {limit}
-                    </span>
-                  </div>
-                  <p
-                    className={`paper-tag ${flash || mutation.isPending ? 'shown' : ''} ${flash ? 'ok' : ''}`}
-                    role="status"
+          <h2 id="result-title" className="visually-hidden">
+            {cancelled
+              ? 'Incontro annullato'
+              : single && t?.status === 'completed'
+                ? 'Partita conclusa'
+                : 'Risultato registrato'}
+          </h2>
+          {!cancelled && podium && (
+            <ol className="pod" aria-label="Podio">
+              {[finalRows[1], finalRows[0], finalRows[2]].map(
+                (p, i) =>
+                  p && (
+                    <li key={p.tournamentEntryId} className={`p${[2, 1, 3][i]}`}>
+                      <Avatar
+                        name={name(p.tournamentEntryId)}
+                        size={i === 1 ? undefined : 'sm'}
+                        className={i === 1 ? 'gold' : ''}
+                      />
+                      <span>{name(p.tournamentEntryId)}</span>
+                      <b>
+                        {recorded(p.tournamentEntryId) ??
+                          (winner === p.tournamentEntryId ? 'V' : '—')}
+                      </b>
+                      <small>{p.placement}°</small>
+                    </li>
+                  ),
+              )}
+            </ol>
+          )}
+          {!cancelled && (
+            <ol className="list" aria-label="Risultato dell’incontro">
+              {finalRows.slice(podium ? 3 : 0).map((p, i) => (
+                <li
+                  key={p.tournamentEntryId}
+                  className={`rk ${winner === p.tournamentEntryId ? 'gold' : ''}`}
+                >
+                  <span
+                    className={`n ${(p.placement ?? i + 1) <= 4 ? `r${p.placement ?? i + 1}` : ''}`}
                   >
-                    {mutation.isPending ? 'Salvataggio…' : flash}
-                  </p>
-                </div>
-                <p className="totem-note">
-                  <Info aria-hidden="true" />
-                  Il totem conta i punti: qui si registra il totale che mostra.
-                </p>
+                    {p.placement ?? i + 1}
+                  </span>
+                  <Avatar name={name(p.tournamentEntryId)} size="md" />
+                  <span className="nm">
+                    <b>{name(p.tournamentEntryId)}</b>
+                  </span>
+                  <strong>
+                    {recorded(p.tournamentEntryId) ?? (winner === p.tournamentEntryId ? 'V' : '—')}
+                  </strong>
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="hint">
+            {m.result?.walkover
+              ? 'Vinto a tavolino per ritiro dell’avversario.'
+              : m.result?.decision
+                ? `Deciso dall’organizzatore: ${m.result.decision.reason}`
+                : m.result?.special
+                  ? 'Vittoria con Shanghai.'
+                  : m.result?.targetScore
+                    ? `Obiettivo ${m.result.targetScore}.`
+                    : 'Il risultato ufficiale resta distinto dai round: correggere un turno non cambia il podio senza conferma.'}
+          </p>
+          {m.result?.notes && !m.result.walkover && <p className="hint">Note: {m.result.notes}</p>}
+          {m.result?.reconciliation.map((r) => (
+            <p className="hint" key={r.entryId}>
+              {name(r.entryId)}: ufficiale {r.official}, round {r.computed} — {r.reason}
+            </p>
+          ))}
+          {!single && next && (
+            <Link className="mrow" to={back}>
+              <span>
+                Classifica del torneo
+                <br />
+                <small>{t?.name}</small>
+              </span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          )}
+          <InBar at="bottom">
+            {next ? (
+              <Link className="btn cta" to={`/partite/${next.id}`}>
+                PROSSIMO INCONTRO
+              </Link>
+            ) : single ? (
+              <Link className="btn cta" to="/partite/nuova">
+                NUOVA PARTITA
+              </Link>
+            ) : (
+              <Link className="btn cta" to={back}>
+                VAI AL TORNEO
+              </Link>
+            )}
+          </InBar>
+        </section>
+      ) : (
+        <ol
+          className="list result-rows"
+          role={entering ? 'radiogroup' : undefined}
+          aria-label={hiScore ? 'Punteggi finali' : 'Chi ha vinto?'}
+        >
+          {order.map(row)}
+        </ol>
+      )}
+      {entering && hiScore && (
+        <>
+          {current && (unit(current)?.members.length ?? 0) > 1 && (
+            <RotationManager
+              m={m}
+              entryId={current}
+              playerName={memberName}
+              disabled={paused}
+              saved={refreshed}
+            />
+          )}
+          <div className="score-entry">
+            <p className="turn-banner eb" aria-live="polite">
+              {current
+                ? `PUNTEGGIO DI ${name(current)}`
+                : heat?.status === 'completed'
+                  ? `MANCHE ${heat.number} COMPLETATA`
+                  : 'TUTTI REGISTRATI'}
+            </p>
+            <div className="paper">
+              <div>
+                <output aria-live="polite" aria-label="Punteggio finale da confermare">
+                  {input || (current && recorded(current) !== null ? recorded(current) : '–')}
+                </output>
+                <small>
+                  FINALE DAL TOTEM · {game.rounds ?? m.scoringConfiguration.turns} ROUND · MAX{' '}
+                  {limit}
+                </small>
               </div>
             </div>
-            <NumberKeypad
-              value={input}
-              change={saveInput}
-              submit={() =>
-                current && input !== '' && send({ scores: { [current]: Number(input) } })
-              }
-              undo={() => current && send({ scores: { [current]: null } })}
-              busy={mutation.isPending || !current || paused || !roundsReady}
-              canUndo={!!current && recorded(current) !== null}
-              maximum={limit}
-              notify={(text) => setFlash(text)}
-              quick={[]}
-              quickLabel="DAL TOTEM"
-              limitLabel={`Massimo ${limit}`}
-              okLabel={current ? `Conferma il punteggio di ${name(current)}` : 'Conferma'}
-            />
-          </>
-        )}
-        {entering && !hiScore && !rounds && (
-          <section className="result-form" aria-label="Dettagli del risultato">
-            {game.target && (
-              <label className="field">
-                Obiettivo del totem ({game.target.min}–{game.target.max}, facoltativo)
-                <input
-                  inputMode="numeric"
-                  value={form.target}
-                  onChange={(e) =>
-                    saveForm({ ...form, target: e.target.value.replace(/\D/g, '').slice(0, 3) })
-                  }
-                />
-              </label>
-            )}
-            <fieldset className="result-scores">
-              <legend>{game.scoreLabel} (facoltativo)</legend>
-              {playing.map((p) => (
-                <label key={p.tournamentEntryId}>
-                  <span>
-                    {name(p.tournamentEntryId)}
-                    {sideOf(m.gameMode as GameMode, p.playingOrder) && (
-                      <small> · {sideOf(m.gameMode as GameMode, p.playingOrder)}</small>
-                    )}
-                  </span>
-                  <input
-                    inputMode="numeric"
-                    aria-label={`${game.scoreLabel} di ${name(p.tournamentEntryId)}`}
-                    value={form.scores[p.tournamentEntryId] ?? ''}
-                    onChange={(e) =>
-                      saveForm({
-                        ...form,
-                        scores: {
-                          ...form.scores,
-                          [p.tournamentEntryId]: e.target.value.replace(/\D/g, '').slice(0, 4),
-                        },
-                      })
-                    }
-                  />
-                </label>
-              ))}
-            </fieldset>
-            {game.specialWin && (
-              <div className="switch-row">
-                <span className="row-label">
-                  <span id="special-label">Vittoria con Shanghai</span>
-                  <small>Singolo, doppio e triplo del numero nello stesso round</small>
-                </span>
-                <Switch
-                  checked={form.special}
-                  change={(special) => saveForm({ ...form, special })}
-                  labelledBy="special-label"
-                />
-              </div>
-            )}
-            <label className="field">
-              Note (facoltative)
-              <input
-                maxLength={500}
-                value={form.notes}
-                onChange={(e) => saveForm({ ...form, notes: e.target.value })}
-              />
-            </label>
-            {!form.winner && formResult.derived && (
-              <p className="hint">Dai punteggi vince {name(formResult.derived)}.</p>
-            )}
-            <button
-              className="primary cta"
-              disabled={!!formResult.reason || mutation.isPending || paused}
-              onClick={() => send(formResult.input)}
+            <p
+              className={`paper-tag ${flash || mutation.isPending ? 'shown' : ''} ${flash ? 'ok' : ''}`}
+              role="status"
             >
               {mutation.isPending
                 ? 'Salvataggio…'
-                : editing
-                  ? 'SALVA CORREZIONE'
-                  : 'CONFERMA RISULTATO'}
-            </button>
+                : (flash ??
+                  (current
+                    ? 'Il totem conta i punti: qui si registra il totale che mostra.'
+                    : !activeHeat && nextHeat && t?.status === 'active'
+                      ? `Avvia la manche ${nextHeat.number} per continuare, oppure tocca un giocatore per correggerlo.`
+                      : 'Tocca un giocatore per correggere il suo punteggio.'))}
+            </p>
+          </div>
+          <NumberKeypad
+            value={input}
+            change={saveInput}
+            submit={() => current && input !== '' && send({ scores: { [current]: Number(input) } })}
+            busy={mutation.isPending || !current || paused || !roundsReady}
+            maximum={limit}
+            notify={(text) => setFlash(text)}
+            limitLabel={`Massimo ${limit}`}
+          />
+          <InBar at="bottom">
+            <div className="acts pair">
+              <button
+                type="button"
+                className="btn undo"
+                aria-label={
+                  current ? `Rimuovi il punteggio di ${name(current)}` : 'Rimuovi punteggio'
+                }
+                disabled={mutation.isPending || !current || paused || recorded(current) === null}
+                onClick={() => current && send({ scores: { [current]: null } })}
+              >
+                <Undo2 aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="btn cta"
+                aria-label={current ? `Conferma il punteggio di ${name(current)}` : 'Conferma'}
+                disabled={mutation.isPending || !current || paused || !roundsReady || input === ''}
+                onClick={() =>
+                  current && input !== '' && send({ scores: { [current]: Number(input) } })
+                }
+              >
+                {mutation.isPending ? 'Salvataggio…' : input ? `Conferma ${input}` : 'Conferma'}
+              </button>
+            </div>
+            {editing && (
+              <button type="button" className="btn ghost" onClick={() => setEditing(false)}>
+                Fine correzione
+              </button>
+            )}
+          </InBar>
+        </>
+      )}
+      {entering && !hiScore && (
+        <section className="card pad result-form" aria-label="Dettagli del risultato">
+          {game.target && (
+            <label className="field">
+              Obiettivo del totem ({game.target.min}–{game.target.max}, facoltativo)
+              <input
+                inputMode="numeric"
+                value={form.target}
+                onChange={(e) =>
+                  saveForm({ ...form, target: e.target.value.replace(/\D/g, '').slice(0, 3) })
+                }
+              />
+            </label>
+          )}
+          <fieldset className="result-scores">
+            <legend className="field-l">{game.scoreLabel} (facoltativo)</legend>
+            {playing.map((p) => (
+              <label key={p.tournamentEntryId}>
+                <span>
+                  {name(p.tournamentEntryId)}
+                  {sideOf(m.gameMode as GameMode, seatOf(m, p.tournamentEntryId)) && (
+                    <small>
+                      {' '}
+                      · {sideOf(m.gameMode as GameMode, seatOf(m, p.tournamentEntryId))}
+                    </small>
+                  )}
+                </span>
+                <input
+                  inputMode="numeric"
+                  aria-label={`${game.scoreLabel} di ${name(p.tournamentEntryId)}`}
+                  value={form.scores[p.tournamentEntryId] ?? ''}
+                  onChange={(e) =>
+                    saveForm({
+                      ...form,
+                      scores: {
+                        ...form.scores,
+                        [p.tournamentEntryId]: e.target.value.replace(/\D/g, '').slice(0, 4),
+                      },
+                    })
+                  }
+                />
+              </label>
+            ))}
+          </fieldset>
+          {game.specialWin && (
+            <div className="switch-row">
+              <span>
+                <span id="special-label">Vittoria con Shanghai</span>
+                <small>Singolo, doppio e triplo del numero nello stesso round</small>
+              </span>
+              <Switch
+                checked={form.special}
+                change={(special) => saveForm({ ...form, special })}
+                labelledBy="special-label"
+              />
+            </div>
+          )}
+          <label className="field">
+            Note (facoltative)
+            <input
+              maxLength={500}
+              value={form.notes}
+              onChange={(e) => saveForm({ ...form, notes: e.target.value })}
+            />
+          </label>
+          {!form.winner && formResult.derived && (
+            <p className="hint">Dai punteggi vince {name(formResult.derived)}.</p>
+          )}
+          <InBar at="bottom">
+            {editing ? (
+              <div className="acts split">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setEditing(false)}
+                  disabled={mutation.isPending}
+                >
+                  Annulla correzione
+                </button>
+                <button
+                  type="button"
+                  className="btn cta"
+                  disabled={!!formResult.reason || mutation.isPending || paused}
+                  onClick={() => send(formResult.input)}
+                >
+                  {mutation.isPending ? 'Salvataggio…' : 'SALVA CORREZIONE'}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn cta"
+                disabled={!!formResult.reason || mutation.isPending || paused}
+                onClick={() => send(formResult.input)}
+              >
+                {mutation.isPending ? 'Salvataggio…' : 'CONFERMA RISULTATO'}
+              </button>
+            )}
             {formResult.reason && (
               <p className="form-reason" role="status">
                 {formResult.reason}
               </p>
             )}
-            {editing && (
-              <button onClick={() => setEditing(false)} disabled={mutation.isPending}>
-                Annulla correzione
-              </button>
-            )}
-          </section>
-        )}
-        {cancellable && (
-          <button className="result-cancel" onClick={() => setCancelling(true)}>
-            Annulla incontro (non si gioca)…
-          </button>
-        )}
-        {entering && hiScore && editing && (
-          <button className="result-cancel" onClick={() => setEditing(false)}>
-            Fine correzione
-          </button>
-        )}
-        <ErrorMessage error={query.error ?? mutation.error} />
-        {tie && (
-          <TieAlert
-            action={{
-              label: 'SPAREGGIO SUL BERSAGLIO',
-              disabled: mutation.isPending,
-              run: async () => {
-                if (!t) return;
-                const fresh = await api.tournamentCommand(t, 'tiebreaks', {
-                  targetId: m.id,
-                  entryIds: tiedEntries,
-                });
-                client.setQueryData(['tournament', t.id], fresh);
-                const playoff = fresh.matches.at(-1);
-                if (playoff) navigate(`/partite/${playoff.id}`);
-              },
-            }}
-            secondary={{ label: 'DECIDE L’ORGANIZZATORE', run: () => setDecide(true) }}
-          >
-            <strong>Parità per il primo posto.</strong> Decide uno spareggio sul totem oppure una
-            decisione esplicita dell’organizzatore.
-          </TieAlert>
-        )}
-        {(completed || cancelled) && !editing && (
-          <section className="match-panel done">
-            <div className="panel-head">
-              <span className="panel-icon">
-                <CrownIcon />
-              </span>
-              <div>
-                <h2>
-                  {cancelled
-                    ? 'Incontro annullato'
-                    : single && t?.status === 'completed'
-                      ? 'Partita conclusa'
-                      : 'Risultato registrato'}
-                </h2>
-                <p>
-                  {m.result?.walkover
-                    ? 'Vinto a tavolino per ritiro dell’avversario'
-                    : m.result?.decision
-                      ? `Deciso dall’organizzatore: ${m.result.decision.reason}`
-                      : m.result?.special
-                        ? 'Vittoria con Shanghai'
-                        : m.result?.targetScore
-                          ? `Obiettivo ${m.result.targetScore}`
-                          : game.rules}
-                </p>
-              </div>
-            </div>
-            {!cancelled && (
-              <div className="official">
-                <StatusChip tone="success">RISULTATO UFFICIALE</StatusChip>
-                <span className="hint">dal totem</span>
-              </div>
-            )}
-            {!cancelled && (
-              <ol className="final-rows" aria-label="Risultato dell’incontro">
-                {ranked
-                  .filter((p) => !excluded.has(p.tournamentEntryId))
-                  .map((p, i) => (
-                    <li
-                      key={p.tournamentEntryId}
-                      className={winner === p.tournamentEntryId ? 'first' : ''}
-                    >
-                      <span>{p.placement ?? i + 1}</span>
-                      <span>{name(p.tournamentEntryId)}</span>
-                      <strong>
-                        {recorded(p.tournamentEntryId) ??
-                          (winner === p.tournamentEntryId ? 'V' : '—')}
-                      </strong>
-                    </li>
-                  ))}
-              </ol>
-            )}
-            {m.result?.notes && !m.result.walkover && (
-              <p className="hint">Note: {m.result.notes}</p>
-            )}
-            {m.result?.reconciliation.map((r) => (
-              <p className="hint" key={r.entryId}>
-                {name(r.entryId)}: ufficiale {r.official}, round {r.computed} — {r.reason}
-              </p>
-            ))}
-            {next ? (
-              <Link className="primary button" to={`/partite/${next.id}`}>
-                PROSSIMO INCONTRO
-              </Link>
-            ) : single ? (
-              <Link className="primary button" to="/partite/nuova">
-                NUOVA PARTITA
-              </Link>
-            ) : (
-              <Link className="primary button" to={back}>
-                VAI AL TORNEO
-              </Link>
-            )}
-            {!single && next && (
-              <Link className="button" to={back}>
-                Classifica del torneo
-              </Link>
-            )}
-          </section>
-        )}
-      </main>
+          </InBar>
+        </section>
+      )}
+      {cancellable && (
+        <button type="button" className="btn ghost danger" onClick={() => setCancelling(true)}>
+          Annulla incontro (non si gioca)…
+        </button>
+      )}
+      <ErrorMessage error={query.error ?? mutation.error} />
+      {tie && (
+        <TieAlert
+          action={{
+            label: 'SPAREGGIO SUL BERSAGLIO',
+            disabled: mutation.isPending,
+            run: async () => {
+              if (!t) return;
+              const fresh = await api.tournamentCommand(t, 'tiebreaks', {
+                targetId: m.id,
+                entryIds: tiedEntries,
+              });
+              client.setQueryData(['tournament', t.id], fresh);
+              const playoff = fresh.matches.at(-1);
+              if (playoff) navigate(`/partite/${playoff.id}`);
+            },
+          }}
+          secondary={{ label: 'DECIDE L’ORGANIZZATORE', run: () => setDecide(true) }}
+        >
+          <strong>Parità per il primo posto.</strong> Decide uno spareggio sul totem oppure una
+          decisione esplicita dell’organizzatore.
+        </TieAlert>
+      )}
       {confirm && t && (
         <CorrectionDialog
           t={t}
@@ -942,7 +906,63 @@ export function ResultEntry({
           }}
         />
       )}
-      {managing && <HeatEditor m={m} name={name} close={() => setManaging(false)} />}
+      {managing && (
+        <HeatEditor
+          m={m}
+          name={name}
+          close={() => {
+            setManaging(false);
+            setParams(
+              (p) => {
+                const next = new URLSearchParams(p);
+                next.delete('organize');
+                return next;
+              },
+              { replace: true },
+            );
+          }}
+        />
+      )}
+      {closingHeat && activeHeat && (
+        <Modal
+          variant="dialog"
+          tone="warning"
+          alert
+          title={`Completare la manche ${activeHeat.number}?`}
+          close={() => setClosingHeat(false)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn cta"
+                disabled={heatCommand.isPending}
+                onClick={() =>
+                  heatCommand.mutate(
+                    { action: 'heats/complete', heatId: activeHeat.heatId },
+                    { onSuccess: () => setClosingHeat(false) },
+                  )
+                }
+              >
+                COMPLETA LA MANCHE
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={heatCommand.isPending}
+                onClick={() => setClosingHeat(false)}
+              >
+                Torna alla manche
+              </button>
+            </>
+          }
+        >
+          <p>
+            Mancano i risultati di {activeHeat.missing.map(name).join(', ')}. Restano da inserire:
+            la classifica li aspetta e non conta zero.
+          </p>
+          <ErrorMessage error={heatCommand.error} />
+        </Modal>
+      )}
       {differences && (
         <ScoreReconciliation
           differences={differences.rows}
@@ -951,8 +971,7 @@ export function ResultEntry({
           error={null}
           close={() => setDifferences(null)}
           review={() => {
-            setSelected(differences.rows[0]!.entryId);
-            setEntry('rounds');
+            review?.(differences.rows[0]!.entryId);
             setDifferences(null);
           }}
           confirm={(reasons) => {
@@ -964,7 +983,25 @@ export function ResultEntry({
         />
       )}
       {cancelling && (
-        <Modal title="Annullare l’incontro?" close={() => setCancelling(false)}>
+        <Modal
+          title="Annullare l’incontro?"
+          close={() => setCancelling(false)}
+          footer={
+            <>
+              <button type="button" className="btn ghost" onClick={() => setCancelling(false)}>
+                Torna indietro
+              </button>
+              <button
+                type="button"
+                className="btn cta"
+                disabled={!cancelReason.trim() || cancelMatch.isPending}
+                onClick={() => cancelMatch.mutate()}
+              >
+                ANNULLA INCONTRO
+              </button>
+            </>
+          }
+        >
           <p>
             L’incontro non verrà giocato e non conta in classifica. Resta nello storico come
             annullato.
@@ -978,14 +1015,6 @@ export function ResultEntry({
             />
           </label>
           <ErrorMessage error={cancelMatch.error} />
-          <button
-            className="primary"
-            disabled={!cancelReason.trim() || cancelMatch.isPending}
-            onClick={() => cancelMatch.mutate()}
-          >
-            ANNULLA INCONTRO
-          </button>
-          <button onClick={() => setCancelling(false)}>Torna indietro</button>
         </Modal>
       )}
       {decide && t && (
@@ -1002,7 +1031,34 @@ export function ResultEntry({
           targetId={m.id}
         />
       )}
-    </div>
+    </>
+  );
+  if (embedded) return content;
+  return (
+    <ScreenBars.Provider value={{ top: topBar, bottom: bottomBar }}>
+      <div className="screen result-screen">
+        <Header
+          title={t?.name ?? game.label}
+          subtitle={subtitle}
+          back={back}
+          action={
+            completed && !editing && !locked && !ended ? (
+              <button
+                type="button"
+                className="ibtn box"
+                aria-label="Correggi risultato"
+                onClick={correct}
+              >
+                <Pencil />
+              </button>
+            ) : undefined
+          }
+        />
+        <div className="toolbar" ref={setTopBar} />
+        <main className="result-main">{content}</main>
+        <div className="actionbar" ref={setBottomBar} />
+      </div>
+    </ScreenBars.Provider>
   );
 }
 
@@ -1030,8 +1086,17 @@ function CorrectionDialog({
       alert
       title="Correggere un risultato già usato?"
       close={close}
+      footer={
+        <>
+          <button type="button" className="btn cta" disabled={busy} onClick={proceed}>
+            CORREGGI E RIAPRI
+          </button>
+          <button type="button" className="btn" disabled={busy} onClick={close}>
+            Lascia com’è
+          </button>
+        </>
+      }
     >
-      <AlertTriangle aria-hidden="true" className="warning-icon" />
       <ul className="consequences">
         {d?.reopens && <li>La fase «{statusLabel(d.reopens.kind)}» verrà riaperta.</li>}
         {!!d?.matches.length && (
@@ -1054,12 +1119,6 @@ function CorrectionDialog({
         Tutto resta nello storico delle modifiche. Le fasi annullate vanno rigenerate.
       </p>
       <ErrorMessage error={error} />
-      <button className="primary" disabled={busy} onClick={proceed}>
-        CORREGGI E RIAPRI
-      </button>
-      <button disabled={busy} onClick={close}>
-        Lascia com’è
-      </button>
     </Modal>
   );
 }

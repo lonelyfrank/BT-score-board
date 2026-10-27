@@ -1,4 +1,4 @@
-import type { GameAdapter, Match, Summary, Tournament } from './game';
+import type { GameAdapter, Match, Summary, Tournament } from './game.js';
 
 export interface ActiveSession {
   tournament: Tournament;
@@ -18,8 +18,16 @@ const entryName = (t: Tournament, id: string) =>
 
 /** What the organizer was doing: the newest started tournament and its match in progress. */
 export async function activeSession(api: GameAdapter): Promise<ActiveSession | null> {
-  const page = await api.tournaments();
-  const summary = page.items.find((t) => t.status === 'active' || t.status === 'paused');
+  // Filter on the store: an archive larger than one page must not hide the running tournament.
+  const [active, paused] = await Promise.all([
+    api.tournaments(0, undefined, 'active'),
+    api.tournaments(0, undefined, 'paused'),
+  ]);
+  // Same order as the stores: newest first, then id (binary, not locale-aware).
+  const key = (t: Summary) => `${t.createdAt}\u0000${t.id}`;
+  const summary = [...active.items, ...paused.items].sort((a, b) =>
+    key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : 0,
+  )[0];
   if (!summary) return null;
   const tournament = await api.tournament(summary.id);
   const open = new Set(tournament.stages.filter((s) => s.status === 'open').map((s) => s.id));
@@ -73,8 +81,8 @@ export interface RecentResult {
   winner: string | null;
 }
 export async function recentResults(api: GameAdapter, count = 3): Promise<RecentResult[]> {
-  const page = await api.tournaments();
-  const completed = page.items.filter((t) => t.status === 'completed').slice(0, count);
+  const page = await api.tournaments(0, undefined, 'completed');
+  const completed = page.items.slice(0, count);
   return Promise.all(
     completed.map(async (summary) => {
       const t = await api.tournament(summary.id);

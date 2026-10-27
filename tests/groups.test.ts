@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { command, fixture, play, setup } from './helpers.js';
-import {
-  groupStandings,
-  matchById,
-  currentStage,
-  type Tournament,
-} from '../packages/domain/src/index.js';
+import { groupStandings, matchById, currentStage } from '../packages/domain/src/index.js';
 const resources: ReturnType<typeof setup>[] = [];
 function testSetup() {
   const r = setup();

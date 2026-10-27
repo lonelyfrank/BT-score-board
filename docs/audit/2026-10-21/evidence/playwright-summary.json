@@ -1,0 +1,772 @@
+{
+  "metadata": {
+    "actualWorkers": 1
+  },
+  "startTime": 1792541250226,
+  "duration": 145999.88400000002,
+  "files": [
+    {
+      "fileId": "60aee255112e33b2be9f",
+      "fileName": "frontend.spec.ts",
+      "tests": [
+        {
+          "testId": "60aee255112e33b2be9f-8acc9d65052146ca97b7",
+          "title": "home, result entry, reload, correction, qualification and final",
+          "projectName": "shared",
+          "location": {
+            "file": "frontend.spec.ts",
+            "line": 55,
+            "column": 1
+          },
+          "duration": 6841,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/dfe8d8fc36c237fdabea2856dd89ea9185c56d79.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:07:42.645Z",
+              "workerIndex": 0
+            }
+          ]
+        },
+        {
+          "testId": "60aee255112e33b2be9f-5150f5636685a9b3a3cc",
+          "title": "group setup and responsive views",
+          "projectName": "shared",
+          "location": {
+            "file": "frontend.spec.ts",
+            "line": 117,
+            "column": 1
+          },
+          "duration": 5988,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/44555d78f704bd54d6148be89f32d7734bfbc1c1.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:07:50.287Z",
+              "workerIndex": 0
+            }
+          ]
+        },
+        {
+          "testId": "60aee255112e33b2be9f-f10dffbda4d1e3a2c267",
+          "title": "resolves a tied final with a real playoff",
+          "projectName": "shared",
+          "location": {
+            "file": "frontend.spec.ts",
+            "line": 162,
+            "column": 1
+          },
+          "duration": 1715,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/1d4fc6a086405b4521e57c0777ff57c3c735d334.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:07:56.610Z",
+              "workerIndex": 0
+            }
+          ]
+        }
+      ],
+      "stats": {
+        "total": 3,
+        "expected": 3,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      }
+    },
+    {
+      "fileId": "1174bfe36a406e071d9d",
+      "fileName": "standalone-guided.spec.ts",
+      "tests": [
+        {
+          "testId": "1174bfe36a406e071d9d-c40d2c788e341f2f44c0",
+          "title": "guided Hi-Score: three darts, quick totals, next player, reload, matrix and result",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-guided.spec.ts",
+            "line": 49,
+            "column": 1
+          },
+          "duration": 18700,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/955c3d09a193c3c15b145d138b8eef28ccd0d6b6.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:07:59.261Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "1174bfe36a406e071d9d-5d1751d6706d7af4b4c6",
+          "title": "uneven teams: the actual thrower rotates, undo takes back a turn without moving twice",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-guided.spec.ts",
+            "line": 174,
+            "column": 1
+          },
+          "duration": 13173,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/fec28858c79377097795511363dee8b208ad1b77.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:08:18.665Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "1174bfe36a406e071d9d-48cf2304f23d13e2055d",
+          "title": "round by round: skipped turn, correction, official result, difference and history",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-guided.spec.ts",
+            "line": 242,
+            "column": 1
+          },
+          "duration": 9939,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/9a15f1767209db3b11cf827573cdc3ed68d08eb3.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:08:32.385Z",
+              "workerIndex": 1
+            }
+          ]
+        }
+      ],
+      "stats": {
+        "total": 3,
+        "expected": 3,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      }
+    },
+    {
+      "fileId": "41e33cc84a47e629581e",
+      "fileName": "standalone-layout.spec.ts",
+      "tests": [
+        {
+          "testId": "41e33cc84a47e629581e-5952ed6ed3a9714f28ad",
+          "title": "no horizontal scroll, bar never over the controls, touch targets of 44px",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-layout.spec.ts",
+            "line": 72,
+            "column": 1
+          },
+          "duration": 6286,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/d6dd863be78f1dce375bc885b9fc76a3bdddfd92.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:08:42.923Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "41e33cc84a47e629581e-9b29b13f3dcd795197b4",
+          "title": "the bar steps aside while the virtual keyboard is open",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-layout.spec.ts",
+            "line": 103,
+            "column": 3
+          },
+          "duration": 600,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": ["touch screen"],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/42cc9db65e47084e119e6b43aadf740322582244.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:08:49.631Z",
+              "workerIndex": 1
+            }
+          ]
+        }
+      ],
+      "stats": {
+        "total": 2,
+        "expected": 2,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      }
+    },
+    {
+      "fileId": "064519a052122fa56443",
+      "fileName": "standalone-operations.spec.ts",
+      "tests": [
+        {
+          "testId": "064519a052122fa56443-a67c7cf3509d3a698c51",
+          "title": "Hi-Score night of 19 over five heats: reload between heats, late entry, top 4 and a correction",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-operations.spec.ts",
+            "line": 34,
+            "column": 1
+          },
+          "duration": 7666,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/1ed17b326fd2ba9338ad2d72a7643ec4e916e494.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:08:50.360Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "064519a052122fa56443-e71badcf7ef55a568ac1",
+          "title": "seven players in uneven teams: rotation kept through an annulled round, ranking by totals",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-operations.spec.ts",
+            "line": 118,
+            "column": 1
+          },
+          "duration": 8435,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/562585874139092cdf3d0f1ab479cd5bb4ac28e3.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:08:58.823Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "064519a052122fa56443-ca06d3c0cd6f83f13434",
+          "title": "recovery: a reload keeps the score and the digits of the right player, a double tap saves once",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-operations.spec.ts",
+            "line": 193,
+            "column": 1
+          },
+          "duration": 1806,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/36a426ba49bc336dfc4e04bd611ec7c6774d7b6e.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:07.650Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "064519a052122fa56443-051ec9348b7e868cd3e8",
+          "title": "backup transfer of a 12-player tournament in progress, then the evening goes on",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-operations.spec.ts",
+            "line": 221,
+            "column": 1
+          },
+          "duration": 5567,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/9bae433754f89b19f4c930820e3badc322b20f13.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:09.705Z",
+              "workerIndex": 1
+            }
+          ]
+        }
+      ],
+      "stats": {
+        "total": 4,
+        "expected": 4,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      }
+    },
+    {
+      "fileId": "2fa236ae2f92f00ddd7a",
+      "fileName": "standalone-pwa.spec.ts",
+      "tests": [
+        {
+          "testId": "2fa236ae2f92f00ddd7a-c951b051e5fc234dd1df",
+          "title": "starts, navigates and saves scores offline after the first visit",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-pwa.spec.ts",
+            "line": 36,
+            "column": 1
+          },
+          "duration": 2446,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/e6dfc593a35479af2195decc4e5a00f555b83b50.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:15.815Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "2fa236ae2f92f00ddd7a-9619c2fb051659ad6329",
+          "title": "a new version waits for a safe moment and keeps the data",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone-pwa.spec.ts",
+            "line": 96,
+            "column": 1
+          },
+          "duration": 3757,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/ce93481c17485a00bfe2bd14c0a6a2e4b9b4d203.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:18.441Z",
+              "workerIndex": 1
+            }
+          ]
+        }
+      ],
+      "stats": {
+        "total": 2,
+        "expected": 2,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      }
+    },
+    {
+      "fileId": "dbc6c2843dacc6434a24",
+      "fileName": "standalone.spec.ts",
+      "tests": [
+        {
+          "testId": "dbc6c2843dacc6434a24-310a10a28b3bf95c7717",
+          "title": "Hi-Score night for 8 players: totals from the totem, tie decided, final and results",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 14,
+            "column": 1
+          },
+          "duration": 6042,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/955c193c7503848ff2be6cad2b99e9bb5e5b6e85.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:22.467Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-5873404c5e602b7fef52",
+          "title": "501 groups with winners only, final, then a correction that asks before reopening",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 105,
+            "column": 1
+          },
+          "duration": 3493,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/8ecd5586cfbf05c5b0c75a07bba3d029c3c87ff5.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:28.946Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-841990396e364e786fec",
+          "title": "free matches of the totem: Odd & Even sides, Exacta target and Shanghai win",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 176,
+            "column": 1
+          },
+          "duration": 3342,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/f02b762ee3d0a94831a48344d4aa36f5010d58a7.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:32.729Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-f743b7785fc9fc83c0ce",
+          "title": "game night with a tournament and players with nicknames",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 224,
+            "column": 1
+          },
+          "duration": 2066,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/7e34ad765bb7859acacffe4725301a38f46f5f82.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:36.360Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-fb256e5d76628767e1c0",
+          "title": "backup export and import onto a new device, with confirmation before replacing data",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 270,
+            "column": 1
+          },
+          "duration": 2911,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/d63dead1290d39c86491757ec56db9a355fae150.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:38.613Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-0e56dc6a6514f7e529ba",
+          "title": "a double tap on confirm records one score only",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 309,
+            "column": 1
+          },
+          "duration": 1427,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/959dab88176dbf05698a5628809d474fc4da6927.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:41.781Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-a52b811860aee15fcdf0",
+          "title": "X01 records every round and an excess keeps the remaining points",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 321,
+            "column": 1
+          },
+          "duration": 2567,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/f033a6d022d58df87dfc67bc99a213145d7b7123.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:43.379Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-22665f777995e2d61aba",
+          "title": "pairs composed by hand, rounds tracked with rotation, official result from the totem",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 353,
+            "column": 1
+          },
+          "duration": 6976,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/0e84fb5a6ceb8a1337d0ab774a9d7c637ebce908.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:46.260Z",
+              "workerIndex": 1
+            }
+          ]
+        },
+        {
+          "testId": "dbc6c2843dacc6434a24-b997fc3d2680735eab75",
+          "title": "seven players in a free Hi-Score match play two heats with one ranking",
+          "projectName": "standalone",
+          "location": {
+            "file": "standalone.spec.ts",
+            "line": 403,
+            "column": 1
+          },
+          "duration": 2161,
+          "annotations": [],
+          "tags": [],
+          "outcome": "expected",
+          "path": [],
+          "ok": true,
+          "results": [
+            {
+              "attachments": [
+                {
+                  "name": "trace",
+                  "contentType": "application/zip",
+                  "path": "data/3a2252d8b2f5ee432ce5995c4894e1d9f99b1ded.zip"
+                }
+              ],
+              "startTime": "2026-10-21T00:09:53.562Z",
+              "workerIndex": 1
+            }
+          ]
+        }
+      ],
+      "stats": {
+        "total": 9,
+        "expected": 9,
+        "unexpected": 0,
+        "flaky": 0,
+        "skipped": 0,
+        "ok": true
+      }
+    }
+  ],
+  "projectNames": ["shared", "standalone"],
+  "stats": {
+    "total": 23,
+    "expected": 23,
+    "unexpected": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "ok": true
+  },
+  "errors": [],
+  "options": {},
+  "machines": []
+}

@@ -1,6 +1,6 @@
 /* BT Darts Score Board — design tokens
- * Fonte unica dei valori visivi. I componenti usano SOLO queste variabili
- * (direttamente o tramite tailwind.preset.ts). Valori allineati al prototipo.
+ * Fonte unica dei valori visivi. I componenti usano SOLO queste variabili.
+ * Valori del canvas «BT Darts V1.4 · Mobile-first» (bt.css, token 1:1 con questo file).
  *
  * Font (Google Fonts):
  * https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@400;500;600;700&family=Oswald:wght@500;600;700&family=Permanent+Marker&display=swap
@@ -53,8 +53,8 @@
   --bt-rank-4: #a9643e;
 
   /* ---- Tipografia ---- */
-  --bt-font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; /* titoli, CTA */
-  --bt-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; /* interfaccia, testo */
+  --bt-font-display: 'Oswald', 'Arial Narrow', sans-serif; /* titoli, CTA */
+  --bt-font-ui: 'Barlow Condensed', 'Arial Narrow', sans-serif; /* interfaccia, testo */
   --bt-font-score: 'Anton', Impact, sans-serif; /* numeri grandi */
   --bt-font-graffiti: 'Permanent Marker', 'Marker Felt', cursive; /* banner turno, decorazioni */
 
@@ -81,14 +81,14 @@
   --bt-radius-md: 10px; /* card giocatore, header button, tile */
   --bt-radius-lg: 12px; /* CTA, card azioni, contenitori */
   --bt-radius-sheet: 16px;
-  --bt-radius-nav: 28px;
+  --bt-radius-nav: 999px;
 
   /* ---- Misure ---- */
   --bt-touch-min: 44px;
   --bt-header-h: 64px; /* 68px nelle schermate con titolo singolo */
-  --bt-nav-h: 64px; /* barra flottante */
-  --bt-nav-inset: 14px; /* margine laterale e distanza minima dal fondo */
-  --bt-nav-bottom: max(var(--bt-nav-inset), env(safe-area-inset-bottom));
+  --bt-nav-h: 62px; /* barra flottante Liquid Glass */
+  --bt-nav-inset: 14px; /* margine laterale */
+  --bt-nav-bottom: max(12px, env(safe-area-inset-bottom));
   --bt-nav-space: calc(var(--bt-nav-h) + var(--bt-nav-bottom)); /* schermo coperto dalla barra */
   --bt-cta-h: 58px; /* 62px in Nuova partita, 88px card Home primaria */
   --bt-key-h: 58px;
@@ -109,13 +109,19 @@
   --bt-glass-blur: 20px;
   --bt-elev-float: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.45);
 
+  /* Navigazione Liquid Glass V1.1: lente su Blink, vetro sfocato altrove. */
+  --bt-nav-tint: rgba(12, 11, 15, 0.34); /* serve a leggere le etichette su liste scure e chiare */
+  --bt-nav-fallback: rgba(16, 16, 19, 0.96);
+  --bt-nav-duration: 520ms; /* scivolata lunga della capsula */
+  --bt-nav-easing: cubic-bezier(0.16, 1, 0.22, 1); /* senza rimbalzo */
+
   /* ---- Movimento ---- */
   --bt-dur-press: 110ms;
   --bt-dur-tab: 180ms;
   --bt-dur-turn: 200ms;
   --bt-ease: ease;
   --bt-ease-out: cubic-bezier(0.25, 0.8, 0.25, 1);
-  --bt-dur-indicator: 260ms; /* pillola della tab attiva */
+  --bt-dur-indicator: 340ms; /* indicatori e feedback del punteggio */
   --bt-press-scale: 0.97; /* .95 sui tasti del tastierino */
 }
 
@@ -125,23 +131,7 @@
     --bt-dur-tab: 0ms;
     --bt-dur-turn: 0ms;
     --bt-dur-indicator: 0ms;
+    --bt-nav-duration: 0ms;
     --bt-press-scale: 1;
   }
-}
-
-/* Utility condivise */
-.bt-tabular {
-  font-variant-numeric: tabular-nums;
-}
-.bt-neon {
-  border-color: var(--bt-accent-primary);
-  box-shadow: var(--bt-neon);
-}
-.bt-focus:focus-visible {
-  outline: 2px solid var(--bt-accent-soft);
-  outline-offset: 2px;
-}
-.bt-grain {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 3px 3px;
 }

@@ -1,3 +1,4 @@
+import { uuid } from '../../../../packages/application/src/portable.js';
 import {
   ApiError,
   defaultUndoReason,
@@ -25,6 +26,7 @@ import {
   type Summary,
   type Tournament,
   type TournamentAction,
+  type TournamentStatus,
   type TurnInput,
 } from './game.js';
 
@@ -111,7 +113,7 @@ export class HttpAdapter implements GameAdapter {
     return this.pending.get(path);
   }
   async command(path: string, body: Record<string, unknown>): Promise<Tournament> {
-    const command = this.getPending(path) ?? { path, body, key: crypto.randomUUID() };
+    const command = this.getPending(path) ?? { path, body, key: uuid() };
     this.pending.set(path, command);
     storage.set(`bt-command:${path}`, JSON.stringify(command));
     try {
@@ -153,10 +155,9 @@ export class HttpAdapter implements GameAdapter {
   history(id: string) {
     return this.request<Page<Summary>>(`/players/${id}/history?limit=100`);
   }
-  tournaments(offset = 0, eventId?: string) {
-    return this.request<Page<Summary>>(
-      `/tournaments?limit=100&offset=${offset}${eventId ? `&eventId=${eventId}` : ''}`,
-    );
+  tournaments(offset = 0, eventId?: string, status?: TournamentStatus) {
+    const filters = `${eventId ? `&eventId=${eventId}` : ''}${status ? `&status=${status}` : ''}`;
+    return this.request<Page<Summary>>(`/tournaments?limit=100&offset=${offset}${filters}`);
   }
   tournament(id: string) {
     return this.request<Tournament>(`/tournaments/${id}`);

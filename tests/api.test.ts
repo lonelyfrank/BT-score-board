@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import SwaggerParser from '@apidevtools/swagger-parser';
-import type { FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { registerAuth } from '../apps/api/src/middleware/auth.js';
+import { registerWeb } from '../apps/api/src/plugins/web.js';
 import { buildApp } from '../apps/api/src/server/app.js';
 import { readConfig } from '../apps/api/src/server/config.js';
 import { currentTurn, matchById, type Tournament } from '../packages/domain/src/index.js';
@@ -229,6 +233,32 @@ describe('Operational security and API documentation', () => {
     ).toBe(401);
     expect((await app.inject(`/api/v1/tournaments/${randomUUID()}/audit`)).statusCode).toBe(401);
   });
+  it('serves the SPA on every client route, so reloads and bookmarks work', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'bt-web-'));
+    writeFileSync(join(directory, 'index.html'), '<!doctype html><div id="root"></div>');
+    const app = Fastify();
+    apps.push(app);
+    registerAuth(app, readConfig({ ORGANIZER_TOKEN: token, DATABASE_PATH: ':memory:' }));
+    registerWeb(app, directory);
+    await app.ready();
+    const router = readFileSync('apps/web/src/main.tsx', 'utf8');
+    const paths = [...router.matchAll(/<Route\s+path="([^"*]+)"/g)].map((m) =>
+      m[1]!.replace(/:\w+/g, 'x'),
+    );
+    expect(paths).toContain('/serate');
+    try {
+      for (const url of paths) {
+        const r = await app.inject(url);
+        expect([url, r.statusCode, r.headers['content-type']]).toEqual([
+          url,
+          200,
+          'text/html; charset=utf-8',
+        ]);
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
   it('rate limits clients', async () => {
     const app = await setup({ RATE_LIMIT_MAX: '2' });
     await app.inject('/health');
@@ -261,4 +291,45 @@ describe('Operational security and API documentation', () => {
     const checkedIn = JSON.parse(readFileSync('docs/openapi.json', 'utf8'));
     expect(checkedIn).toEqual(spec);
   });
+});
+
+it('round-trips physical gaps and reordered heats through shared HTTP, with version guards', async () => {
+  const app = await setup();
+  let t = (
+    await request(
+      app,
+      'POST',
+      '/tournaments',
+      {
+        name: 'Flexible HTTP',
+        mode: 'SINGLE_MATCH',
+        tracking: 'FLEXIBLE',
+      },
+      201,
+    )
+  ).json<Tournament>();
+  for (let i = 0; i < 5; i++) {
+    const p = (await request(app, 'POST', '/players', { displayName: `Slot ${i}` }, 201)).json<{
+      id: string;
+    }>();
+    t = await cmd(app, t, 'players', { playerId: p.id });
+  }
+  t = await cmd(app, t, 'start');
+  const m = t.matches[0]!;
+  expect(m.heats.map((h) => h.entryIds.length)).toEqual([4, 1]);
+  const layout = [...m.heats].reverse().map((h) => ({
+    heatId: h.id,
+    entryIds: [...h.entryIds].reverse(),
+    ...(h.entryIds.length === 1 ? { slotPositions: [4] } : {}),
+  }));
+  const body = { expectedVersion: t.version, expectedMatchVersion: m.version, heats: layout };
+  const key = randomUUID();
+  const saved = await request(app, 'POST', `/matches/${m.id}/heats/arrange`, body, 200, key);
+  const again = await request(app, 'POST', `/matches/${m.id}/heats/arrange`, body, 200, key);
+  expect(again.json()).toEqual(saved.json());
+  const live = (await request(app, 'GET', `/matches/${m.id}`)).json();
+  expect(live.heats[0].slotPositions).toEqual([4]);
+  expect(live.turnPlans[0].seats).toEqual(layout[0]!.entryIds);
+  expect(live.turnPlans[0].expected).toBe(7);
+  await request(app, 'POST', `/matches/${m.id}/heats/arrange`, body, 409, randomUUID());
 });

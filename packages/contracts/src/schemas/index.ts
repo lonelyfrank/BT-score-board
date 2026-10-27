@@ -18,7 +18,7 @@ export const tracking = z.enum(['FINAL_ONLY', 'ROUND_BY_ROUND', 'FLEXIBLE']);
 export const heatStrategy = z.enum(['sequential', 'random', 'balanced']);
 export const x01Entry = z.enum(['SCORED', 'REMAINING']);
 /** Seats of a heat on the totem (verified: four). */
-const heatCapacity = z.number().int().min(1).max(8);
+const heatCapacity = z.number().int().min(1).max(4);
 /** Preset avatars only: no images are stored. */
 export const avatar = z.string().regex(/^[a-z0-9-]{1,32}$/);
 export const scoringConfiguration = z
@@ -48,7 +48,7 @@ export const tournamentConfiguration = z.strictObject({
   groupRanking: z.union([z.enum(['POINTS_SCORE', 'POINTS_WINS']), z.null()]).default(null),
   // null: the most players of the game on the totem.
   heatCapacity: z.union([heatCapacity, z.null()]).default(null),
-  heatStrategy: heatStrategy.default('balanced'),
+  heatStrategy: heatStrategy.default('sequential'),
   x01Entry: x01Entry.default('REMAINING'),
 });
 export const createPlayer = z.strictObject({
@@ -129,7 +129,8 @@ export const arrangeHeats = matchCommand.extend({
     .array(
       z.strictObject({
         heatId: id.nullable().optional(),
-        entryIds: z.array(id).min(1).max(8),
+        entryIds: z.array(id).min(1).max(4),
+        slotPositions: z.array(z.number().int().min(1).max(4)).optional(),
       }),
     )
     .min(1)
@@ -137,16 +138,46 @@ export const arrangeHeats = matchCommand.extend({
 });
 export const heatCommand = matchCommand.extend({ heatId: id });
 export const lockHeat = heatCommand.extend({ locked: z.boolean() });
+/**
+ * One dart as observed: sector 1–20 for single, double and triple, none for bull, miss (off the
+ * board, zero) and unobserved (nobody saw it, never zero).
+ */
+export const dartThrow = z.strictObject({
+  kind: z.enum(['single', 'double', 'triple', 'bull25', 'bull50', 'miss', 'unobserved']),
+  sector: z.number().int().min(1).max(20).nullable(),
+});
+/** Up to three darts; fewer only when the turn ended early (bust, checkout). */
+const darts = z.array(dartThrow).min(1).max(3);
 export const recordRound = matchCommand.extend({
   entryId: id,
   round: z.number().int().min(1).max(99),
   /** null: the round was not observed (skipped), which is not zero. */
   value: z.number().int().nonnegative().max(12000).nullable(),
+  /** Darts one by one; left out on a correction to keep the darts already entered. */
+  darts: darts.nullable().optional(),
   /** X01: the points from this round do not count. */
   bust: z.boolean().default(false),
   playerId: id.nullable().optional(),
   reason: z.string().trim().max(1000).nullable().optional(),
   advanceRotation: z.boolean().default(false),
+});
+/** Confirms the turn at the board; refused when another turn is there. */
+export const recordTurn = matchCommand.extend({
+  entryId: id,
+  round: z.number().int().min(1).max(99),
+  /** Left out when the darts decide the turn; null: not observed. */
+  value: z.number().int().nonnegative().max(12000).nullable().optional(),
+  darts: darts.nullable().optional(),
+  /** X01: declared bust, without a value (the running total is kept). */
+  bust: z.boolean().default(false),
+  playerId: id.nullable().optional(),
+  reason: z.string().trim().max(1000).nullable().optional(),
+});
+export const guideTurn = matchCommand.extend({
+  action: z.enum(['pick', 'undo', 'pause', 'resume']),
+  entryId: id.nullable().optional(),
+  round: z.number().int().min(1).max(99).nullable().optional(),
+  heatId: id.nullable().optional(),
 });
 export const voidRound = matchCommand.extend({
   entryId: id,
@@ -266,6 +297,7 @@ export const turnResponse = z.object({
   completedAt: z.string().nullable(),
 });
 export const heatResponse = z.object({
+  slotPositions: z.array(z.number().int().min(1)).optional(),
   id,
   matchId: id,
   number: z.number(),
@@ -289,6 +321,14 @@ export const roundResponse = z.object({
   source: z.literal('manual'),
   createdAt: z.string(),
   recordedBy: z.string(),
+  /** Absent on rounds recorded before darts existed: only their value is known. */
+  darts: z.array(dartThrow).nullable().optional(),
+});
+const turnSlot = z.object({ entryId: id, round: z.number() });
+export const guideResponse = z.object({
+  pick: turnSlot.nullable(),
+  replay: z.array(turnSlot),
+  paused: z.boolean(),
 });
 export const rotationResponse = z.object({
   entryId: id,
@@ -353,6 +393,7 @@ export const matchResponse = z.object({
   heats: z.array(heatResponse).default([]),
   rounds: z.array(roundResponse).default([]),
   rotations: z.array(rotationResponse).default([]),
+  guide: guideResponse.nullable().optional(),
 });
 export const resultResponse = z.object({
   tournamentId: id,
@@ -502,6 +543,17 @@ export const liveMatchResponse = matchResponse.extend({
           playerId: id.nullable(),
           corrected: z.boolean(),
           recordId: id.nullable(),
+          state: z.enum([
+            'complete',
+            'early',
+            'partial',
+            'skipped',
+            'review',
+            'reenter',
+            'missing',
+          ]),
+          darts: z.array(dartThrow).nullable(),
+          dartsValue: z.number().nullable(),
         }),
       ),
       recorded: z.number(),
@@ -513,6 +565,26 @@ export const liveMatchResponse = matchResponse.extend({
       best: z.number().nullable(),
       average: z.number().nullable(),
       official: z.number().nullable(),
+    }),
+  ),
+  /** Turn coordinator: one plan per heat, or one for a match played in one session. */
+  turnPlans: z.array(
+    z.object({
+      heatId: id.nullable(),
+      heatNumber: z.number().nullable(),
+      seats: z.array(id),
+      rounds: z.number().nullable(),
+      state: z.enum(['ready', 'in_progress', 'paused', 'interrupted', 'completed']),
+      current: turnSlot.extend({ playerId: id.nullable() }).nullable(),
+      next: turnSlot.extend({ playerId: id.nullable() }).nullable(),
+      round: z.number(),
+      thrown: z.number(),
+      expected: z.number().nullable(),
+      undoable: turnSlot.nullable(),
+      closed: z.array(turnSlot),
+      gaps: z.array(turnSlot),
+      shanghai: turnSlot.nullable(),
+      before: z.number().nullable(),
     }),
   ),
   rotationViews: z.array(

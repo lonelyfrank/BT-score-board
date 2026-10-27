@@ -25,10 +25,16 @@ import {
   type TeamDraft,
   type TeamStrategy,
 } from '../../../../packages/domain/src/competition/teams.js';
-import { planHeats } from '../../../../packages/domain/src/competition/heats.js';
+import {
+  planHeats,
+  heatSlots,
+  canArrangeHeat,
+  physicalSeat,
+} from '../../../../packages/domain/src/competition/heats.js';
 import { comparableAcrossHeats } from '../../../../packages/domain/src/games/catalog.js';
 import type {
   GameMode,
+  Match as DomainMatch,
   Tournament as DomainTournament,
 } from '../../../../packages/domain/src/model.js';
 import type { Match, Tournament } from './game';
@@ -84,11 +90,15 @@ export function freeMatchLimits(mode: GameMode) {
   };
 }
 /** Sizes of the heats a number of units would need on the totem ("4 · 4 · 3"). */
-export const heatSizes = (units: number, seats: number) =>
+export const heatSizes = (
+  units: number,
+  seats: number,
+  strategy: 'sequential' | 'balanced' | 'random' = 'sequential',
+) =>
   planHeats(
     Array.from({ length: units }, (_, i) => String(i)),
     seats,
-    'balanced',
+    strategy,
   ).map((h) => h.length);
 
 export const trackingLabels = {
@@ -111,3 +121,14 @@ export function syncTeams(teams: TeamDraft[], playerIds: string[]): TeamDraft[] 
   const placed = new Set(kept.flatMap((t) => t.playerIds));
   return [...kept, ...singles(playerIds.filter((id) => !placed.has(id)))];
 }
+
+export { heatSlots };
+export const seatOf = (m: Match, entryId: string) =>
+  physicalSeat(m as unknown as DomainMatch, entryId);
+export const canOrganizeHeat = (m: Match, h: Match['heats'][number]) =>
+  canArrangeHeat(m as unknown as DomainMatch, h);
+export const canOrganizeMatch = (m: Match) =>
+  !['completed', 'cancelled', 'paused'].includes(m.status) &&
+  (m.heats.length
+    ? m.heats.some((h) => canOrganizeHeat(m, h))
+    : !m.startedAt && !m.rounds.length && !m.result);
