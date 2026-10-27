@@ -17,6 +17,7 @@ import {
   type Crew,
   type PlaySpace,
   type Progression,
+  type Tournament,
 } from '../../domain/src/index.js';
 import { MemoryStore } from './memory-store.js';
 import {
@@ -276,6 +277,24 @@ export class LocalEngine {
     this.playSpace(playSpaceId);
     return computeProgression(inPlaySpace(this.allTournaments(), playSpaceId), {
       links: this.social.links,
+    });
+  }
+  /**
+   * Personal progression over the tournaments `visible` accepts and nothing else: no cards (they
+   * carry no play space) and no records. What a signed-in account sees on the server.
+   */
+  progressionView(visible: (t: Tournament) => boolean): Progression {
+    this.ensureOpen();
+    return computeProgression(this.allTournaments().filter(visible), {
+      links: this.social.links,
+      records: false,
+    });
+  }
+  crewProgressionView(crewId: string, visible: (t: Tournament) => boolean): Progression {
+    this.crew(crewId);
+    return computeProgression(this.crewTournaments(crewId).filter(visible), {
+      links: this.social.links,
+      records: false,
     });
   }
   /** Every match and tournament id held here, removed ones included. */

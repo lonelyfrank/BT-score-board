@@ -17,10 +17,19 @@ export const readMethods = [
   'crewProgression',
   'crewTournaments',
   'allTournaments',
+  'playSpaces',
+  'matchAccess',
 ] as const;
 /** Read-only too, but only for admins: what was removed or switched off. */
-export const adminReadMethods = ['removedTournaments'] as const;
-/** These change data: admins only, except a player editing their own profile. */
+export const adminReadMethods = [
+  'removedTournaments',
+  'unclassifiedTournaments',
+  'variants',
+] as const;
+/**
+ * These change data: admins only, except what rpc.ts allows an account: editing the own profile,
+ * creating players, play spaces and matches, and changing a match it is the scorer of.
+ */
 export const writeMethods = [
   'createPlayer',
   'updatePlayer',
@@ -42,6 +51,13 @@ export const writeMethods = [
   'exportCrew',
   'previewMerge',
   'mergeBackup',
+  'moveTournament',
+  'createPlaySpace',
+  'assignUnclassified',
+  'resolveVariant',
+  'transferScorer',
+  'takeOverScoring',
+  'recoverScorer',
 ] as const;
 /** Backups travel as their exported text: the server checks their integrity itself. */
 export const backupMethods = ['importBackup', 'previewMerge', 'mergeBackup'] as const;

@@ -2,6 +2,7 @@ import {
   matchCommandPaths,
   tournamentCommandPaths,
   type Backend,
+  type PlaySpaceFilter,
 } from '../../../../packages/application/src/services/backend.js';
 import { uuid } from '../../../../packages/application/src/portable.js';
 import { DomainError, type Crew } from '../../../../packages/domain/src/index.js';
@@ -119,11 +120,11 @@ export class LocalGameAdapter implements GameAdapter {
     return this.write((b) => b.updateEvent(id, patch));
   }
   /** Statistics of a player; with a play space, only the results played there. */
-  statistics(id: string, playSpaceId?: string | null) {
+  statistics(id: string, playSpaceId?: PlaySpaceFilter) {
     return this.read((b) => b.statistics(id, playSpaceId));
   }
   /** The history of a player: all of it (labelled personal), or one play space's. */
-  async history(id: string, playSpaceId?: string | null) {
+  async history(id: string, playSpaceId?: PlaySpaceFilter) {
     const page = await this.read((b) => b.history(id, { ...all, offset: 0 }, playSpaceId));
     return { ...page, items: page.items.map(toSummary) };
   }
@@ -372,6 +373,19 @@ export class LocalGameAdapter implements GameAdapter {
   }
   links() {
     return this.run(async (e) => e.socialData().links);
+  }
+  /** Personal progression over the tournaments `visible` accepts (an account's own view). */
+  progressionView(visible: (t: Tournament) => boolean) {
+    return this.run(async (e) => e.progressionView(visible));
+  }
+  crewProgressionView(id: string, visible: (t: Tournament) => boolean) {
+    return this.run(async (e) => e.crewProgressionView(id, visible));
+  }
+  /** Every tournament with its entries, for access decisions made on the server. */
+  async fullTournaments() {
+    return this.read((_, store) =>
+      store.listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 }).items,
+    );
   }
   crewProgression(id: string, playSpaceId?: string) {
     return this.run(async (e) => e.crewProgression(id, playSpaceId));

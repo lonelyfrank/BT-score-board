@@ -307,6 +307,16 @@ export class Accounts {
       );
     return account;
   }
+  /** The account behind a hashed session key, while that session is valid (live sockets). */
+  bySessionKey(key: string): Account | null {
+    const row = this.all(
+      'SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?',
+      key,
+      this.clock(),
+    )[0];
+    const account = row && this.get(row.user_id as string);
+    return account && !account.disabled ? account : null;
+  }
   async logout(token: string | null) {
     if (token) this.host.sql.exec('DELETE FROM sessions WHERE token = ?', await sha256(token));
   }

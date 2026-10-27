@@ -99,6 +99,17 @@ export const scoreCommandPaths = {
   correct: 'CorrectScore',
   void: 'VoidScore',
 } as const satisfies Record<string, CommandName>;
+/**
+ * Which play spaces a read covers: one space, null (unclassified data), a set of spaces (what an
+ * account may see), or undefined for everything on the installation.
+ */
+export type PlaySpaceFilter = string | null | ReadonlySet<string | null>;
+const inPlaySpaces = (t: Pick<d.Tournament, 'playSpaceId'>, filter: PlaySpaceFilter | undefined) =>
+  filter === undefined ||
+  (typeof filter === 'object' && filter !== null
+    ? filter.has(t.playSpaceId ?? null)
+    : (t.playSpaceId ?? null) === filter);
+
 export class Backend {
   constructor(
     public readonly store: Store,
@@ -740,13 +751,13 @@ export class Backend {
         }));
     });
   }
-  history(id: string, options: ListOptions, playSpaceId?: string | null) {
+  history(id: string, options: ListOptions, playSpaceId?: PlaySpaceFilter) {
     this.player(id);
     // Without a filter this is the labelled personal history; with one, a single play space
     // (null: the unclassified data from before play spaces).
     const all = this.store
       .tournamentsForPlayer(id)
-      .filter((t) => playSpaceId === undefined || (t.playSpaceId ?? null) === playSpaceId);
+      .filter((t) => inPlaySpaces(t, playSpaceId));
     const filtered = all.filter(
       (t) =>
         (!options.status || t.status === options.status) &&
@@ -764,11 +775,11 @@ export class Backend {
    * result changes them at the next read. Games are kept apart; Hi-Score totals only compare
    * with the same rounds and darts.
    */
-  statistics(id: string, playSpaceId?: string | null): z.output<typeof s.statisticsResponse> {
+  statistics(id: string, playSpaceId?: PlaySpaceFilter): z.output<typeof s.statisticsResponse> {
     this.player(id);
     const tournaments = this.store
       .tournamentsForPlayer(id)
-      .filter((t) => playSpaceId === undefined || (t.playSpaceId ?? null) === playSpaceId)
+      .filter((t) => inPlaySpaces(t, playSpaceId))
       .filter((t) => t.startedAt !== null && t.status !== 'cancelled');
     type Row = z.output<typeof s.statisticsResponse>['byGameMode'][number] & { totals: number[] };
     const rows = new Map<string, Row>();
