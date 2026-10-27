@@ -85,6 +85,17 @@ export class ApiError extends Error {
   }
 }
 export const messages: Record<string, string> = {
+  NOT_SCORER: 'Solo il segnapunti di questa partita può modificarla.',
+  SCORER_ELSEWHERE:
+    'Questa partita è segnata su un altro dispositivo: riprendila da qui per continuare.',
+  MATCH_UNASSIGNED: 'Questa partita non ha un segnapunti: un admin deve assegnarlo.',
+  NOT_ALLOWED: 'Non hai accesso a questa partita o a questo punto di incontro.',
+  FORBIDDEN_SPACE: 'Unisciti a questo punto di incontro per giocarci o condividerlo.',
+  INVALID_INVITE: 'L’invito non è valido, è stato revocato o è scaduto.',
+  SAME_PLAY_SPACE: 'La partita è già in questo punto di incontro.',
+  PLAY_SPACE_NOT_FOUND: 'Punto di incontro non trovato.',
+  COMMAND_ID_TAKEN: 'Operazione già inviata da un altro account.',
+  NOT_SHAREABLE: 'Il Bite the Trouble è aperto a tutti: non serve un invito.',
   UNAUTHORIZED: 'Accedi con il token organizzatore nelle Impostazioni.',
   VERSION_CONFLICT: 'La partita è stata aggiornata. Controlla i dati e ripeti il comando.',
   MATCH_VERSION_CONFLICT: 'Il turno è cambiato. Controlla il punteggio prima di riprovare.',

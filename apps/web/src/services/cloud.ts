@@ -8,6 +8,7 @@ import {
   backupMethods,
   readMethods,
   writeMethods,
+  type AccessMethod,
   type CloudMethod,
 } from '../../../worker/src/methods.js';
 import { decode } from '../../../worker/src/codec.js';
@@ -38,9 +39,40 @@ export type EngineApi = Pick<
   | 'exportCrew'
   | 'previewMerge'
   | 'mergeBackup'
+  | 'playSpaces'
+  | 'createPlaySpace'
+  | 'moveTournament'
+  | 'unclassifiedTournaments'
+  | 'assignUnclassified'
+  | 'variants'
+  | 'resolveVariant'
 >;
+/** Who scores a match, as the server records it. */
+export interface MatchAccessInfo {
+  tournamentId: string;
+  createdBy: string | null;
+  scorerId: string | null;
+  epoch: number;
+  scorer: { id: string; username: string } | null;
+  /** The signed-in account is the scorer (it may still be on another device). */
+  mine: boolean;
+  /** For the scorer: whether this device holds the match, or another phone does. */
+  device: 'here' | 'elsewhere' | 'free' | null;
+}
+export interface ScorerCandidate {
+  id: string;
+  username: string;
+  playerId: string | null;
+}
+export interface SpaceInviteInfo {
+  id: string;
+  spaceId: string;
+  createdAt: string;
+  expiresAt: string;
+  revoked: boolean;
+}
 type Remote = {
-  [K in CloudMethod]: (
+  [K in Exclude<CloudMethod, AccessMethod>]: (
     ...args: Parameters<LocalGameAdapter[K]>
   ) => Promise<Awaited<ReturnType<LocalGameAdapter[K]>>>;
 };
@@ -97,6 +129,31 @@ export function useAccount(): Account | null | undefined {
 export const isAdmin = (a: Account | null | undefined) =>
   a?.role === 'owner' || a?.role === 'admin';
 
+const uuid = () => crypto.randomUUID();
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Sends one rpc. A change that fails for lack of network is repeated, with the same command id,
+ * a couple of times: if the first attempt did reach the server, the repeat returns its outcome
+ * instead of running it again. If every attempt fails the error is "uncertain": the screen
+ * must not show the change as saved.
+ */
+async function sendRpc<T>(body: {
+  method: string;
+  args: unknown[];
+  commandId?: string;
+}): Promise<T> {
+  const attempts = body.commandId ? 3 : 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await request<T>('/rpc', body);
+    } catch (error) {
+      const network = error instanceof ApiError && error.code === 'NETWORK';
+      if (!network || attempt >= attempts) throw error;
+      await wait(attempt * 1000);
+    }
+  }
+}
+
 // Backups are verified here for the preview, and sent as their exported text: the server checks
 // their integrity again before writing.
 const backupTexts = new WeakMap<BackupFile, string>();
@@ -111,13 +168,25 @@ export class CloudAdapter {
   private listeners = new Set<(event: EngineEvent) => void>();
   private revision: number | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  declare matchAccess: (tournamentId: string) => Promise<MatchAccessInfo>;
+  declare scorerCandidates: (tournamentId: string) => Promise<ScorerCandidate[]>;
+  declare transferScorer: (tournamentId: string, toAccountId: string) => Promise<MatchAccessInfo>;
+  declare takeOverScoring: (tournamentId: string) => Promise<MatchAccessInfo>;
+  declare recoverScorer: (
+    tournamentId: string,
+    toAccountId: string,
+    reason: string,
+  ) => Promise<MatchAccessInfo>;
 
   constructor() {
     const remote = this as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
     const call =
       (method: CloudMethod, write: boolean) =>
       async (...args: unknown[]) => {
-        const { result } = await request<{ result: unknown }>('/rpc', { method, args });
+        // Every change carries an id of its own: if the answer is lost and the call is repeated,
+        // the server returns the first outcome instead of applying it twice.
+        const commandId = write ? uuid() : undefined;
+        const { result } = await sendRpc<{ result: unknown }>({ method, args, commandId });
         if (write) {
           this.revision = null;
           this.emit({ type: 'changed', origin: 'local' });
@@ -130,6 +199,7 @@ export class CloudAdapter {
     for (const method of writeMethods)
       if (!(backupMethods as readonly string[]).includes(method))
         remote[method] = call(method, true);
+    // Join/follow links, invites and play space membership go through plain routes.
   }
 
   // Sessions and accounts.
@@ -204,6 +274,30 @@ export class CloudAdapter {
     this.revision = null;
     this.emit({ type: 'changed', origin: 'local' });
     return account;
+  }
+  /** A link code for a play space: members can share it; it carries no write right. */
+  createSpaceInvite(spaceId: string) {
+    return request<{ id: string; code: string }>('/spaces/invites', { spaceId });
+  }
+  async spaceInvites(spaceId: string) {
+    return (await request<{ invites: SpaceInviteInfo[] }>('/spaces/invites/list', { spaceId }))
+      .invites;
+  }
+  revokeSpaceInvite(id: string) {
+    return request('/spaces/invites/revoke', { id });
+  }
+  /** Accepts an invite: the account becomes a member of that very play space, once. */
+  async joinSpace(code: string) {
+    const { space } = await request<{ space: { id: string; name: string } }>('/spaces/join', {
+      code,
+    });
+    this.revision = null;
+    this.emit({ type: 'changed', origin: 'remote' });
+    return space;
+  }
+  async leaveSpace(spaceId: string) {
+    await request('/spaces/leave', { spaceId });
+    this.emit({ type: 'changed', origin: 'remote' });
   }
   users() {
     return request<{ users: Account[]; invites: Invite[] }>('/admin/users');

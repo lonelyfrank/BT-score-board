@@ -17,7 +17,7 @@ import {
   Target,
 } from 'lucide-react';
 import { distributeGroups } from '../../../../packages/domain/src/tournaments/schedule.js';
-import { api, ApiError, type Player, type Tournament } from '../services/api';
+import { api, ApiError, localData, type Player, type Tournament } from '../services/api';
 import {
   HI_SCORE_ROUNDS,
   checkComposition,
@@ -45,6 +45,16 @@ import {
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
 import { shortDate } from './Setup';
+import {
+  BT_CHOICE,
+  PlaySpaceStep,
+  choiceName,
+  choiceReady,
+  rememberPlaySpace,
+  resolvePlaySpace,
+  usePlaySpaces,
+  type PlaySpaceChoice,
+} from '../components/PlaySpaceStep';
 
 type Format = 'QUICK_HIGH_SCORE' | 'GROUPS' | 'SINGLE_MATCH';
 type Strategy = 'sequential' | 'balanced' | 'random' | 'custom';
@@ -116,6 +126,8 @@ type Draft = {
   qualifiers: number;
   tracking: Tracking;
   x01Entry: 'REMAINING' | 'SCORED';
+  /** Where the results count; null until the first question is answered. */
+  space: PlaySpaceChoice | null;
 };
 const draftKey = 'bt-tournament-draft';
 const fresh = (): Draft => ({
@@ -142,6 +154,7 @@ const fresh = (): Draft => ({
   qualifiers: 4,
   tracking: 'ROUND_BY_ROUND',
   x01Entry: 'SCORED',
+  space: null,
 });
 function readDraft(): Draft | null {
   try {
@@ -186,6 +199,8 @@ export function TournamentSetup() {
     setTouched(true);
     setD((current) => ({ ...current, ...patch }));
   };
+  const spaces = usePlaySpaces();
+  const spaceName = choiceName(d.space, spaces.data ?? []);
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<Tournament>();
@@ -263,9 +278,11 @@ export function TournamentSetup() {
 
   const stepReason = (s: number) =>
     s === 1
-      ? !d.name.trim()
-        ? 'Inserisci il nome del torneo.'
-        : ''
+      ? !localData || choiceReady(d.space)
+        ? !d.name.trim()
+          ? 'Inserisci il nome del torneo.'
+          : ''
+        : 'Dì dove giocate: scegli il Bite the Trouble o un altro punto.'
       : s === 2
         ? n < minUnits
           ? `Servono almeno ${minUnits} partecipanti.`
@@ -291,6 +308,7 @@ export function TournamentSetup() {
       let t =
         created ??
         (await api.createTournament({
+          playSpaceId: await resolvePlaySpace(d.space ?? BT_CHOICE),
           name: d.name.trim(),
           eventId: d.eventId || null,
           mode: d.format,
@@ -316,6 +334,7 @@ export function TournamentSetup() {
           },
         }));
       setCreated(t);
+      rememberPlaySpace(t.playSpaceId ?? '');
       // One command registers every unit (singles and teams): all of them, or none.
       if (!t.entries.length && units.length)
         t = await api.tournamentCommand(t, 'entries/compose', {
@@ -416,6 +435,7 @@ export function TournamentSetup() {
         <fieldset disabled={locked} className="setup-step">
           {step === 1 && (
             <>
+              {localData && <PlaySpaceStep value={d.space} change={(space) => set({ space })} />}
               <div className="wz-head">
                 <h2 className="wz-title">Che serata è?</h2>
                 <p>Scegli il formato: i passi successivi si adattano.</p>
@@ -966,6 +986,12 @@ export function TournamentSetup() {
                 <p>Tocca Modifica per tornare al passo: le altre scelte restano.</p>
               </div>
               <div className="card">
+                {localData && (
+                  <SumRow k="Punto di incontro" edit={() => go(1)}>
+                    {spaceName || '—'}
+                    <small>I risultati saranno conteggiati nella scoreboard {spaceName}.</small>
+                  </SumRow>
+                )}
                 <SumRow k="Torneo" edit={() => go(1)}>
                   {d.name.trim() || '—'}
                   <small>

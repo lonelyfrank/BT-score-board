@@ -96,7 +96,8 @@ export async function dispatch(
     throw new DomainError('NOT_SUPPORTED', 'Unknown method', 404);
   if (adminReads.has(method) && !isAdmin(account)) throw forbidden();
   const args = Array.isArray(input) ? [...input] : [];
-  if (access && !writes.has(method)) return read(adapter, account, method, args, access, accounts);
+  if (access && !writes.has(method))
+    return read(adapter, account, method, args, access, accounts, session);
 
   if (writes.has(method) && !isAdmin(account)) {
     // A player edits the name, nickname and avatar of their own record, nothing else.
@@ -243,6 +244,7 @@ async function read(
   args: unknown[],
   access: Access,
   accounts?: Accounts,
+  session = 'local',
 ): Promise<unknown> {
   const v = await viewer(adapter, account, access);
   const call = (name: string, ...a: unknown[]) =>
@@ -263,7 +265,26 @@ async function read(
       const a = access.access(id);
       const holder = a?.scorerId ? accounts?.get(a.scorerId) : undefined;
       const scorer = holder ? { id: holder.id, username: holder.username } : null;
-      return { ...a, scorer, mine: a?.scorerId === account.id };
+      return {
+        ...a,
+        scorer,
+        mine: a?.scorerId === account.id,
+        // Whether this very device holds the match (a second phone of the scorer does not).
+        device: a?.scorerId === account.id ? access.holds(id, session) : null,
+      };
+    }
+    case 'scorerCandidates': {
+      // Accounts that can see the match and play in it: who the scoring right can pass to.
+      const id = String(args[0]);
+      if (!v.can(id)) throw notVisible();
+      const t = (await call('tournament', id)) as Tournament;
+      const resolve = v.resolve;
+      const ids = new Set(tournamentPlayerIds(t as never).map((p) => resolve(p)));
+      return (accounts?.list() ?? [])
+        .filter(
+          (a) => !a.disabled && a.id !== account.id && a.playerId && ids.has(resolve(a.playerId)),
+        )
+        .map((a) => ({ id: a.id, username: a.username, playerId: a.playerId }));
     }
     case 'tournament':
     case 'standings':

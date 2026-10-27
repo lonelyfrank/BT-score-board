@@ -137,12 +137,10 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
         }
         back={null}
         action={
-          manage ? (
-            <AddButton
-              label={highscore ? 'Nuova Hi-Score Night' : 'Nuovo torneo'}
-              to="/tornei/nuovo"
-            />
-          ) : undefined
+          <AddButton
+            label={highscore ? 'Nuova Hi-Score Night' : 'Nuovo torneo'}
+            to="/tornei/nuovo"
+          />
         }
       />
       <div className="toolbar">

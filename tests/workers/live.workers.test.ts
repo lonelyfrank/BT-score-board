@@ -23,8 +23,20 @@ beforeAll(async () => {
   child = spawn(
     'npx',
     [
-      'wrangler', 'dev', '-c', 'wrangler.test.jsonc', '--port', String(port), '--ip', '127.0.0.1',
-      '--persist-to', persist, '--var', `OWNER_SETUP_CODE:${setupCode}`, '--log-level', 'warn',
+      'wrangler',
+      'dev',
+      '-c',
+      'wrangler.test.jsonc',
+      '--port',
+      String(port),
+      '--ip',
+      '127.0.0.1',
+      '--persist-to',
+      persist,
+      '--var',
+      `OWNER_SETUP_CODE:${setupCode}`,
+      '--log-level',
+      'warn',
     ],
     { cwd: join(process.cwd(), 'apps/worker'), stdio: 'pipe', env: { ...process.env, CI: '1' } },
   );
@@ -111,11 +123,19 @@ class Live {
 
 async function pub() {
   const owner = new Client();
-  await owner.call('/api/auth/register', { username: 'salvo', password: 'password-1', code: setupCode });
+  await owner.call('/api/auth/register', {
+    username: 'salvo',
+    password: 'password-1',
+    code: setupCode,
+  });
   const join = async (username: string, playerId: string | null = null) => {
     const invite = await owner.call('/api/admin/invites', { playerId });
     const c = new Client();
-    const r = await c.call('/api/auth/register', { username, password: 'password-3', code: invite.data.code });
+    const r = await c.call('/api/auth/register', {
+      username,
+      password: 'password-3',
+      code: invite.data.code,
+    });
     expect(r.status).toBe(200);
     return Object.assign(c, { id: r.data.account.id as string });
   };
@@ -134,11 +154,18 @@ describe('live channel on the Workers runtime', () => {
     w = await pub();
     const space = (await w.ann.rpc('createPlaySpace', [{ name: 'Da Gino' }])).result;
     const created = await w.ann.rpc('createTournament', [
-      { playSpaceId: space.id, name: 'Sfida', mode: 'SINGLE_MATCH', gameMode: 'HI_SCORE', scoringConfiguration: { turns: 7 } },
+      {
+        playSpaceId: space.id,
+        name: 'Sfida',
+        mode: 'SINGLE_MATCH',
+        gameMode: 'HI_SCORE',
+        scoringConfiguration: { turns: 7 },
+      },
     ]);
     tournament = created.result;
     for (const playerId of [w.frankPlayer.id, w.salvoPlayer.id])
-      tournament = (await w.ann.rpc('tournamentCommand', [tournament, 'players', { playerId }])).result;
+      tournament = (await w.ann.rpc('tournamentCommand', [tournament, 'players', { playerId }]))
+        .result;
   }, 60_000);
 
   it('refuses sockets without a session, from another origin, or without access', async () => {
@@ -173,15 +200,19 @@ describe('live channel on the Workers runtime', () => {
     // Only the scorer writes; the participant's own attempt is refused by the server.
     const denied = await w.frank.rpc('recordResult', [
       { id: match.id, version: match.version, tournamentVersion: match.tournamentVersion },
-      { scores: {} }, randomUUID().replace(/-/g, ''),
+      { scores: {} },
+      randomUUID().replace(/-/g, ''),
     ]);
     expect(denied.error?.code).toBe('NOT_SCORER');
 
-    const scores = Object.fromEntries(tournament.entries.map((e: any, i: number) => [e.id, i ? 200 : 300]));
+    const scores = Object.fromEntries(
+      tournament.entries.map((e: any, i: number) => [e.id, i ? 200 : 300]),
+    );
     const sent = Date.now();
     const done = await w.ann.rpc('recordResult', [
       { id: match.id, version: match.version, tournamentVersion: match.tournamentVersion },
-      { scores }, randomUUID().replace(/-/g, ''),
+      { scores },
+      randomUUID().replace(/-/g, ''),
     ]);
     expect(done.error).toBeUndefined();
     const update = await live.next((m) => m.type === 'state' && m.version > snapshot.version);
@@ -196,9 +227,11 @@ describe('live channel on the Workers runtime', () => {
   });
 
   it('keeps delivering updates after the object has been idle (hibernation)', async () => {
-    const t2 = (await w.ann.rpc('createTournament', [
-      { playSpaceId: BT, name: 'Seconda', mode: 'SINGLE_MATCH', gameMode: 'HI_SCORE' },
-    ])).result;
+    const t2 = (
+      await w.ann.rpc('createTournament', [
+        { playSpaceId: BT, name: 'Seconda', mode: 'SINGLE_MATCH', gameMode: 'HI_SCORE' },
+      ])
+    ).result;
     const live = w.frank.socket(t2.id);
     // Frank is not a participant of t2 and the canonical space is open to every account.
     await live.opened;
@@ -216,9 +249,11 @@ describe('live channel on the Workers runtime', () => {
 
   it('ends open sockets when the session ends or the access is revoked', async () => {
     const space = (await w.ann.rpc('createPlaySpace', [{ name: 'Privato' }])).result;
-    const t3 = (await w.ann.rpc('createTournament', [
-      { playSpaceId: space.id, name: 'Privata', mode: 'SINGLE_MATCH' },
-    ])).result;
+    const t3 = (
+      await w.ann.rpc('createTournament', [
+        { playSpaceId: space.id, name: 'Privata', mode: 'SINGLE_MATCH' },
+      ])
+    ).result;
     const invite = await w.ann.call('/api/spaces/invites', { spaceId: space.id });
     expect(invite.status).toBe(200);
     const joined = await w.carl.call('/api/spaces/join', { code: invite.data.code });
@@ -228,7 +263,10 @@ describe('live channel on the Workers runtime', () => {
     const carlSocket = w.carl.socket(t3.id);
     await carlSocket.opened;
     await carlSocket.next((m) => m.type === 'state');
-    await w.owner.call('/api/admin/spaces/members/remove', { spaceId: space.id, accountId: w.carl.id });
+    await w.owner.call('/api/admin/spaces/members/remove', {
+      spaceId: space.id,
+      accountId: w.carl.id,
+    });
     expect(await carlSocket.closed).toBe(4403);
     expect((await w.carl.rpc('tournament', [t3.id])).error?.code).toBe('NOT_ALLOWED');
 

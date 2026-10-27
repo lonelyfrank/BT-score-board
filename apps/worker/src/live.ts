@@ -75,6 +75,7 @@ export async function mayFollow(
 export function parseClientMessage(message: string | ArrayBuffer): { type: string } {
   if (typeof message !== 'string' || message.length > 256)
     throw new DomainError('BAD_REQUEST', 'Invalid message', 400);
+  if (message === 'ping') return { type: 'ping' };
   const value: unknown = JSON.parse(message);
   const type = (value as { type?: unknown } | null)?.type;
   if (type !== 'resync' && type !== 'ping')

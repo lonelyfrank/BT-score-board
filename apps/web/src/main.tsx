@@ -6,7 +6,6 @@ import { BottomNavigation, Empty, scrollToTop } from './components/ui';
 import { AppStatus } from './components/AppStatus';
 import { cloudApi, dataMode, localData } from './services/api';
 import { session, useAccount } from './services/cloud';
-import { useCanManage } from './services/me';
 import { registerPwa } from './services/pwa';
 import { Home } from './features/Home';
 import { Setup } from './features/Setup';
@@ -20,6 +19,8 @@ import { Events } from './features/Events';
 import { Rules } from './features/Rules';
 import { CrewDetail, Crews } from './features/Crews';
 import { Login } from './features/Login';
+import { FollowRoute } from './features/Follow';
+import { JoinSpace, PlaySpaceDetail, PlaySpaces } from './features/PlaySpaces';
 import { Welcome } from './components/Welcome';
 import './styles/fonts.css';
 import './styles/tokens.css';
@@ -30,6 +31,7 @@ import './styles/match.css';
 import './styles/competitions.css';
 import './styles/people.css';
 import './styles/progression.css';
+import './styles/follow.css';
 
 // Standalone reads and writes never touch the network: they must run while offline too.
 const networkMode = dataMode === 'standalone' ? 'always' : 'online';
@@ -67,23 +69,12 @@ function Gate({ children }: { children: React.ReactNode }) {
     <Login />
   );
 }
-/** Creating games is for admins in cloud mode; others see why instead of a form they cannot send. */
-function AdminOnly({ children }: { children: React.ReactNode }) {
-  if (useCanManage()) return <>{children}</>;
-  return (
-    <main className="not-found">
-      <Empty title="Solo per gli admin">
-        <p className="hint">Partite e tornei li crea un admin; tu li segui in diretta.</p>
-        <Link to="/tornei">Vai ai tornei</Link>
-      </Empty>
-    </main>
-  );
-}
 function App() {
   const { pathname, search } = useLocation();
   // Match screens and the steps of a flow stay full-screen; choosing the game keeps the bar.
   const hideNav =
     (pathname.startsWith('/partite/') && pathname !== '/partite/nuova') ||
+    pathname.startsWith('/segui/') ||
     pathname === '/tornei/nuovo' ||
     (pathname === '/partite/nuova' && new URLSearchParams(search).has('passo'));
   const queries = useQueryClient();
@@ -120,24 +111,14 @@ function App() {
       <div id="main-content">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route
-            path="/partite/nuova"
-            element={
-              <AdminOnly>
-                <Setup />
-              </AdminOnly>
-            }
-          />
+          <Route path="/partite/nuova" element={<Setup />} />
           <Route path="/partite/:gameId" element={<MatchScreen />} />
+          <Route path="/segui/:id" element={<FollowRoute />} />
+          <Route path="/punti" element={<PlaySpaces />} />
+          <Route path="/punti/:id" element={<PlaySpaceDetail />} />
+          {cloudApi && <Route path="/unisciti/:code" element={<JoinSpace />} />}
           <Route path="/tornei" element={<TournamentList />} />
-          <Route
-            path="/tornei/nuovo"
-            element={
-              <AdminOnly>
-                <TournamentSetup />
-              </AdminOnly>
-            }
-          />
+          <Route path="/tornei/nuovo" element={<TournamentSetup />} />
           <Route path="/tornei/:id" element={<TournamentDetail />} />
           <Route path="/hiscore" element={<TournamentList highscore />} />
           <Route path="/hiscore/:id" element={<TournamentDetail />} />

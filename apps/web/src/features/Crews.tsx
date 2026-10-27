@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Crown, Share2, Download, Users } from 'lucide-react';
 import { api, localData, type Player } from '../services/api';
 import { useCanManage } from '../services/me';
+import { BT_PLAY_SPACE_ID } from '../../../../packages/domain/src/playspaces/playspaces';
+import { SpaceSelect } from './PlaySpaces';
 import { canShareFiles, downloadFile, shareFile } from '../services/device';
 import { tournamentPath } from '../services/session';
 import { games, type GameMode } from '../services/rules';
@@ -276,9 +278,12 @@ export function CrewDetail() {
   const progression = useProgression();
   const { me } = useKnowsMe();
   const crew = crews.data?.find((c) => c.id === id);
+  // Records are contextual: the crew's tournaments played at one play space, never all mixed.
+  const [spaceId, setSpaceId] = useState('');
+  const activeSpace = spaceId || crew?.favoritePlaySpaceId || BT_PLAY_SPACE_ID;
   const crewProgression = useQuery({
-    queryKey: ['crew-progression', id],
-    queryFn: () => localData!.crewProgression(id),
+    queryKey: ['crew-progression', id, activeSpace],
+    queryFn: () => localData!.crewProgression(id, activeSpace),
     enabled: !!crew,
   });
   const shared = useQuery({
@@ -388,6 +393,11 @@ export function CrewDetail() {
         </Panel>
 
         <Panel id="records-title" title="Record della compagnia">
+          <SpaceSelect
+            value={activeSpace}
+            change={setSpaceId}
+            label="Record nel punto di incontro"
+          />
           {records.length === 0 ? (
             <p className="hint">
               Ancora nessun record. Hi-Score e Shanghai premiano il punteggio più alto, Exacta chi

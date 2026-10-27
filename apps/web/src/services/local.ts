@@ -170,11 +170,12 @@ export class LocalGameAdapter implements GameAdapter {
   }
   /** Creates a play space; the same `id` retried creates nothing more. */
   createPlaySpace(
-    input: { name: string; place?: string | null; targetDescription?: string | null },
+    input: { name: string; place?: string | null; targetDescription?: string | null; id?: string },
     by = 'local',
     id?: string,
   ) {
-    return this.run(async (e) => e.createPlaySpace(input, by, id));
+    const wanted = typeof input.id === 'string' ? input.id : id;
+    return this.run(async (e) => e.createPlaySpace(input, by, wanted));
   }
   /**
    * Moves a tournament to another play space. Needs the confirmation, checks the version the
@@ -202,8 +203,7 @@ export class LocalGameAdapter implements GameAdapter {
   }
   /** Assigns many unclassified tournaments to a play space in one atomic, confirmed step. */
   async assignUnclassified(ids: string[], playSpaceId: string, confirm: boolean) {
-    if (!confirm)
-      throw new ApiError('CONFIRMATION_REQUIRED', messages.CONFIRMATION_REQUIRED!);
+    if (!confirm) throw new ApiError('CONFIRMATION_REQUIRED', messages.CONFIRMATION_REQUIRED!);
     await this.run(async (e) => e.playSpace(playSpaceId));
     return this.write((b) =>
       ids.map((id) => {
@@ -383,8 +383,8 @@ export class LocalGameAdapter implements GameAdapter {
   }
   /** Every tournament with its entries, for access decisions made on the server. */
   async fullTournaments() {
-    return this.read((_, store) =>
-      store.listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 }).items,
+    return this.read(
+      (_, store) => store.listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0 }).items,
     );
   }
   crewProgression(id: string, playSpaceId?: string) {

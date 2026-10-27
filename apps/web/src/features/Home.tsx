@@ -8,12 +8,12 @@ import {
   Crosshair,
   HardDriveDownload,
   Lock,
+  MapPin,
   Settings,
   Trophy,
   Users,
 } from 'lucide-react';
 import { api, cloudApi, localData, sharedApi } from '../services/api';
-import { useCanManage } from '../services/me';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
 import { CrewOnboarding } from './Crews';
@@ -28,7 +28,8 @@ export function Home() {
     // On the server the reminder is for the admins' copy, in the settings.
     enabled: !!localData && !cloudApi,
   });
-  const manage = useCanManage();
+  // Any signed-in account may start a match; the server decides what each one may change.
+  const manage = true;
   const s = session.data;
   // Shared mode only: commands need the organizer token of this tab.
   const locked = !!sharedApi && !sharedApi.hasToken();
@@ -72,6 +73,11 @@ export function Home() {
           {localData && (
             <Link to="/compagnie" aria-label="Compagnie">
               <Users />
+            </Link>
+          )}
+          {localData && (
+            <Link to="/punti" aria-label="Punti di incontro">
+              <MapPin />
             </Link>
           )}
         </span>

@@ -19,6 +19,7 @@ export const readMethods = [
   'allTournaments',
   'playSpaces',
   'matchAccess',
+  'scorerCandidates',
 ] as const;
 /** Read-only too, but only for admins: what was removed or switched off. */
 export const adminReadMethods = [
@@ -63,3 +64,6 @@ export const writeMethods = [
 export const backupMethods = ['importBackup', 'previewMerge', 'mergeBackup'] as const;
 export type CloudMethod =
   (typeof readMethods)[number] | (typeof adminReadMethods)[number] | (typeof writeMethods)[number];
+/** Scoring rights of a match: answered by the server's own tables, not by the engine. */
+export type AccessMethod =
+  'matchAccess' | 'scorerCandidates' | 'transferScorer' | 'takeOverScoring' | 'recoverScorer';

@@ -12,7 +12,11 @@ L'app funziona in due modalità che condividono schermate, dominio e servizi app
 
 ## Modalità cloud (Cloudflare)
 
-Account con username e password, oppure con passkey. Il proprietario nomina gli admin; gli admin invitano i giocatori e collegano ogni account al suo storico. Deploy gratuito su Workers + Durable Objects con `pnpm deploy:cloud`. Primo avvio, migrazione dai backup dei telefoni, ruoli e sicurezza sono descritti in [docs/cloudflare/DEPLOY.md](docs/cloudflare/DEPLOY.md).
+Account con username e password, oppure con passkey. Il proprietario nomina gli admin; gli admin invitano i giocatori e collegano ogni account al suo storico. Deploy su Workers + Durable Objects (entro i limiti del piano gratuito) con `pnpm deploy:cloud`. Primo avvio, migrazione dai backup dei telefoni, ruoli e sicurezza sono descritti in [docs/cloudflare/DEPLOY.md](docs/cloudflare/DEPLOY.md).
+
+### Punti di incontro, segnapunti e live
+
+Ogni partita e torneo conta in un **punto di incontro** con la sua scoreboard, i suoi record e le sue statistiche; il **Bite the Trouble** è il punto canonico. Ogni partita ha **un solo segnapunti**; gli altri la seguono in sola lettura in diretta (WebSocket). Dettagli, matrice dei permessi, politica XP, migrazioni e limiti: [docs/cloudflare/PUNTI-DI-INCONTRO.md](docs/cloudflare/PUNTI-DI-INCONTRO.md).
 
 ## Uso standalone
 
@@ -91,7 +95,8 @@ Documenti: [architettura](docs/architecture.md), [modello di dominio](docs/domai
 ## Test
 
 ```sh
-pnpm test                                        # Vitest: dominio, API, SQLite, IndexedDB, adapter
+pnpm test                                        # Vitest: dominio, API, SQLite, IndexedDB, adapter, permessi
+pnpm test:workers                                # canale live nel runtime Workers reale (wrangler dev)
 pnpm --filter @bt/web exec playwright install chromium
 pnpm test:e2e                                    # Playwright: shared + standalone/PWA/layout/manche
 ```

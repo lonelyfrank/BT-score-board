@@ -205,6 +205,15 @@ export class Access {
       }
     );
   }
+  /** Whether this session holds the match: `free` until the first write after a transfer. */
+  holds(tournamentId: string, session: string): 'here' | 'elsewhere' | 'free' {
+    const r = this.all(
+      'SELECT scorer_session FROM match_access WHERE tournament_id = ?',
+      tournamentId,
+    )[0];
+    if (!r || r.scorer_session === null) return 'free';
+    return r.scorer_session === session ? 'here' : 'elsewhere';
+  }
   /** The author of a new match becomes its scorer, on the device that created it. */
   register(tournamentId: string, accountId: string, session: string) {
     this.host.sql.exec(

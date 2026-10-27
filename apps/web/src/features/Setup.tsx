@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ChevronUp, Info, Play, Plus, X } from 'lucide-react';
-import { api, ApiError, nickname, type Player, type Tournament } from '../services/api';
+import { api, ApiError, localData, nickname, type Player, type Tournament } from '../services/api';
 import {
   HI_SCORE_ROUNDS,
   checkComposition,
@@ -21,6 +21,16 @@ import {
 import { Avatar, ErrorMessage, Header, Segmented } from '../components/ui';
 import { AddPlayerSheet, NewPlayerSheet } from '../components/PlayerSheets';
 import { TeamBuilder } from '../components/TeamBuilder';
+import {
+  BT_CHOICE,
+  PlaySpaceStep,
+  choiceName,
+  choiceReady,
+  rememberPlaySpace,
+  resolvePlaySpace,
+  usePlaySpaces,
+  type PlaySpaceChoice,
+} from '../components/PlaySpaceStep';
 
 type Unit = { key: string; label: string; playerIds: string[]; name: string | null };
 
@@ -44,7 +54,17 @@ export const shortDate = (d = new Date()) =>
  */
 export function Setup() {
   const [params, setParams] = useSearchParams();
-  const step = params.get('passo') === 'giocatori' ? 2 : 1;
+  // Without play spaces on offer (shared server) the first step is skipped: there is only one.
+  const withSpace = !!localData;
+  const total = withSpace ? 3 : 2;
+  const step =
+    params.get('passo') === 'giocatori'
+      ? total
+      : params.get('passo') === 'gioco' || !withSpace
+        ? total - 1
+        : 1;
+  const [space, setSpace] = useState<PlaySpaceChoice | null>(withSpace ? null : BT_CHOICE);
+  const spaces = usePlaySpaces();
   const [mode, setMode] = useState<GameMode>(
     () => gameChoices.find(([id]) => id === params.get('gioco'))?.[0] ?? 'HI_SCORE',
   );
@@ -116,6 +136,7 @@ export function Setup() {
       let t = draft
         ? await api.tournament(draft.id)
         : await api.createTournament({
+            playSpaceId: await resolvePlaySpace(space ?? BT_CHOICE),
             name: `${game.label} · ${shortDate()}`,
             mode: 'SINGLE_MATCH',
             gameMode: mode,
@@ -128,6 +149,7 @@ export function Setup() {
             },
           });
       setDraft(t);
+      rememberPlaySpace(t.playSpaceId ?? '');
       // One command composes every unit: all registered, or none.
       if (!t.entries.length)
         t = await api.tournamentCommand(t, 'entries/compose', {
@@ -148,16 +170,63 @@ export function Setup() {
   const locked = !!draft || create.isPending;
   const unlimited = comparableAcrossHeats(mode) || teamMode;
   const canAdd = (unlimited || selected.length < max) && !locked;
-  const toStep = (n: 1 | 2) =>
-    setParams(n === 2 ? { passo: 'giocatori', gioco: mode } : { gioco: mode });
+  // Steps counted from the one on top: punto (when offered), gioco, giocatori.
+  const toStep = (n: number) =>
+    setParams(
+      n === total
+        ? { passo: 'giocatori', gioco: mode }
+        : n === total - 1 && withSpace
+          ? { passo: 'gioco', gioco: mode }
+          : { gioco: mode },
+    );
+  const spaceName = choiceName(space, spaces.data ?? []);
   const pool = (roster.data?.items ?? []).filter((p) => !selected.some((x) => x.id === p.id));
 
-  if (step === 1)
+  if (withSpace && step === 1)
     return (
       <>
-        <Header title="Nuova partita" subtitle="Passo 1 di 2 · Gioco" back={null} />
+        <Header title="Nuova partita" subtitle="Passo 1 di 3 · Dove giocate" back={null} />
         <div className="toolbar">
-          <div className="wz-prog two" aria-hidden="true">
+          <div className="wz-prog three" aria-hidden="true">
+            <i className="on" />
+            <i />
+            <i />
+          </div>
+        </div>
+        <main className="setup">
+          <PlaySpaceStep value={space} change={setSpace} />
+          {choiceReady(space) && (
+            <p className="note" role="status">
+              <Info aria-hidden="true" />
+              <span>I risultati saranno conteggiati nella scoreboard {spaceName}.</span>
+            </p>
+          )}
+        </main>
+        <div className="actionbar">
+          <button
+            type="button"
+            className="btn cta"
+            disabled={!choiceReady(space)}
+            onClick={() => toStep(2)}
+          >
+            Scegli il gioco <ArrowRight aria-hidden="true" />
+          </button>
+        </div>
+      </>
+    );
+
+  if (step === total - 1)
+    return (
+      <>
+        <Header
+          title="Nuova partita"
+          subtitle={`Passo ${total - 1} di ${total} · Gioco`}
+          back={withSpace ? '/partite/nuova' : null}
+          backLabel="Torna al punto di incontro"
+        />
+        <div className="toolbar">
+          <div className={`wz-prog ${withSpace ? 'three' : 'two'}`} aria-hidden="true">
+            {withSpace && <i className="done" />}
             <i className="on" />
             <i />
           </div>
@@ -217,7 +286,7 @@ export function Setup() {
           </div>
         </main>
         <div className="actionbar">
-          <button type="button" className="btn cta" onClick={() => toStep(2)}>
+          <button type="button" className="btn cta" onClick={() => toStep(total)}>
             Scegli i giocatori <ArrowRight aria-hidden="true" />
           </button>
         </div>
@@ -228,12 +297,15 @@ export function Setup() {
     <>
       <Header
         title={`Nuova partita · ${game.label}`}
-        subtitle="Passo 2 di 2 · Giocatori"
-        back={`/partite/nuova?gioco=${mode}`}
+        subtitle={`Passo ${total} di ${total} · Giocatori`}
+        back={
+          withSpace ? `/partite/nuova?passo=gioco&gioco=${mode}` : `/partite/nuova?gioco=${mode}`
+        }
         backLabel="Torna al gioco"
       />
       <div className="toolbar">
-        <div className="wz-prog two" aria-hidden="true">
+        <div className={`wz-prog ${withSpace ? 'three' : 'two'}`} aria-hidden="true">
+          {withSpace && <i className="done" />}
           <i className="done" />
           <i className="on" />
         </div>
@@ -436,8 +508,14 @@ export function Setup() {
             <b>{units.length}</b> al totem · {Math.max(1, heats.length)} manche
           </span>
           <span>{reason ? '' : `primo: ${units[0]?.label ?? ''}`}</span>
+          {withSpace && spaceName && <span>I risultati contano nella scoreboard {spaceName}</span>}
         </div>
-        <button type="button" className="btn ghost" disabled={locked} onClick={() => toStep(1)}>
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={locked}
+          onClick={() => toStep(total - 1)}
+        >
           <ArrowLeft aria-hidden="true" /> Indietro
         </button>
         <button

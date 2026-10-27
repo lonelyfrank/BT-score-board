@@ -22,6 +22,10 @@ export const clientRoutes = [
   '/giocatori',
   '/compagnie',
   '/compagnie/*',
+  '/segui/*',
+  '/punti',
+  '/punti/*',
+  '/unisciti/*',
   '/impostazioni',
 ];
 

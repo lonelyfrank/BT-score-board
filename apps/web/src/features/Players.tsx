@@ -27,6 +27,7 @@ import { NewPlayerSheet } from '../components/PlayerSheets';
 import { FxName, ProgressPanel, useProgression } from '../components/Progression';
 import { linkDirection } from '../../../../packages/domain/src/index.js';
 import { meStore, useCanManage } from '../services/me';
+import { SpaceStats } from './PlaySpaces';
 import { AccountLink } from '../components/AccountLink';
 import { useKnowsMe } from '../components/WhoAmI';
 
@@ -137,6 +138,11 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
     >
       <ErrorMessage error={stats.error ?? history.error ?? update.error} />
       {level && <ProgressPanel p={level} />}
+      <SpaceStats playerId={player.id} />
+      <p className="hint">
+        Le statistiche qui sotto sono lo storico personale complessivo, di tutti i punti di incontro
+        insieme: non è una classifica.
+      </p>
       {canEdit && editing && (
         <form
           id="profile-name"
