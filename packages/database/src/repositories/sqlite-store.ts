@@ -25,6 +25,12 @@ import type { ListOptions, Store } from '../../../application/src/ports.js';
 const migrations = [migration1, migration2, migration3];
 const checksum = (sql: string) => createHash('sha256').update(sql).digest('hex');
 
+/** Removed tournaments keep their row; `deletedAt` lives in the stored aggregate. */
+const removedFilter = (deleted = false) =>
+  deleted
+    ? sql`json_extract(${schema.tournaments.data}, '$.deletedAt') IS NOT NULL`
+    : sql`json_extract(${schema.tournaments.data}, '$.deletedAt') IS NULL`;
+
 export class SqliteStore implements Store {
   readonly sqlite: Database.Database;
   readonly db;
@@ -174,6 +180,7 @@ export class SqliteStore implements Store {
       o.search ? like(schema.tournaments.name, `%${escapeLike(o.search)}%`) : undefined,
       o.status ? eq(schema.tournaments.status, o.status) : undefined,
       o.eventId ? eq(schema.tournaments.eventId, o.eventId) : undefined,
+      removedFilter(o.deleted),
     );
     return {
       items: this.db
@@ -196,7 +203,7 @@ export class SqliteStore implements Store {
       .select({ data: schema.tournaments.data })
       .from(schema.tournaments)
       .innerJoin(schema.entryMembers, eq(schema.entryMembers.tournamentId, schema.tournaments.id))
-      .where(eq(schema.entryMembers.playerId, playerId))
+      .where(and(eq(schema.entryMembers.playerId, playerId), removedFilter(false)))
       .orderBy(...newestTournamentsFirst)
       .all()
       .map((r) => upgradeTournament(r.data));

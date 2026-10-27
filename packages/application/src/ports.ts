@@ -11,6 +11,8 @@ export interface ListOptions {
   search?: string;
   status?: string;
   eventId?: string;
+  /** Tournaments only: true lists the removed ones instead of the live ones. */
+  deleted?: boolean;
 }
 export interface Page<T> {
   items: T[];

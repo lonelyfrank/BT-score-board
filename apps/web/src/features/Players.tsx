@@ -25,6 +25,7 @@ import {
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
 import { FxName, ProgressPanel, useProgression } from '../components/Progression';
+import { linkDirection } from '../../../../packages/domain/src/index.js';
 import { meStore, useCanManage } from '../services/me';
 import { AccountLink } from '../components/AccountLink';
 import { useKnowsMe } from '../components/WhoAmI';
@@ -96,6 +97,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
         !canEdit ? undefined : editing ? (
           <>
             <button
+              key="cancel"
               type="button"
               className="btn ghost"
               disabled={update.isPending}
@@ -104,6 +106,8 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
               Annulla
             </button>
             <button
+              key="save"
+              type="submit"
               className="btn cta"
               form="profile-name"
               disabled={update.isPending || !name.trim()}
@@ -115,6 +119,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           <>
             {manage && (
               <button
+                key="toggle"
                 type="button"
                 className={`btn ${active ? 'danger' : ''}`}
                 disabled={update.isPending}
@@ -123,7 +128,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
                 {active ? 'Disattiva' : 'Riattiva'}
               </button>
             )}
-            <button type="button" className="btn cta" onClick={() => setEditing(true)}>
+            <button key="edit" type="button" className="btn cta" onClick={() => setEditing(true)}>
               Modifica nome
             </button>
           </>
@@ -329,13 +334,15 @@ function ThisIsMe({ player }: { player: Player }) {
 }
 
 /**
- * The same person created twice (e.g. on two phones): linking keeps the older record, sums
- * matches and levels on it and deactivates the other. Not undone from here.
+ * The same person created twice (e.g. on two phones): the two records are merged into one that
+ * stays active. Its matches, statistics and level sum up the other's; its account, crews and
+ * missing nickname or avatar follow. Not undone from here.
  */
 function LinkDuplicate({ player, close }: { player: Player; close: () => void }) {
   const client = useQueryClient();
   const [other, setOther] = useState('');
   const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.players('', 0) });
+  const links = useQuery({ queryKey: ['links'], queryFn: () => localData!.links() });
   const link = useMutation({
     mutationFn: () => localData!.linkPlayers(player.id, other),
     onSuccess: () => {
@@ -343,13 +350,17 @@ function LinkDuplicate({ player, close }: { player: Player; close: () => void })
       close();
     },
   });
-  const candidates = players.data?.items.filter((p) => p.id !== player.id) ?? [];
+  const merged = new Set(links.data?.map((l) => l.from));
+  const candidates =
+    players.data?.items.filter((p) => p.id !== player.id && !merged.has(p.id)) ?? [];
+  const chosen = candidates.find((p) => p.id === other);
+  const survivor = chosen && linkDirection(player, chosen).to === chosen.id ? chosen : player;
   return (
     <details className="link-duplicate">
       <summary>È un doppione di un altro giocatore?</summary>
       <p className="hint">
-        Se la stessa persona è stata creata due volte, collegale: partite, statistiche e livello si
-        sommano sul profilo più vecchio, l’altro viene disattivato.
+        Se la stessa persona è stata creata due volte, uniscile: partite, statistiche e livello si
+        sommano in un solo profilo, che resta attivo.
       </p>
       <label className="field">
         Stessa persona di
@@ -364,9 +375,15 @@ function LinkDuplicate({ player, close }: { player: Player; close: () => void })
           ))}
         </select>
       </label>
+      {chosen && (
+        <p className="hint">
+          Resta il profilo di {survivor.displayName};{' '}
+          {survivor === player ? chosen.displayName : player.displayName} viene assorbito.
+        </p>
+      )}
       <ErrorMessage error={link.error} />
       <button disabled={!other || link.isPending} onClick={() => link.mutate()}>
-        Collega
+        Unisci
       </button>
     </details>
   );
@@ -378,7 +395,9 @@ const levelLabel = (p?: { progress: { level: { level: number; title: string } } 
 export function Players() {
   const manage = useCanManage();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('active');
+  // Deactivated and merged profiles are for admins only; everyone else sees who plays.
+  const [chosen, setFilter] = useState<Filter>('active');
+  const filter: Filter = manage ? chosen : 'active';
   const [offset, setOffset] = useState(0);
   const [open, setOpen] = useState<Player | null>(null);
   const [creating, setCreating] = useState(false);
@@ -387,6 +406,14 @@ export function Players() {
     queryKey: ['players', search.trim(), offset, status],
     queryFn: () => api.players(search.trim(), offset, status),
   });
+  const links = useQuery({
+    queryKey: ['links'],
+    queryFn: () => localData!.links(),
+    enabled: !!localData,
+  });
+  // A merged record is its survivor now: it leaves the lists, and an admin finds it under
+  // "Disattivati" with a note.
+  const mergedInto = new Map((links.data ?? []).map((l) => [l.from, l.to]));
   const counts = useQuery({
     queryKey: ['players', 'counts'],
     queryFn: async () => {
@@ -397,7 +424,16 @@ export function Players() {
       return { active: a.total, inactive: i.total };
     },
   });
-  const page = query.data;
+  const everyone = useQuery({
+    queryKey: ['players', 'all'],
+    queryFn: () => api.players('', 0),
+    enabled: manage,
+  });
+  const nameOf = (id: string) => everyone.data?.items.find((p) => p.id === id)?.displayName;
+  const page = query.data && {
+    ...query.data,
+    items: query.data.items.filter((p) => (manage && filter !== 'active') || !mergedInto.has(p.id)),
+  };
   const progression = useProgression();
   const { me } = useKnowsMe();
   return (
@@ -406,7 +442,9 @@ export function Players() {
         title="Giocatori"
         subtitle={
           counts.data
-            ? `${counts.data.active} attivi · ${counts.data.inactive} disattivati`
+            ? manage
+              ? `${counts.data.active} attivi · ${Math.max(0, counts.data.inactive - mergedInto.size)} disattivati · ${mergedInto.size} uniti`
+              : `${counts.data.active} giocatori`
             : undefined
         }
         back={null}
@@ -430,20 +468,22 @@ export function Players() {
             }}
           />
         </label>
-        <Segmented
-          label="Filtro stato"
-          small
-          value={filter}
-          change={(f) => {
-            setFilter(f);
-            setOffset(0);
-          }}
-          options={[
-            { id: 'active', label: 'Attivi' },
-            { id: 'all', label: 'Tutti' },
-            { id: 'inactive', label: 'Disattivati' },
-          ]}
-        />
+        {manage && (
+          <Segmented
+            label="Filtro stato"
+            small
+            value={filter}
+            change={(f) => {
+              setFilter(f);
+              setOffset(0);
+            }}
+            options={[
+              { id: 'active', label: 'Attivi' },
+              { id: 'all', label: 'Tutti' },
+              { id: 'inactive', label: 'Disattivati' },
+            ]}
+          />
+        )}
       </div>
       <main className="lists">
         {localData && (
@@ -474,7 +514,14 @@ export function Players() {
                   </b>
                   <small>
                     {p.status === 'inactive'
-                      ? ['disattivato', nickname(p)].filter(Boolean).join(' · ')
+                      ? [
+                          mergedInto.has(p.id)
+                            ? `unito a ${nameOf(mergedInto.get(p.id)!) ?? 'un altro profilo'}`
+                            : 'disattivato',
+                          nickname(p),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
                       : [
                           levelLabel(progression.data?.players.get(p.id)),
                           nickname(p) || `dal ${shortDate(p.createdAt)}`,

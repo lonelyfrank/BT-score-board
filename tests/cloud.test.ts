@@ -181,6 +181,76 @@ describe('permissions on the engine', () => {
         code: 'NOT_SUPPORTED',
       });
   });
+  it('lets only admins cancel, remove and see removed tournaments, and restores them', async () => {
+    const { accounts, adapter } = server();
+    const me = await owner(accounts);
+    const anna = await adapter.createPlayer('Anna');
+    const invite = await accounts.createInvite(me, anna.id);
+    const player = await accounts.register(
+      { username: 'anna', password: 'password-2', code: invite.code },
+      setup,
+      'ip',
+    );
+    const t = await adapter.createTournament({ name: 'Prova', mode: 'QUICK_HIGH_SCORE' });
+    const run = (who: typeof me, method: string, ...args: unknown[]) =>
+      dispatch(adapter, who, method, args, accounts);
+    await expect(run(player, 'removeTournament', t.id, true)).rejects.toMatchObject({
+      code: 'ADMIN_REQUIRED',
+    });
+    await expect(run(player, 'removedTournaments')).rejects.toMatchObject({
+      code: 'ADMIN_REQUIRED',
+    });
+
+    // In progress: cancel first, then remove.
+    const bruno = await adapter.createPlayer('Bruno');
+    await adapter.tournamentCommand(t, 'players', { playerId: anna.id });
+    await adapter.tournamentCommand(await adapter.tournament(t.id), 'players', {
+      playerId: bruno.id,
+    });
+    let live = await adapter.tournament(t.id);
+    live = await adapter.tournamentCommand(live, 'start');
+    await expect(run(me, 'removeTournament', t.id, true)).rejects.toMatchObject({
+      code: 'TOURNAMENT_OPEN',
+    });
+    await run(me, 'tournamentCommand', live, 'cancel');
+    await run(me, 'removeTournament', t.id, true);
+
+    expect((await adapter.tournaments()).items).toHaveLength(0);
+    expect((await adapter.allTournaments()).length).toBe(0);
+    expect((await adapter.history(anna.id)).items).toHaveLength(0);
+    await expect(run(me, 'removedTournaments')).resolves.toMatchObject([{ id: t.id }]);
+    await run(me, 'removeTournament', t.id, false);
+    expect((await adapter.tournaments()).items).toHaveLength(1);
+    await expect(run(me, 'removedTournaments')).resolves.toHaveLength(0);
+  });
+  it('moves the account of a merged player to the survivor and refuses two accounts', async () => {
+    const { accounts, adapter } = server();
+    const me = await owner(accounts);
+    const old = await adapter.createPlayer('Anna');
+    const dup = await adapter.createPlayer('Anna B');
+    const invite = await accounts.createInvite(me, dup.id);
+    const anna = await accounts.register(
+      { username: 'anna', password: 'password-2', code: invite.code },
+      setup,
+      'ip',
+    );
+    const merged = (await dispatch(adapter, me, 'linkPlayers', [dup.id, old.id], accounts)) as {
+      kept: string;
+      linked: string;
+    };
+    expect(accounts.get(anna.id)!.playerId).toBe(merged.kept);
+
+    const other = await adapter.createPlayer('Bruno');
+    const second = await accounts.createInvite(me, other.id);
+    await accounts.register(
+      { username: 'bruno', password: 'password-3', code: second.code },
+      setup,
+      'ip',
+    );
+    await expect(
+      dispatch(adapter, me, 'linkPlayers', [other.id, merged.kept], accounts),
+    ).rejects.toMatchObject({ code: 'BOTH_HAVE_ACCOUNT' });
+  });
   it('uses the server copy of a tournament and keeps the client version check', async () => {
     const { accounts, adapter } = server();
     const me = await owner(accounts);

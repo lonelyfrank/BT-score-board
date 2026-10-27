@@ -42,12 +42,19 @@ export function linkResolver(links: readonly PlayerLink[]) {
   };
 }
 
-/** Which of two records of the same person survives a link: the older one, then the smaller id. */
+/**
+ * Which of two records of the same person survives a link: an active record is never given up
+ * for an inactive one; between two alike, the older one, then the smaller id.
+ */
 export function linkDirection(
-  a: { id: string; createdAt: string },
-  b: { id: string; createdAt: string },
+  a: { id: string; createdAt: string; status?: string },
+  b: { id: string; createdAt: string; status?: string },
 ): PlayerLink {
-  const aFirst = a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id);
+  const live = (p: { status?: string }) => (p.status === 'inactive' ? 1 : 0);
+  const aFirst =
+    live(a) !== live(b)
+      ? live(a) < live(b)
+      : a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id);
   return aFirst ? { from: b.id, to: a.id, createdAt: '' } : { from: a.id, to: b.id, createdAt: '' };
 }
 

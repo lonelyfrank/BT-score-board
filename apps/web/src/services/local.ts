@@ -145,6 +145,18 @@ export class LocalGameAdapter implements GameAdapter {
   standings(id: string) {
     return this.read((b) => b.standings(id));
   }
+  /** Admin: takes a tournament out of lists and statistics (or restores it). */
+  removeTournament(id: string, removed: boolean) {
+    return this.write((b) => b.removeTournament(id, removed));
+  }
+  /** Admin: the removed tournaments, newest first. */
+  removedTournaments() {
+    return this.read((_, store) =>
+      store
+        .listTournaments({ limit: Number.MAX_SAFE_INTEGER, offset: 0, deleted: true })
+        .items.map(toSummary),
+    );
+  }
   createTournament(input: CreateTournament) {
     return this.write((b) => b.createTournament(input));
   }
@@ -310,7 +322,7 @@ export class LocalGameAdapter implements GameAdapter {
   deleteCrew(id: string) {
     return this.run((e) => e.deleteCrew(id));
   }
-  /** Two records of the same person: the older one is kept, the other is deactivated. */
+  /** Merges two records of the same person into the one that survives (see linkDirection). */
   linkPlayers(a: string, b: string) {
     return this.run((e) => e.linkPlayers(a, b));
   }

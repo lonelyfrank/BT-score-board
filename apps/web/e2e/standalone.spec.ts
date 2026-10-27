@@ -262,6 +262,18 @@ test('game night with a tournament and players with nicknames', async ({ page })
     'Bite the Trouble Open',
   );
 
+  // An admin removes a test tournament: it leaves the lists, and comes back from "Eliminati".
+  await page.goto('/tornei');
+  await page.getByRole('button', { name: 'Gestisci' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Elimina il torneo' }).click();
+  await expect(page.getByText('Bite the Trouble Open')).toHaveCount(0);
+  await page.getByRole('radio', { name: 'Eliminati' }).click();
+  await expect(page.getByText('Bite the Trouble Open')).toBeVisible();
+  await page.getByRole('button', { name: 'Gestisci' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Ripristina torneo' }).click();
+  await page.getByRole('radio', { name: 'Tutti' }).click();
+  await expect(page.getByText('Bite the Trouble Open')).toBeVisible();
+
   await page.goto('/giocatori');
   await page.getByRole('button', { name: 'Nuovo giocatore' }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Vito');
@@ -469,7 +481,14 @@ test('crews: existing players are offered a crew, whose package carries matches 
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /Nora/ }).click();
   await expect(page.getByRole('button', { name: 'Modifica nome' })).toBeVisible();
-  await page.keyboard.press('Escape');
+  // «Modifica nome» opens the form: it must not save (and close) on its own.
+  await page.getByRole('button', { name: 'Modifica nome' }).click();
+  const profile = page.getByRole('dialog');
+  await expect(profile.getByLabel('Nome', { exact: true })).toBeVisible();
+  await profile.getByLabel('Nome', { exact: true }).fill('Nora Rossi');
+  await profile.getByRole('button', { name: 'Salva' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Nora Rossi/ })).toBeVisible();
   await page.goto('/compagnie');
   await page.getByRole('link', { name: /Giovedì/ }).click();
   await expect(page).toHaveURL(/\/compagnie\/[0-9a-f-]{36}$/);

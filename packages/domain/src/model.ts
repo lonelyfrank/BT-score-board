@@ -328,6 +328,8 @@ export interface Tournament {
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  /** Set when an admin removes the tournament: it leaves every list and statistic, and can be restored. */
+  deletedAt?: string | null;
   version: number;
   entries: TournamentEntry[];
   stages: Stage[];

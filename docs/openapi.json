@@ -2738,6 +2738,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "deletedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "version": {
                             "type": "integer",
                             "minimum": 0,
@@ -5158,6 +5162,10 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "deletedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "version": {
                             "type": "integer",
                             "minimum": 0,
@@ -6037,6 +6045,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -7599,6 +7611,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -9645,6 +9661,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -17192,6 +17212,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -19267,6 +19291,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -20857,6 +20885,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -22651,6 +22683,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -24241,6 +24277,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -25837,6 +25877,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -27427,6 +27471,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -29023,6 +29071,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -30616,6 +30668,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -32206,6 +32262,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -33819,6 +33879,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -35409,6 +35473,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -37022,6 +37090,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -38624,6 +38696,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -40231,6 +40307,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -41821,6 +41901,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -43429,6 +43513,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -45025,6 +45113,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -46641,6 +46733,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -48268,6 +48364,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -49864,6 +49964,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -51466,6 +51570,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -53062,6 +53170,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -54670,6 +54782,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -56266,6 +56382,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -57913,6 +58033,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -59515,6 +59639,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -61135,6 +61263,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -62776,6 +62908,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -64385,6 +64521,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -65990,6 +66130,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -67592,6 +67736,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -69266,6 +69414,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -70884,6 +71036,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -72510,6 +72666,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },
@@ -74179,6 +74339,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -75806,6 +75970,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -77416,6 +77584,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "deletedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
                     "version": {
                       "type": "integer",
                       "minimum": 0,
@@ -79018,6 +79190,10 @@
                       "type": "string"
                     },
                     "completedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "deletedAt": {
                       "nullable": true,
                       "type": "string"
                     },

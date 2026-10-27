@@ -4,6 +4,7 @@ import type { BackupFile, EngineEvent } from '../../../../packages/local-store/s
 import type { Account, Invite } from '../../../worker/src/accounts.js';
 import type { Passkey } from '../../../worker/src/passkeys.js';
 import {
+  adminReadMethods,
   backupMethods,
   readMethods,
   writeMethods,
@@ -32,6 +33,8 @@ export type EngineApi = Pick<
   | 'saveCrew'
   | 'deleteCrew'
   | 'linkPlayers'
+  | 'removeTournament'
+  | 'removedTournaments'
   | 'exportCrew'
   | 'previewMerge'
   | 'mergeBackup'
@@ -122,7 +125,8 @@ export class CloudAdapter {
         return result;
       };
     // Backup imports and merges are methods of this class: they send the file's text.
-    for (const method of readMethods) remote[method] = call(method, false);
+    for (const method of [...readMethods, ...adminReadMethods])
+      remote[method] = call(method, false);
     for (const method of writeMethods)
       if (!(backupMethods as readonly string[]).includes(method))
         remote[method] = call(method, true);

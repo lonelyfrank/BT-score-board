@@ -160,6 +160,11 @@ export class Accounts {
     return row && toAccount(row);
   }
 
+  /** Two player records were merged: the account of the absorbed one now plays as the survivor. */
+  movePlayer(from: string, to: string) {
+    this.host.sql.exec('UPDATE users SET player_id = ? WHERE player_id = ?', to, from);
+  }
+
   /** Too many failures for this key in the window: refuses before checking anything. */
   private throttle(keys: string[]) {
     const now = this.clock();

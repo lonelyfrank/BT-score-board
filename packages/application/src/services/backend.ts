@@ -250,6 +250,37 @@ export class Backend {
       return t;
     });
   }
+  /**
+   * Takes a tournament out of every list and statistic (or puts it back). Nothing is erased: an
+   * admin can restore it, and the audit keeps who removed it. One in progress must be cancelled
+   * first.
+   */
+  removeTournament(id: string, removed: boolean) {
+    this.authorize();
+    return this.store.transaction(() => {
+      const t = this.tournament(id);
+      d.ensure(
+        !removed || !['active', 'paused'].includes(t.status),
+        'TOURNAMENT_OPEN',
+        'Cancel the tournament before removing it',
+      );
+      const next: d.Tournament = {
+        ...t,
+        deletedAt: removed ? this.context.now() : null,
+        version: t.version + 1,
+      };
+      this.store.saveTournament(next, t.version);
+      this.audit(
+        removed ? 'TournamentRemoved' : 'TournamentRestored',
+        t.deletedAt ?? null,
+        next.deletedAt,
+        {
+          tournamentId: id,
+        },
+      );
+      return next;
+    });
+  }
   execute<K extends CommandName>(
     name: K,
     tournamentId: string,

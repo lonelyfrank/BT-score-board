@@ -291,9 +291,10 @@ export class LocalEngine {
     return this.writeSocial({ deleteCrews: [id] });
   }
   /**
-   * Records that two player records are the same person. The older one is kept (see
-   * linkDirection); crews point to it and the other is deactivated, so it leaves new line-ups
-   * but its history stays and counts for the kept one.
+   * Merges two player records of the same person. The survivor (see linkDirection) stays active
+   * and takes the nickname and avatar the other had and it lacks; crews point to it, and the
+   * history of the other counts for it. The absorbed record is deactivated so it leaves new
+   * line-ups, but it stays readable under its old id.
    */
   async linkPlayers(a: string, b: string): Promise<{ kept: string; linked: string }> {
     const [pa, pb] = this.read((_, store) => [store.getPlayer(a), store.getPlayer(b)]);
@@ -308,10 +309,15 @@ export class LocalEngine {
         updatedAt: link.createdAt,
       }));
     await this.writeSocial({ links: [link], crews });
-    const linked = link.from === a ? pa : pb;
-    if (linked.status === 'active')
-      await this.write((backend) => backend.updatePlayer(linked.id, { status: 'inactive' }));
-    return { kept: link.to, linked: link.from };
+    const [kept, linked] = link.from === a ? [pb, pa] : [pa, pb];
+    const keep: Record<string, unknown> = {};
+    if (!kept.nickname && linked.nickname) keep.nickname = linked.nickname;
+    if (!kept.avatar && linked.avatar) keep.avatar = linked.avatar;
+    await this.write((backend) => {
+      if (Object.keys(keep).length) backend.updatePlayer(kept.id, keep);
+      if (linked.status === 'active') backend.updatePlayer(linked.id, { status: 'inactive' });
+    });
+    return { kept: kept.id, linked: linked.id };
   }
   private writeSocial(changes: Partial<SocialData> & { deleteCrews?: string[] }) {
     return this.enqueue(async () => {

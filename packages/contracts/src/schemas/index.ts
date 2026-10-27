@@ -441,6 +441,7 @@ export const tournamentResponse = z.object({
   createdAt: z.string(),
   startedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
+  deletedAt: z.string().nullable().optional(),
   version,
   entries: z.array(entryResponse),
   stages: z.array(stageResponse),

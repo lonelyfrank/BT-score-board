@@ -18,6 +18,8 @@ export const readMethods = [
   'crewTournaments',
   'allTournaments',
 ] as const;
+/** Read-only too, but only for admins: what was removed or switched off. */
+export const adminReadMethods = ['removedTournaments'] as const;
 /** These change data: admins only, except a player editing their own profile. */
 export const writeMethods = [
   'createPlayer',
@@ -36,10 +38,12 @@ export const writeMethods = [
   'saveCrew',
   'deleteCrew',
   'linkPlayers',
+  'removeTournament',
   'exportCrew',
   'previewMerge',
   'mergeBackup',
 ] as const;
 /** Backups travel as their exported text: the server checks their integrity itself. */
 export const backupMethods = ['importBackup', 'previewMerge', 'mergeBackup'] as const;
-export type CloudMethod = (typeof readMethods)[number] | (typeof writeMethods)[number];
+export type CloudMethod =
+  (typeof readMethods)[number] | (typeof adminReadMethods)[number] | (typeof writeMethods)[number];

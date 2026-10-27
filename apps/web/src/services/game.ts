@@ -200,6 +200,8 @@ export const messages: Record<string, string> = {
   TOO_MANY_ATTEMPTS: 'Troppi tentativi: riprova tra qualche minuto.',
   ACCOUNT_DISABLED: 'Questo account è stato disattivato da un admin.',
   PLAYER_TAKEN: 'Questo giocatore è già collegato a un altro account.',
+  BOTH_HAVE_ACCOUNT: 'Entrambi i giocatori hanno un account: scollega uno dei due prima di unirli.',
+  TOURNAMENT_OPEN: 'Il torneo è in corso: annullalo prima di eliminarlo.',
   ACCOUNT_NOT_FOUND: 'Account non trovato.',
   OWNER_ROLE: 'Il ruolo del proprietario non si può cambiare.',
   PASSKEY_FAILED: 'Passkey non riconosciuta. Accedi con la password.',

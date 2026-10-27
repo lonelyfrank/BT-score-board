@@ -254,6 +254,32 @@ describe('crew rules', () => {
     expect(merged.excludedTournamentIds).toEqual([]);
     expect(mergeCrew(theirs, mine)).toEqual(merged);
   });
+  it('merges duplicates into a survivor that stays active and keeps what the other had', async () => {
+    const a = await phone();
+    const old = await player(a, 'Ann');
+    const bob = await player(a, 'Bob');
+    await play(a, [old.id, bob.id], [100, 50]);
+    await a.write((b) => b.updatePlayer(old.id, { status: 'inactive' }));
+    const fresh = await player(a, 'Anna');
+    await a.write((b) => b.updatePlayer(fresh.id, { nickname: 'Freccia' }));
+    // The older record is inactive: it is never the one that survives, so nobody is left inactive.
+    const { kept, linked } = await a.linkPlayers(old.id, fresh.id);
+    expect([kept, linked]).toEqual([fresh.id, old.id]);
+    expect(a.read((_, s) => s.getPlayer(fresh.id))).toMatchObject({ status: 'active' });
+    expect(a.progression().players.get(fresh.id)!.stats.matches).toBe(1);
+
+    const c = await player(a, 'Carl');
+    const d = await player(a, 'Carlo');
+    await a.write((b) => b.updatePlayer(d.id, { nickname: 'Dardo', avatar: 'blue' }));
+    await a.write((b) => b.updatePlayer(c.id, { nickname: 'Cal' }));
+    const merged = await a.linkPlayers(c.id, d.id);
+    // The survivor takes the avatar it lacked and keeps its own nickname, and stays active.
+    expect(a.read((_, s) => s.getPlayer(merged.kept))).toMatchObject({
+      status: 'active',
+      avatar: 'blue',
+    });
+    expect(a.read((_, s) => s.getPlayer(merged.linked))).toMatchObject({ status: 'inactive' });
+  });
   it('resolves link chains and survives cycles', () => {
     const resolve = linkResolver([
       { from: 'a', to: 'b', createdAt: '' },

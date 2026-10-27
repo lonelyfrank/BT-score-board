@@ -113,7 +113,8 @@ export class GameRoom extends DurableObject<Env> {
         return json({ revision: this.db.revision() });
       case 'POST /api/rpc':
         return json({
-          result: (await dispatch(this.adapter, account, body.method, body.args)) ?? null,
+          result:
+            (await dispatch(this.adapter, account, body.method, body.args, this.accounts)) ?? null,
         });
       case 'POST /api/auth/password':
         await this.accounts.changePassword(account, body.current, body.next);

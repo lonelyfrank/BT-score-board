@@ -1,14 +1,15 @@
-import { DomainError, linkResolver } from '../../../packages/domain/src/index.js';
+import { DomainError, ensure, linkResolver } from '../../../packages/domain/src/index.js';
 import { readBackup } from '../../../packages/local-store/src/backup.js';
 import type { LocalGameAdapter } from '../../web/src/services/local.js';
 import type { Match, Tournament } from '../../web/src/services/game.js';
-import { isAdmin, type Account } from './accounts.js';
-import { backupMethods, readMethods, writeMethods } from './methods.js';
+import { isAdmin, type Accounts, type Account } from './accounts.js';
+import { adminReadMethods, backupMethods, readMethods, writeMethods } from './methods.js';
 
 export type { CloudMethod } from './methods.js';
 
 const reads = new Set<string>(readMethods);
 const writes = new Set<string>(writeMethods);
+const adminReads = new Set<string>(adminReadMethods);
 const backups = new Set<string>(backupMethods);
 const profileFields = new Set(['displayName', 'nickname', 'avatar']);
 
@@ -29,9 +30,14 @@ export async function dispatch(
   account: Account,
   method: unknown,
   input: unknown,
+  accounts?: Accounts,
 ): Promise<unknown> {
-  if (typeof method !== 'string' || !(reads.has(method) || writes.has(method)))
+  if (
+    typeof method !== 'string' ||
+    !(reads.has(method) || adminReads.has(method) || writes.has(method))
+  )
     throw new DomainError('NOT_SUPPORTED', 'Unknown method', 404);
+  if (adminReads.has(method) && !isAdmin(account)) throw forbidden();
   const args = Array.isArray(input) ? [...input] : [];
   if (writes.has(method) && !isAdmin(account)) {
     // A player edits the name, nickname and avatar of their own record, nothing else.
@@ -44,6 +50,17 @@ export async function dispatch(
       Object.keys(patch).every((key) => profileFields.has(key)) &&
       resolve(String(args[0])) === resolve(account.playerId);
     if (!own) throw forbidden();
+  }
+  if (method === 'linkPlayers' && accounts) {
+    // Two people with an account cannot become one player: an admin sorts that out first.
+    const resolve = linkResolver(await adapter.links());
+    const [a, b] = args.map((id) => accounts.byPlayer(resolve(String(id))));
+    ensure(
+      !(a && b),
+      'BOTH_HAVE_ACCOUNT',
+      'Both players have an account: unlink one before merging them',
+      409,
+    );
   }
   if (method === 'tournamentCommand') {
     const t = record(args[0]);
@@ -63,5 +80,10 @@ export async function dispatch(
     args[0] = await readBackup(args[0]);
   }
   const fn = (adapter as unknown as Record<string, (...a: unknown[]) => unknown>)[method]!;
-  return fn.apply(adapter, args);
+  const result = await fn.apply(adapter, args);
+  if (method === 'linkPlayers' && accounts) {
+    const { kept, linked } = result as { kept: string; linked: string };
+    accounts.movePlayer(linked, kept);
+  }
+  return result;
 }
