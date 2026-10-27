@@ -20,6 +20,8 @@ export const clientRoutes = [
   '/serate',
   '/regole',
   '/giocatori',
+  '/compagnie',
+  '/compagnie/*',
   '/impostazioni',
 ];
 

@@ -380,3 +380,28 @@
   color: var(--bt-text-secondary);
   text-decoration: underline;
 }
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.check-list .check-row {
+  padding: 0 12px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: var(--bt-radius-md);
+  background: var(--bt-surface-card);
+}
+.check-list .check-row > span:first-of-type {
+  flex: 1;
+}
+.crew-onboarding .btn {
+  width: 100%;
+}
+.crew-onboarding > .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.card .pair > :only-child {
+  grid-column: 1 / -1;
+}

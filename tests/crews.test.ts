@@ -199,7 +199,7 @@ describe('crews between phones', () => {
 
   it('upgrades a phone with data from before crews, keeping everything', async () => {
     const name = `bt-old-${randomUUID()}`;
-    const old = await phone(name, migrations.slice(0, 3));
+    const old = await phone(name, migrations.slice(0, 4));
     const ann = await player(old, 'Ann');
     const bob = await player(old, 'Bob');
     const t = await play(old, [ann.id, bob.id], [300, 200]);
@@ -207,7 +207,7 @@ describe('crews between phones', () => {
     engines.splice(engines.indexOf(old), 1);
 
     const upgraded = await phone(name);
-    expect(SCHEMA_VERSION).toBe(4);
+    expect(SCHEMA_VERSION).toBe(5);
     expect(upgraded.socialData()).toEqual({ crews: [], cards: [], links: [] });
     expect(upgraded.read((_, s) => s.getTournament(t.id))!.status).toBe('completed');
     // Levels come from the existing matches straight away.

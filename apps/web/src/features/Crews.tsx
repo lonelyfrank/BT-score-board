@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Crown, Share2, Download, Users } from 'lucide-react';
@@ -24,6 +24,19 @@ import type {
   MergeReport,
 } from '../../../../packages/local-store/src/index.js';
 
+/** A titled card, as in the settings. */
+function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <>
+      <h2 className="set-h" id={id}>
+        {title}
+      </h2>
+      <section className="card pad" aria-labelledby={id}>
+        {children}
+      </section>
+    </>
+  );
+}
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -69,7 +82,7 @@ export function Crews() {
         back="/giocatori"
         action={<AddButton label="Nuova compagnia" onClick={() => setEditing(true)} />}
       />
-      <main className="content">
+      <main className="lists">
         <ErrorMessage error={crews.error} retry={() => void crews.refetch()} />
         {crews.isPending && <Loading />}
         {crews.data?.length === 0 && (
@@ -80,10 +93,10 @@ export function Crews() {
             </p>
           </Empty>
         )}
-        <ul className="player-rows crew-rows">
+        <ul className="roster crew-rows">
           {crews.data?.map((c) => (
             <li key={c.id}>
-              <Link to={`/compagnie/${c.id}`} className="button">
+              <Link to={`/compagnie/${c.id}`} className="btn">
                 <span className="crew-icon" aria-hidden="true">
                   <Users />
                 </span>
@@ -98,8 +111,7 @@ export function Crews() {
           ))}
         </ul>
         <ReceivePanel />
-        <section className="panel">
-          <h2>Come funziona</h2>
+        <Panel id="how-title" title="Come funziona">
           <p>
             Ognuno tiene i dati sul proprio telefono. Chi ha segnato una serata manda il pacchetto
             della compagnia; gli altri lo uniscono. Ogni partita ha un identificativo unico: unire
@@ -109,7 +121,7 @@ export function Crews() {
             Il livello di ciascuno viaggia con il pacchetto, quindi è lo stesso in ogni compagnia.
             Le partite giocate fuori dalla compagnia restano solo sul tuo telefono.
           </p>
-        </section>
+        </Panel>
       </main>
       {editing && players.data && (
         <CrewSheet players={players.data.items} close={() => setEditing(false)} />
@@ -130,12 +142,11 @@ export function ReceivePanel() {
     },
   });
   return (
-    <section className="panel" aria-labelledby="receive-title">
-      <h2 id="receive-title">Hai ricevuto un pacchetto?</h2>
+    <Panel id="receive-title" title="Hai ricevuto un pacchetto?">
       <p>
         Apri il file della compagnia (o il backup di un altro telefono) per unirlo ai tuoi dati.
       </p>
-      <label className="button file-button primary">
+      <label className="btn cta file-button">
         Unisci un pacchetto
         <input
           ref={input}
@@ -149,7 +160,7 @@ export function ReceivePanel() {
       </label>
       <ErrorMessage error={read.error} />
       {file && <MergeFlow {...file} close={() => setFile(undefined)} />}
-    </section>
+    </Panel>
   );
 }
 
@@ -229,15 +240,19 @@ function CrewSheet({
             ))}
           </div>
         </fieldset>
-        <div className="settings-row">
-          <span className="row-label" id="auto-share">
-            <span>Condividi in automatico</span>
-            <small>Le partite giocate solo tra membri entrano nella compagnia</small>
-          </span>
-          <Switch checked={autoShare} change={setAutoShare} labelledBy="auto-share" />
+        <div className="card">
+          <div className="row">
+            <span id="auto-share">
+              <b className="row-title">Condividi in automatico</b>
+              <small className="hint">
+                Le partite giocate solo tra membri entrano nella compagnia
+              </small>
+            </span>
+            <Switch checked={autoShare} change={setAutoShare} labelledBy="auto-share" />
+          </div>
         </div>
         <ErrorMessage error={save.error} />
-        <button className="primary" disabled={save.isPending || !name.trim() || members.length < 1}>
+        <button className="btn cta" disabled={save.isPending || !name.trim() || members.length < 1}>
           {crew ? 'Salva' : 'Crea compagnia'}
         </button>
       </form>
@@ -310,17 +325,16 @@ export function CrewDetail() {
         subtitle={`${count(crew.memberIds.length, 'membro', 'membri')} · ${count(shared.data?.length ?? 0, 'torneo condiviso', 'tornei condivisi')}`}
         back="/compagnie"
       />
-      <main className="content">
-        <section className="panel" aria-labelledby="send-title">
-          <h2 id="send-title">Condividi con la compagnia</h2>
+      <main className="lists">
+        <Panel id="send-title" title="Condividi con la compagnia">
           <p>
             Dopo una serata manda il pacchetto agli altri membri: contiene solo i tornei della
             compagnia, i giocatori e i livelli dei membri.
           </p>
-          <div className="data-actions">
+          <div className="pair">
             {canShareFiles() && (
               <button
-                className="primary"
+                className="btn cta"
                 disabled={send.isPending}
                 onClick={() => send.mutate('share')}
               >
@@ -328,7 +342,7 @@ export function CrewDetail() {
               </button>
             )}
             <button
-              className={canShareFiles() ? '' : 'primary'}
+              className={canShareFiles() ? 'btn' : 'btn cta'}
               disabled={send.isPending}
               onClick={() => send.mutate('download')}
             >
@@ -336,15 +350,14 @@ export function CrewDetail() {
             </button>
           </div>
           {message && (
-            <p className="success" role="status">
+            <p className="form-reason ok" role="status">
               {message}
             </p>
           )}
           <ErrorMessage error={send.error} />
-        </section>
+        </Panel>
 
-        <section className="panel" aria-labelledby="ranking-title">
-          <h2 id="ranking-title">Livelli</h2>
+        <Panel id="ranking-title" title="Livelli">
           <ol className="crew-ranking">
             {ranking.map(({ playerId, p }, i) => (
               <li key={playerId}>
@@ -363,10 +376,9 @@ export function CrewDetail() {
             ))}
           </ol>
           <button onClick={() => setEditing(true)}>Modifica membri</button>
-        </section>
+        </Panel>
 
-        <section className="panel" aria-labelledby="records-title">
-          <h2 id="records-title">Record della compagnia</h2>
+        <Panel id="records-title" title="Record della compagnia">
           {records.length === 0 ? (
             <p className="hint">
               Ancora nessun record. Hi-Score e Shanghai premiano il punteggio più alto, Exacta chi
@@ -392,41 +404,40 @@ export function CrewDetail() {
               ))}
             </ul>
           )}
-        </section>
+        </Panel>
 
-        <section className="panel" aria-labelledby="shared-title">
-          <h2 id="shared-title">Tornei condivisi</h2>
+        <Panel id="shared-title" title="Tornei condivisi">
           <p className="hint">
             {crew.autoShare
               ? 'Entrano da soli i tornei giocati solo tra membri. Puoi aggiungerne o escluderne.'
               : 'Condivisione automatica spenta: entrano solo i tornei scelti.'}
           </p>
-          <ul className="home-results">
+          <div className="list">
             {shared.data?.map((t) => (
-              <li key={t.id}>
-                <Link to={tournamentPath(t)}>
-                  <span>{t.name}</span>
-                  <small>{day(t.createdAt)}</small>
-                  <ChevronRight aria-hidden="true" />
-                </Link>
-              </li>
+              <Link className="mrow" key={t.id} to={tournamentPath(t)}>
+                <span>
+                  {t.name} <small>· {day(t.createdAt)}</small>
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </Link>
             ))}
-          </ul>
-          <button onClick={() => setChoosing(true)}>Scegli i tornei</button>
-        </section>
+          </div>
+          <button className="btn" onClick={() => setChoosing(true)}>
+            Scegli i tornei
+          </button>
+        </Panel>
 
         <ReceivePanel />
 
-        <section className="panel">
-          <h2>Elimina</h2>
+        <Panel id="delete-title" title="Elimina">
           <p className="hint">
             Toglie la compagnia solo da questo telefono: tornei, giocatori e livelli restano, e gli
             altri membri mantengono la loro copia.
           </p>
-          <button className="outline" onClick={() => setConfirmDelete(true)}>
+          <button className="btn danger" onClick={() => setConfirmDelete(true)}>
             Elimina da questo telefono
           </button>
-        </section>
+        </Panel>
       </main>
       {editing && players.data && (
         <CrewSheet crew={crew} players={players.data.items} close={() => setEditing(false)} />
@@ -443,7 +454,7 @@ export function CrewDetail() {
           <ErrorMessage error={remove.error} />
           <div className="pair">
             <button onClick={() => setConfirmDelete(false)}>Annulla</button>
-            <button className="primary" disabled={remove.isPending} onClick={() => remove.mutate()}>
+            <button className="btn cta" disabled={remove.isPending} onClick={() => remove.mutate()}>
               Elimina
             </button>
           </div>
@@ -516,7 +527,7 @@ function ChooseTournaments({ crew, close }: { crew: Crew; close: () => void }) {
       </div>
       <ErrorMessage error={save.error ?? all.error} />
       <button
-        className="primary"
+        className="btn cta"
         disabled={save.isPending || !all.data || !shared.data}
         onClick={() => save.mutate()}
       >
@@ -599,7 +610,7 @@ export function MergeFlow({
             </>
           )}
           {r.tournaments.diverged.length > 0 && (
-            <p className="warning-text">
+            <p className="form-reason warn">
               Segnati su due telefoni diversi: {r.tournaments.diverged.join(', ')}. Resta la tua
               copia.
             </p>
@@ -607,7 +618,7 @@ export function MergeFlow({
           <div className="pair">
             <button onClick={close}>{r.unchanged ? 'Chiudi' : 'Annulla'}</button>
             {!r.unchanged && (
-              <button className="primary" disabled={merge.isPending} onClick={() => merge.mutate()}>
+              <button className="btn cta" disabled={merge.isPending} onClick={() => merge.mutate()}>
                 {merge.isPending ? 'Unione…' : 'Unisci'}
               </button>
             )}
@@ -616,11 +627,11 @@ export function MergeFlow({
       )}
       {done && (
         <>
-          <p className="success" role="status">
+          <p className="form-reason ok" role="status">
             {reportLines(done).join(', ') || 'Dati già presenti.'}
           </p>
           <Homonyms groups={done.homonyms} />
-          <button className="primary" onClick={close}>
+          <button className="btn cta" onClick={close}>
             Fatto
           </button>
         </>
@@ -662,7 +673,7 @@ function Homonyms({ groups }: { groups: MergeReport['homonyms'] }) {
             <div className="pair">
               <button onClick={() => setHandled((h) => [...h, ids.join()])}>Persone diverse</button>
               <button
-                className="primary"
+                className="btn cta"
                 disabled={link.isPending}
                 onClick={() => link.mutate(ids)}
               >
@@ -729,7 +740,7 @@ export function CrewOnboarding() {
       </p>
       <div className="pair">
         <button onClick={() => later('later')}>Non ora</button>
-        <button className="primary" onClick={() => setCreating(true)}>
+        <button className="btn cta" onClick={() => setCreating(true)}>
           Crea compagnia
         </button>
       </div>
