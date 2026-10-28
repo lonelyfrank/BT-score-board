@@ -657,6 +657,25 @@ main.setup-space {
   width: 18px;
   height: 18px;
 }
+.space-others .mv {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 14px;
+  border-radius: var(--bt-radius-lg);
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  text-align: left;
+}
+.space-others .mv svg {
+  width: 24px;
+  height: 24px;
+  color: var(--bt-accent-soft);
+}
+.space-others .mv b,
+.space-others .mv small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .space-others .mv[aria-pressed='true'] {
   outline: 2px solid var(--bt-accent-primary);
 }
