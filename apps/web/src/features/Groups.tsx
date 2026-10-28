@@ -36,6 +36,7 @@ import { api, type Tournament } from '../services/api';
 import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
   ActionsMenu,
+  NightExtras,
   BackupLink,
   BoardCard,
   DecisionSheet,
@@ -704,6 +705,7 @@ export function GroupsDetail() {
         {tab === 'ranking' && (
           <>
             {t.results.length > 0 && <ResultsTable t={t} />}
+            {t.status === 'completed' && <NightExtras t={t} />}
             {tables
               .filter((r) => r.stageKind === 'group' && t.gameMode === 'HI_SCORE')
               .map((table) => (

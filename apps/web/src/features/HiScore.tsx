@@ -19,6 +19,7 @@ import type { Tournament } from '../services/api';
 import { isResultRecording } from '../services/rules';
 import {
   ActionsMenu,
+  NightExtras,
   BackupLink,
   BoardCard,
   DecisionSheet,
@@ -526,6 +527,7 @@ export function HiScoreDetail() {
             <>
               <Podium t={t} />
               <ResultsTable t={t} />
+              <NightExtras t={t} />
               {sharedPlaces && (
                 <p className="hint">
                   Gli esclusi dalla finale condividono lo stesso piazzamento: il backend non li

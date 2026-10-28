@@ -40,6 +40,8 @@ import {
   tournamentTone,
   type Tone,
 } from '../components/ui';
+import { Crown } from 'lucide-react';
+import { recordValue, useProgression } from '../components/Progression';
 import { AddPlayerSheet } from '../components/PlayerSheets';
 
 export type Table = Standings[number];
@@ -402,6 +404,53 @@ export function ResultsTable({ t }: { t: Tournament }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Under the official result: the record the night set, if still standing, and the XP it gave. */
+export function NightExtras({ t }: { t: Tournament }) {
+  const progression = useProgression();
+  if (!localData || !progression.data) return null;
+  const sources = new Set([t.id, ...t.matches.map((m) => m.id)]);
+  const xp = t.entries
+    .map((e) => {
+      const p = e.playerId ? progression.data.players.get(e.playerId) : undefined;
+      const gained = (p?.contributions ?? [])
+        .filter((c) => sources.has(c.source))
+        .reduce((n, c) => n + c.xp, 0);
+      return { name: e.displayNameAtRegistration.split(' ')[0] ?? '', gained };
+    })
+    .filter((x) => x.gained > 0)
+    .sort((a, b) => b.gained - a.gained);
+  const records = Object.values(progression.data.records).filter((r) => r.tournamentId === t.id);
+  if (!records.length && !xp.length) return null;
+  const holder = (id: string) => progression.data.players.get(id);
+  return (
+    <section className="night-extras" aria-label="Record e XP della serata">
+      {records.map((r) => (
+        <div className="record-badge" key={r.game}>
+          <Crown aria-hidden="true" />
+          <span>
+            <strong>Nuovo {r.spec.title}</strong>
+            <small>
+              {t.entries.find((e) => e.playerId === r.playerId)?.displayNameAtRegistration ??
+                holder(r.playerId)?.cosmetics.levelTitle}{' '}
+              · {recordValue(r)}
+            </small>
+          </span>
+        </div>
+      ))}
+      {xp.length > 0 && (
+        <div className="card night-xp">
+          <span className="field-l">XP della serata</span>
+          {xp.map((x) => (
+            <span className="xpgain" key={x.name}>
+              {x.name} +{x.gained}
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

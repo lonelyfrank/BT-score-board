@@ -357,3 +357,19 @@ main.tournament {
 .form-reason.muted {
   color: var(--bt-text-secondary);
 }
+
+.night-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.night-xp {
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.night-xp .field-l {
+  font-size: 11px;
+}

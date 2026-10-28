@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock, SlidersHorizontal } from 'lucide-react';
-import { ApiError, appVersion, cloudApi, localData, sharedApi } from '../services/api';
+import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock } from 'lucide-react';
+import { ApiError, api, appVersion, cloudApi, localData, sharedApi } from '../services/api';
 import { useAccount, isAdmin } from '../services/cloud';
+import { useRole } from '../services/me';
 import type { BackupFile, BackupSummary } from '../../../../packages/local-store/src/index.js';
 import {
   canShareFiles,
@@ -55,22 +56,11 @@ export function Settings() {
         backLabel="Indietro alla Home"
       />
       <main className="settings">
-        <section className="card" aria-label="Gestione e accesso">
-          <Link className="row" to="/gestione">
-            <span>
-              <SlidersHorizontal aria-hidden="true" /> Gestione
-              <small className="hint"> · tornei e partite di questo telefono</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-          </Link>
-          <Link className="row" to="/permessi">
-            <span>
-              <Lock aria-hidden="true" /> Accesso e permessi
-              <small className="hint"> · chi può fare cosa</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
-          </Link>
-        </section>
+        {(cloudApi || !localData) && (
+          <section className="card" aria-label="Gestione e accesso">
+            <PhoneLinks />
+          </section>
+        )}
         {cloudApi ? (
           <>
             <AccountSection />
@@ -93,6 +83,41 @@ export function Settings() {
           registra i risultati, senza alcun collegamento alla macchina.
         </p>
       </main>
+    </>
+  );
+}
+
+/** Rows of "Questo telefono" that lead to the other management pages. */
+function PhoneLinks({ crews = false }: { crews?: boolean }) {
+  const role = useRole();
+  const crewList = useQuery({
+    queryKey: ['crews'],
+    queryFn: () => localData!.crews(),
+    enabled: crews && !!localData,
+  });
+  const tournaments = useQuery({ queryKey: ['tournaments', 0], queryFn: () => api.tournaments(0) });
+  const open = (tournaments.data?.items ?? []).filter(
+    (t) => !['completed', 'cancelled'].includes(t.status),
+  ).length;
+  return (
+    <>
+      {crews && (
+        <Link className="row" to="/compagnie">
+          <span className="k">Compagnie</span>
+          <span className="v">{crewList.data?.length ?? '—'}</span>
+          <ChevronRight aria-hidden="true" />
+        </Link>
+      )}
+      <Link className="row" to="/gestione">
+        <span className="k">Gestione tornei e partite</span>
+        {open > 0 && <span className="chip live">{open} IN CORSO</span>}
+        <ChevronRight aria-hidden="true" />
+      </Link>
+      <Link className="row" to="/permessi">
+        <span className="k">Accesso e permessi</span>
+        <span className="v">{role.label}</span>
+        <ChevronRight aria-hidden="true" />
+      </Link>
     </>
   );
 }
@@ -263,7 +288,12 @@ function DeviceData() {
                 {myName ?? 'Scegli il tuo giocatore'}
               </button>
             </div>
+            <PhoneLinks crews />
           </div>
+          <p className="hint">
+            Solo il tuo profilo è modificabile da questo telefono: gli altri si vedono in sola
+            lettura.
+          </p>
           {choosingMe && <WhoAmISheet close={() => setChoosingMe(false)} />}
           <h2 className="set-h" id="device-title">
             Dati su questo dispositivo

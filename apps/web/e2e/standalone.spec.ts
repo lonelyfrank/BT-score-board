@@ -95,6 +95,9 @@ test('Hi-Score night for 8 players: totals from the totem, tie decided, final an
   await page.getByRole('tab', { name: 'Risultati' }).click();
   const podium = page.getByRole('region', { name: 'Risultato ufficiale' });
   await expect(podium).toContainText('Vince Bruno!');
+  await expect(page.getByRole('region', { name: 'Record e XP della serata' })).toContainText(
+    'Bruno +',
+  );
   await expect(page.locator('.pod .p1')).toContainText('Bruno');
 
   // Close and reopen the app: the official ranking is still there.
