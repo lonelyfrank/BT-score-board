@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Search, Users } from 'lucide-react';
+import { ChevronRight, Search, UserPlus, Users } from 'lucide-react';
 import {
   api,
   cloudApi,
@@ -25,7 +25,7 @@ import {
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
 import { FxName, LevelChip, ProgressPanel, useProgression } from '../components/Progression';
-import { linkDirection } from '../../../../packages/domain/src/index.js';
+import { linkDirection, type Crew } from '../../../../packages/domain/src/index.js';
 import { meStore, useCanManage } from '../services/me';
 import { SpaceStats } from './PlaySpaces';
 import { AccountLink } from '../components/AccountLink';
@@ -38,7 +38,8 @@ const outcomeLabel: Record<string, string> = { win: 'V', draw: 'N', loss: 'P' };
 const shortDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : '';
 
-function Profile({ player, close }: { player: Player; close: () => void }) {
+/** A player's profile sheet: details, and the changes this account may make. */
+export function Profile({ player, close }: { player: Player; close: () => void }) {
   const client = useQueryClient();
   const [name, setName] = useState(player.displayName);
   const [nick, setNick] = useState(player.nickname ?? '');
@@ -49,25 +50,6 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
   const { me } = useKnowsMe();
   const manage = useCanManage();
   const canEdit = cloudApi ? manage || me === player.id : !localData || !me || me === player.id;
-  const stats = useQuery({
-    queryKey: ['player-stats', player.id],
-    queryFn: () => api.statistics(player.id),
-  });
-  // Placements come from each tournament's official results: the latest ten.
-  const history = useQuery({
-    queryKey: ['player-history', player.id],
-    queryFn: async () => {
-      const page = await api.history(player.id);
-      return Promise.all(
-        page.items.slice(0, 10).map(async (summary) => {
-          const t = await api.tournament(summary.id);
-          const entry = t.entries.find((e) => e.playerId === player.id);
-          const place = t.results.find((r) => r.tournamentEntryId === entry?.id)?.finalPlacement;
-          return { summary, place };
-        }),
-      );
-    },
-  });
   const update = useMutation({
     mutationFn: (patch: Parameters<typeof api.updatePlayer>[1]) =>
       api.updatePlayer(player.id, patch),
@@ -78,7 +60,6 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
   });
   const progression = useProgression();
   const level = progression.data?.players.get(player.id);
-  const s = stats.data;
   const current = update.data ?? player;
   const active = current.status === 'active';
   const since = new Date(player.createdAt).toLocaleDateString('it-IT', {
@@ -136,13 +117,7 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
         )
       }
     >
-      <ErrorMessage error={stats.error ?? history.error ?? update.error} />
-      {level && <ProgressPanel p={level} />}
-      <SpaceStats playerId={player.id} />
-      <p className="hint">
-        Le statistiche qui sotto sono lo storico personale complessivo, di tutti i punti di incontro
-        insieme: non è una classifica.
-      </p>
+      <ErrorMessage error={update.error} />
       {canEdit && editing && (
         <form
           id="profile-name"
@@ -208,6 +183,53 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           </span>
         </p>
       )}
+      <PlayerDetails player={player} />
+      {manage && (
+        <p className="hint">
+          Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
+        </p>
+      )}
+      {localData && !cloudApi && <ThisIsMe player={player} />}
+      {cloudApi && manage && <AccountLink player={player} />}
+      {cloudApi && manage && <CrewMembership player={player} />}
+      {localData && canEdit && manage && <LinkDuplicate player={player} close={close} />}
+    </Modal>
+  );
+}
+
+/** Level, statistics and official placements of a player: the body of a profile. */
+export function PlayerDetails({ player }: { player: Player }) {
+  const stats = useQuery({
+    queryKey: ['player-stats', player.id],
+    queryFn: () => api.statistics(player.id),
+  });
+  // Placements come from each tournament's official results: the latest ten.
+  const history = useQuery({
+    queryKey: ['player-history', player.id],
+    queryFn: async () => {
+      const page = await api.history(player.id);
+      return Promise.all(
+        page.items.slice(0, 10).map(async (summary) => {
+          const t = await api.tournament(summary.id);
+          const entry = t.entries.find((e) => e.playerId === player.id);
+          const place = t.results.find((r) => r.tournamentEntryId === entry?.id)?.finalPlacement;
+          return { summary, place };
+        }),
+      );
+    },
+  });
+  const progression = useProgression();
+  const level = progression.data?.players.get(player.id);
+  const s = stats.data;
+  return (
+    <>
+      <ErrorMessage error={stats.error ?? history.error} />
+      {level && <ProgressPanel p={level} />}
+      <SpaceStats playerId={player.id} />
+      <p className="hint">
+        Le statistiche qui sotto sono lo storico personale complessivo, di tutti i punti di incontro
+        insieme: non è una classifica.
+      </p>
       {s && (
         <>
           <div className="card stat3">
@@ -316,13 +338,46 @@ function Profile({ player, close }: { player: Player; close: () => void }) {
           ))}
         </section>
       )}
-      <p className="hint">
-        Disattivare non cancella lo storico: il giocatore sparisce solo dalle nuove iscrizioni.
-      </p>
-      {localData && !cloudApi && <ThisIsMe player={player} />}
-      {cloudApi && manage && <AccountLink player={player} />}
-      {localData && canEdit && manage && <LinkDuplicate player={player} close={close} />}
-    </Modal>
+    </>
+  );
+}
+
+/** Admins: the crews the player belongs to; ticking moves them in or out. */
+function CrewMembership({ player }: { player: Player }) {
+  const client = useQueryClient();
+  const crews = useQuery({ queryKey: ['crews'], queryFn: () => localData!.crews() });
+  const save = useMutation({
+    mutationFn: ({ crew, member }: { crew: Crew; member: boolean }) =>
+      localData!.saveCrew({
+        ...crew,
+        memberIds: member
+          ? [...crew.memberIds, player.id]
+          : crew.memberIds.filter((id) => id !== player.id),
+      }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['crews'] }),
+  });
+  if (!crews.data?.length) return null;
+  return (
+    <section className="list" aria-labelledby="crews-of-title">
+      <div className="sec-h">
+        <h3 id="crews-of-title">Compagnie</h3>
+        <span>tocca per spostare</span>
+      </div>
+      <div className="check-list">
+        {crews.data.map((crew) => (
+          <label className="check-row" key={crew.id}>
+            <input
+              type="checkbox"
+              checked={crew.memberIds.includes(player.id)}
+              disabled={save.isPending}
+              onChange={(e) => save.mutate({ crew, member: e.target.checked })}
+            />
+            <span>{crew.name}</span>
+          </label>
+        ))}
+      </div>
+      <ErrorMessage error={save.error ?? crews.error} />
+    </section>
   );
 }
 
@@ -401,7 +456,8 @@ const levelLabel = (p?: {
   records: { spec: { title: string } }[];
 }) => (p ? [p.progress.level.title, ...p.records.map((r) => r.spec.title)].join(' · ') : '');
 
-export function Players() {
+/** The roster: its own page, or (`embedded`) a tab of Compagnia and of the admin panel. */
+export function Players({ embedded = false }: { embedded?: boolean }) {
   const manage = useCanManage();
   const [search, setSearch] = useState('');
   // Deactivated and merged profiles are for admins only; everyone else sees who plays.
@@ -457,22 +513,25 @@ export function Players() {
   }, [wanted, everyoneItems, setParams]);
   return (
     <>
-      <Header
-        title="Giocatori"
-        subtitle={
-          counts.data
-            ? manage
-              ? `${counts.data.active} attivi · ${Math.max(0, counts.data.inactive - mergedInto.size)} disattivati · ${mergedInto.size} uniti`
-              : `${counts.data.active} giocatori`
-            : undefined
-        }
-        back={null}
-        action={
-          manage ? (
-            <AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />
-          ) : undefined
-        }
-      />
+      {!embedded && (
+        <Header
+          title="Giocatori"
+          subtitle={
+            counts.data
+              ? manage
+                ? `${counts.data.active} attivi · ${Math.max(0, counts.data.inactive - mergedInto.size)} disattivati · ${mergedInto.size} uniti`
+                : `${counts.data.active} giocatori`
+              : undefined
+          }
+          back="/compagnia"
+          backLabel="Indietro alla compagnia"
+          action={
+            manage ? (
+              <AddButton label="Nuovo giocatore" onClick={() => setCreating(true)} />
+            ) : undefined
+          }
+        />
+      )}
       <div className="toolbar">
         <label className="search">
           <Search aria-hidden="true" />
@@ -505,7 +564,7 @@ export function Players() {
         )}
       </div>
       <main className="lists">
-        {localData && (
+        {localData && !cloudApi && (
           <Link className="crew-link" to="/compagnie">
             <Users aria-hidden="true" />
             <span>
@@ -557,8 +616,13 @@ export function Players() {
         </ul>
         {page?.total === 0 && (
           <Empty title="Nessun giocatore trovato">
-            <p>Puoi crearlo con il tasto +.</p>
+            {manage && <p>Puoi crearlo con «Nuovo giocatore».</p>}
           </Empty>
+        )}
+        {embedded && manage && (
+          <button type="button" className="btn" onClick={() => setCreating(true)}>
+            <UserPlus aria-hidden="true" /> Nuovo giocatore
+          </button>
         )}
         {!!page?.total && page.total > page.items.length && (
           <p className="hint">

@@ -73,11 +73,9 @@ export function Home() {
           <Link to="/serate" aria-label="Game Night">
             <CalendarDays />
           </Link>
-          {localData && (
-            <Link to="/compagnie" aria-label="Compagnie">
-              <Users />
-            </Link>
-          )}
+          <Link to="/compagnia" aria-label="Compagnia: classifiche e record">
+            <Users />
+          </Link>
           {localData && (
             <Link to="/punti" aria-label="Punti di incontro">
               <MapPin />

@@ -233,3 +233,33 @@ describe('records', () => {
     expect(ann.cosmetics.levelTitle).toBe('Assetato');
   });
 });
+
+describe('best three-dart turn', () => {
+  const threeDarts = (m: Match) =>
+    ({
+      ...m,
+      scores: [],
+      scoringConfiguration: { turns: 7, dartsPerTurn: 3, maxTurnScore: 180 },
+    }) as unknown as Match;
+  it('reads X01 turns from the points left and keeps the highest of all', () => {
+    // 501 → 400 → 260 → 260 (nothing) → 100: turns of 101, 140 and 160.
+    const x01 = threeDarts(match({ a: 'ann', b: 'bob', rounds: [400, 260, 260, 100] }));
+    const hi = threeDarts(match({ a: 'bob', b: 'ann' }));
+    hi.rounds = [120, 140].map((value, i) => ({
+      ...x01.rounds[0]!,
+      id: `hi-${i}`,
+      tournamentEntryId: 'e-bob',
+      round: i + 1,
+      value,
+      kind: 'points',
+    }));
+    const p = computeProgression([tournament('501', [x01]), tournament('SHANGHAI', [hi])]);
+    expect(p.players.get('ann')!.bestTurn).toMatchObject({ value: 160, gameMode: '501' });
+    expect(p.players.get('bob')!.bestTurn).toMatchObject({ value: 140, gameMode: 'SHANGHAI' });
+    expect(p.bestTurn).toMatchObject({ playerId: 'ann', value: 160 });
+  });
+  it('ignores matches played with another number of darts', () => {
+    const m = match({ a: 'ann', b: 'bob', rounds: [400] });
+    expect(computeProgression([tournament('501', [m])]).bestTurn).toBeNull();
+  });
+});

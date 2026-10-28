@@ -148,6 +148,31 @@ describe('who can score a match', () => {
     expect(done.status).toBe('completed');
   });
 
+  it('a finished match stays as it ended for its scorer: only an admin corrects it', async () => {
+    const w = await world();
+    const t = await match(w, w.ann);
+    const full = await register(w, w.ann, t, w.frankPlayer.id, w.salvoPlayer.id);
+    const started = (await w.call(w.ann, 'tournamentCommand', full, 'start')) as Tour;
+    const m = {
+      id: started.matches[0]!.id,
+      version: started.matches[0]!.version,
+      tournamentVersion: started.version,
+    };
+    const result = { scores: { [started.entries[0]!.id]: 300, [started.entries[1]!.id]: 200 } };
+    await w.call(w.ann, 'recordResult', m, result, 'k'.repeat(10));
+    expect((await w.adapter.tournament(t.id)).status).toBe('completed');
+    const after = await w.adapter.match(m.id);
+    await expect(
+      w.call(
+        w.ann,
+        'recordResult',
+        { id: m.id, version: after.version, tournamentVersion: after.tournamentVersion },
+        { scores: { [started.entries[0]!.id]: 100 } },
+        'j'.repeat(10),
+      ),
+    ).rejects.toMatchObject({ code: 'TOURNAMENT_CLOSED' });
+  });
+
   it('a match nobody was assigned can only be scored after an explicit, traced admin recovery', async () => {
     const w = await world();
     // Created outside the server's accounts (older data): no access record.
@@ -360,5 +385,36 @@ describe('who can see a play space', () => {
     expect(w.access.isMember(bar.id, w.carl.id)).toBe(false);
     // The accounts survive a restore of the game data.
     expect(w.accounts.list().map((a) => a.username)).toContain('carl');
+  });
+});
+
+describe('accounts made and removed by admins', () => {
+  it('creates an account with a first-access code, renames it and deletes it with its rights', async () => {
+    const w = await world();
+    const made = await w.accounts.createUser(w.owner, 'Dora', null);
+    expect(made.user).toMatchObject({ username: 'dora', role: 'player', playerId: null });
+    await expect(w.accounts.createUser(w.owner, 'dora', null)).rejects.toMatchObject({
+      code: 'USERNAME_TAKEN',
+    });
+    await expect(
+      w.accounts.login({ username: 'dora', password: 'anything-1' }, 'ip'),
+    ).rejects.toMatchObject({ code: 'INVALID_LOGIN' });
+    const dora = await w.accounts.resetPassword(
+      { username: 'dora', code: made.code, password: 'password-9' },
+      'ip',
+    );
+    expect(w.accounts.renameUser(w.owner, dora.id, 'dorina').username).toBe('dorina');
+    // An admin cannot touch another admin or the owner; nobody deletes themselves.
+    expect(() => w.accounts.deleteUser(w.admin2, w.owner.id)).toThrow();
+    expect(() => w.accounts.deleteUser(w.owner, w.owner.id)).toThrow('your own account');
+
+    const t = await match(w, dora);
+    expect(w.access.access(t.id)).toMatchObject({ scorerId: dora.id });
+    const removed = w.accounts.deleteUser(w.owner, dora.id);
+    w.access.forget(removed.id, w.owner.id);
+    expect(w.accounts.get(dora.id)).toBeUndefined();
+    // The match waits for an admin to assign a new scorer; the game data stays.
+    expect(w.access.access(t.id)).toMatchObject({ scorerId: null });
+    expect((await w.adapter.tournament(t.id)).id).toBe(t.id);
   });
 });

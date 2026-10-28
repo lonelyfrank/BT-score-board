@@ -24,6 +24,7 @@ import {
   ErrorMessage,
   Header,
   Loading,
+  ReadOnlyNote,
   Modal,
   Segmented,
   StatusChip,
@@ -206,7 +207,7 @@ function GroupTable({
 
 export function GroupsDetail() {
   const { id = '' } = useParams();
-  const { query, mutation, tables, command, error, retry } = useTournament(id);
+  const { query, mutation, tables, command, error, retry, operate } = useTournament(id);
   const [tab, setTab] = useTab('overview');
   const [group, setGroup] = useState(0);
   const [reordering, setReordering] = useState(false);
@@ -344,7 +345,13 @@ export function GroupsDetail() {
   const upcoming = ready.filter((m) => m.id !== onBoard?.id).slice(0, 3);
   const stageAction =
     !isDraft(t) && !ended ? (
-      groupStage?.status === 'open' ? (
+      !operate ? (
+        knockout.length > 0 ? (
+          <button type="button" className="btn cta" onClick={() => setTab('bracket')}>
+            VAI AL TABELLONE
+          </button>
+        ) : null
+      ) : groupStage?.status === 'open' ? (
         <button
           type="button"
           className="btn cta"
@@ -404,7 +411,7 @@ export function GroupsDetail() {
                 hint: 'Ruoli, condivisione, luogo e serata',
                 to: `/gestione/${t.id}`,
               },
-              ...(!isDraft(t) && !ended
+              ...(operate && !isDraft(t) && !ended
                 ? [
                     {
                       icon: paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />,
@@ -417,7 +424,7 @@ export function GroupsDetail() {
                     },
                   ]
                 : []),
-              ...(active && isResultRecording(t)
+              ...(operate && active && isResultRecording(t)
                 ? [
                     {
                       icon: <UserMinus aria-hidden="true" />,
@@ -432,7 +439,7 @@ export function GroupsDetail() {
                     },
                   ]
                 : []),
-              ...(ready.length > 1 && active
+              ...(operate && ready.length > 1 && active
                 ? [
                     {
                       icon: <ArrowUpDown aria-hidden="true" />,
@@ -445,7 +452,7 @@ export function GroupsDetail() {
                     },
                   ]
                 : []),
-              ...(!isDraft(t) && !ended
+              ...(operate && !isDraft(t) && !ended
                 ? [
                     {
                       icon: <X aria-hidden="true" />,
@@ -482,12 +489,15 @@ export function GroupsDetail() {
       </div>
       <main className="tournament">
         <ErrorMessage error={error} retry={retry} />
+        {!operate && <ReadOnlyNote status={t.status} />}
         {tab === 'overview' && (
           <>
-            {isDraft(t) && <DraftPanel t={t} busy={mutation.isPending} command={command} />}
+            {isDraft(t) && operate && (
+              <DraftPanel t={t} busy={mutation.isPending} command={command} />
+            )}
             {t.status === 'completed' && <Podium t={t} />}
             <StageTimeline steps={groupSteps(t)} />
-            {tieToShow?.table && tieToShow.group && (
+            {operate && tieToShow?.table && tieToShow.group && (
               <TieAlert
                 action={{
                   label: 'Spareggio sul totem',
@@ -660,7 +670,7 @@ export function GroupsDetail() {
                           {m.participants.length === 1 && <span className="hint">bye</span>}
                           {playable(m) && (
                             <Link className="btn sm" to={`/partite/${m.id}`}>
-                              Gioca
+                              {operate ? 'Gioca' : 'Segui'}
                             </Link>
                           )}
                         </article>

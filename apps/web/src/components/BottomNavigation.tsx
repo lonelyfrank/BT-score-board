@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent, ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChartNoAxesColumnIncreasing, Crosshair, Home, Trophy, Users } from 'lucide-react';
+import { Crosshair, Home, Trophy, UserRound, Users } from 'lucide-react';
 import { createGlassMap, glassGeometry, verifiedGlassRefraction } from './glass-map';
 import '../styles/bottom-navigation.css';
 
@@ -9,16 +9,16 @@ export const navigationDestinations = [
   ['/', 'Home', Home],
   ['/partite/nuova', 'Partite', Crosshair],
   ['/tornei', 'Tornei', Trophy],
-  ['/hiscore', 'Hi-Score', ChartNoAxesColumnIncreasing],
-  ['/giocatori', 'Giocatori', Users],
+  ['/compagnia', 'Compagnia', Users],
+  ['/profilo', 'Profilo', UserRound],
 ] as const;
-/** Sections of each destination: the pages opened from Home belong to Home. */
+/** Sections of each destination: the pages opened from a destination belong to it. */
 const sections = [
-  ['/', '/regole', '/serate', '/impostazioni', '/gestione', '/permessi'],
+  ['/', '/regole', '/serate'],
   ['/partite'],
-  ['/tornei'],
-  ['/hiscore'],
-  ['/giocatori', '/livelli'],
+  ['/tornei', '/hiscore', '/gestione'],
+  ['/compagnia', '/giocatori', '/livelli', '/compagnie'],
+  ['/profilo', '/impostazioni', '/permessi', '/admin'],
 ];
 const normalizedPath = (path: string) => path.toLowerCase().replace(/\/+$/, '') || '/';
 const sectionOf = (pathname: string) =>
@@ -211,7 +211,7 @@ export function BottomNavigation() {
             aria-current={i !== current ? undefined : path === url ? 'page' : 'location'}
             onClick={() => navigator.vibrate?.(8)}
           >
-            <Icon aria-hidden="true" strokeWidth={Icon === ChartNoAxesColumnIncreasing ? 2.4 : 2} />
+            <Icon aria-hidden="true" strokeWidth={2} />
             <span>{name}</span>
           </Link>
         ))}

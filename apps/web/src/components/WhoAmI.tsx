@@ -125,7 +125,7 @@ export function MeChip() {
   return (
     <Link
       className="mechip"
-      to={`/giocatori?profilo=${player.id}`}
+      to="/profilo"
       aria-label={`Il mio profilo: ${player.displayName}${level ? `, livello ${level.progress.level.level}` : ''}`}
     >
       <Avatar name={player.displayName} avatar={player.avatar} size="sm" />

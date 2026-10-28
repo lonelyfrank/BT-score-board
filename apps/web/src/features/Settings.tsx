@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { ApiError, api, appVersion, cloudApi, localData, sharedApi } from '../services/api';
 import { useAccount, isAdmin } from '../services/cloud';
 import { useRole } from '../services/me';
@@ -19,7 +19,7 @@ import { gameModes, games } from '../services/rules';
 import { Header, ErrorMessage, Modal } from '../components/ui';
 import { MergeFlow } from './Crews';
 import { WhoAmISheet, useKnowsMe } from '../components/WhoAmI';
-import { AccountSection, AdminSection } from './Account';
+import { AccountSection } from './Account';
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const dateTime = (iso: string | null) =>
@@ -52,8 +52,8 @@ export function Settings() {
               ? 'Dati, backup e app'
               : 'Accesso, server e app'
         }
-        back="/"
-        backLabel="Indietro alla Home"
+        back="/profilo"
+        backLabel="Indietro al profilo"
       />
       <main className="settings">
         {(cloudApi || !localData) && (
@@ -65,10 +65,14 @@ export function Settings() {
           <>
             <AccountSection />
             {isAdmin(account) && (
-              <>
-                <AdminSection />
-                <DeviceData />
-              </>
+              <Link className="crew-link" to="/admin">
+                <ShieldCheck aria-hidden="true" />
+                <span>
+                  <strong>Pannello admin</strong>
+                  <small>Utenti, giocatori, compagnie e backup del server</small>
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </Link>
             )}
           </>
         ) : localData ? (
@@ -130,7 +134,7 @@ export function backupName(at: string) {
 }
 
 /** The device's archive, or in cloud mode (admins) the server's: same backup and restore. */
-function DeviceData() {
+export function DeviceData() {
   const server = !!cloudApi;
   const where = server ? 'del server' : 'di questo dispositivo';
   const client = useQueryClient();

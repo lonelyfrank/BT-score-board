@@ -61,7 +61,8 @@ test('starts, navigates and saves scores offline after the first visit', async (
   await expect(page.locator('.result-head')).toContainText('Vince Ugo!');
   // In-app navigation and further deep links, still offline.
   await page.getByRole('link', { name: 'Indietro' }).click();
-  await page.getByRole('link', { name: 'Giocatori' }).click();
+  await page.getByRole('link', { name: 'Compagnia', exact: true }).click();
+  await page.getByRole('tab', { name: 'Giocatori' }).click();
   await expect(page.getByRole('button', { name: /Vera/ })).toBeVisible();
   await page.goto('/tornei');
   await expect(page.getByRole('link', { name: /Hi-Score ·/ })).toBeVisible();

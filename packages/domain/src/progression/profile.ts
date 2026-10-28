@@ -8,6 +8,8 @@ import {
   takesRecord,
   type RecordHolding,
 } from './records.js';
+import { roundProgress, trackingSpec } from '../scoring/rounds.js';
+import { games } from '../games/catalog.js';
 
 /** XP granted for each event. They count always: no confirmation of the match is needed. */
 export const xpRules = {
@@ -61,8 +63,19 @@ export interface PersonalBest {
   achievedAt: string;
 }
 export type PersonalBests = Partial<Record<GameMode, PersonalBest>>;
+/** The most points a player scored with one turn of three darts, in any game. */
+export interface BestTurn {
+  value: number;
+  playerId: string;
+  gameMode: GameMode;
+  tournamentId: string;
+  matchId: string;
+  achievedAt: string;
+}
 export interface PlayerProgression {
   playerId: string;
+  /** Highest three-dart turn of the player, from tracked rounds of completed matches. */
+  bestTurn: BestTurn | null;
   xp: number;
   /** Where the XP comes from, so that it can be told apart from the same XP seen elsewhere. */
   contributions: XpContribution[];
@@ -79,6 +92,43 @@ export interface Progression {
   players: Map<string, PlayerProgression>;
   /** Current holder of each game's record. */
   records: Partial<Record<GameMode, RecordHolding>>;
+  /** Highest three-dart turn of all (null when records are not claimed). */
+  bestTurn: BestTurn | null;
+}
+
+/** A turn cannot be worth more than three triple 20. */
+const MAX_TURN = 180;
+/**
+ * Points of each three-dart turn of an entry, with who threw it: tracked rounds that score
+ * points (X01 rounds read from the points left), and legacy turn-by-turn Hi-Score entries.
+ * Busts, skipped rounds and matches played with another number of darts give none.
+ */
+function turnPoints(t: Tournament, m: Match, entry: TournamentEntry) {
+  const turns: { playerId: string; value: number }[] = [];
+  if (m.scoringConfiguration.dartsPerTurn !== 3) return turns;
+  const legacy = new Map<string, number>();
+  for (const s of m.scores)
+    if (!s.voided && s.tournamentEntryId === entry.id)
+      legacy.set(s.turnId, (legacy.get(s.turnId) ?? 0) + s.score);
+  for (const value of legacy.values()) turns.push({ playerId: entry.playerId, value });
+  const kind = trackingSpec(t, m).kind;
+  if (kind !== 'progress') {
+    // Points left are read against the previous turn's: a gap breaks the chain.
+    let left = games[t.gameMode].startingScore ?? null;
+    for (const r of roundProgress(t, m, entry.id).rounds) {
+      if (r.status !== 'recorded' || r.value === null) {
+        left = null;
+        continue;
+      }
+      let value: number | null = r.value;
+      if (kind === 'remaining') {
+        value = left === null ? null : left - r.value;
+        left = r.value;
+      }
+      if (value !== null && !r.bust) turns.push({ playerId: r.playerId ?? entry.playerId, value });
+    }
+  }
+  return turns.filter((x) => x.value > 0 && x.value <= MAX_TURN);
 }
 
 /**
@@ -235,11 +285,15 @@ export function computeProgression(
         stats: { matches: 0, wins: 0, tournamentsCompleted: 0, tournamentsWon: 0 },
         bests: {},
         records: [],
+        bestTurn: null,
       };
       acc.set(playerId, p);
     }
     return p;
   };
+  let bestTurn: BestTurn | null = null;
+  // Higher wins; an equal turn only when it came earlier (matches are visited in order).
+  const better = (a: BestTurn, b: BestTurn | null) => !b || a.value > b.value;
   const claim = (game: GameMode, holding: Omit<RecordHolding, 'game' | 'spec'>) => {
     const spec = recordSpecs[game]!;
     if (claimsRecords && takesRecord(spec, holding, records[game]))
@@ -253,6 +307,19 @@ export function computeProgression(
     if (entries.length < 2) continue;
     const spec = recordSpecs[t.gameMode];
     for (const entry of entries) {
+      for (const turn of turnPoints(t, m, entry)) {
+        const best: BestTurn = {
+          value: turn.value,
+          playerId: resolve(turn.playerId),
+          gameMode: t.gameMode,
+          tournamentId: t.id,
+          matchId: m.id,
+          achievedAt: at,
+        };
+        const p = of(best.playerId);
+        if (better(best, p.bestTurn)) p.bestTurn = best;
+        if (claimsRecords && better(best, bestTurn)) bestTurn = best;
+      }
       const won = m.winnerEntryId === entry.id;
       for (const playerId of membersOf(entry)) {
         const p = of(playerId);
@@ -381,5 +448,5 @@ export function computeProgression(
       },
     });
   }
-  return { players, records };
+  return { players, records, bestTurn };
 }

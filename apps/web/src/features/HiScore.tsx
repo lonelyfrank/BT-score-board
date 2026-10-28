@@ -8,6 +8,7 @@ import {
   ErrorMessage,
   Header,
   Loading,
+  ReadOnlyNote,
   Modal,
   StatusChip,
   Tabs,
@@ -137,7 +138,7 @@ function TiebreakCard({ t, match }: { t: Tournament; match: TMatch }) {
 
 export function HiScoreDetail() {
   const { id = '' } = useParams();
-  const { query, mutation, tables, command, error, retry } = useTournament(id);
+  const { query, mutation, tables, command, error, retry, operate } = useTournament(id);
   const direct =
     !!query.data &&
     !query.data.stages.some((s) => s.kind === 'qualification') &&
@@ -266,29 +267,30 @@ export function HiScoreDetail() {
       : allHeats > 1
         ? `Qualifica · ${playedHeats} manche su ${allHeats} giocate`
         : `Qualifica · ${t.entries.length} giocatori`;
-  const finalAction = needsFinal ? (
-    <button
-      type="button"
-      className="btn cta"
-      disabled={!active || mutation.isPending}
-      onClick={() => command('finals/generate')}
-    >
-      GENERA FINALE
-    </button>
-  ) : finalMatch && playable(finalMatch) ? (
-    <Link className="btn cta" to={`/partite/${finalMatch.id}`}>
-      GIOCA LA FINALE
-    </Link>
-  ) : toConfirm ? (
-    <button
-      type="button"
-      className="btn cta"
-      disabled={!!finalTie || !!finalTiebreak || mutation.isPending}
-      onClick={() => command('complete')}
-    >
-      CONFERMA RISULTATO FINALE
-    </button>
-  ) : null;
+  const finalAction =
+    needsFinal && operate ? (
+      <button
+        type="button"
+        className="btn cta"
+        disabled={!active || mutation.isPending}
+        onClick={() => command('finals/generate')}
+      >
+        GENERA FINALE
+      </button>
+    ) : finalMatch && playable(finalMatch) ? (
+      <Link className="btn cta" to={`/partite/${finalMatch.id}`}>
+        GIOCA LA FINALE
+      </Link>
+    ) : toConfirm && operate ? (
+      <button
+        type="button"
+        className="btn cta"
+        disabled={!!finalTie || !!finalTiebreak || mutation.isPending}
+        onClick={() => command('complete')}
+      >
+        CONFERMA RISULTATO FINALE
+      </button>
+    ) : null;
   return (
     <>
       <Header
@@ -305,7 +307,7 @@ export function HiScoreDetail() {
                 hint: 'Ruoli, condivisione, luogo e serata',
                 to: `/gestione/${t.id}`,
               },
-              ...(active || paused
+              ...(operate && (active || paused)
                 ? [
                     {
                       icon: paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />,
@@ -318,7 +320,7 @@ export function HiScoreDetail() {
                     },
                   ]
                 : []),
-              ...(results && active && stillIn.length > 1 && !isDraft(t)
+              ...(operate && results && active && stillIn.length > 1 && !isDraft(t)
                 ? [
                     {
                       icon: <UserMinus aria-hidden="true" />,
@@ -328,7 +330,11 @@ export function HiScoreDetail() {
                     },
                   ]
                 : []),
-              ...(qualMatch?.status === 'active' && incomplete.length > 0 && active && !results
+              ...(operate &&
+              qualMatch?.status === 'active' &&
+              incomplete.length > 0 &&
+              active &&
+              !results
                 ? [
                     {
                       icon: <Lock aria-hidden="true" />,
@@ -356,9 +362,12 @@ export function HiScoreDetail() {
       </div>
       <main className="tournament">
         <ErrorMessage error={error} retry={retry} />
+        {!operate && <ReadOnlyNote status={t.status} />}
         {tab === 'qualification' && (
           <>
-            {isDraft(t) && <DraftPanel t={t} busy={mutation.isPending} command={command} />}
+            {isDraft(t) && operate && (
+              <DraftPanel t={t} busy={mutation.isPending} command={command} />
+            )}
             {isDraft(t) && t.entries.length > 1 && t.entries.length < cut && (
               <p className="hint">
                 Con meno di {cut} iscritti non c’è qualifica: all’avvio tutti giocano direttamente
@@ -412,7 +421,7 @@ export function HiScoreDetail() {
             {qualMatch && playable(qualMatch) && (
               <BoardCard t={t} match={qualMatch} title="Qualifica" />
             )}
-            {qualTie && qualTable && (
+            {operate && qualTie && qualTable && (
               <TieAlert
                 action={{
                   label: 'Spareggio sul totem',
@@ -458,7 +467,7 @@ export function HiScoreDetail() {
             </div>
           ) : (
             <>
-              {finalTie && finalTable && (
+              {operate && finalTie && finalTable && (
                 <TieAlert
                   action={{
                     label: 'Spareggio sul totem',
@@ -685,30 +694,33 @@ export function HiScoreDetail() {
           </Modal>
         )}
       </main>
-      {tab === 'qualification' && !isDraft(t) && !direct && (
-        <div className="actionbar">
-          {qual?.status === 'finalized' ? (
-            <button type="button" className="btn cta" onClick={() => setTab('final')}>
-              VAI ALLA FINALE
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn cta"
-              disabled={!canFinalize || mutation.isPending}
-              onClick={() => command('qualification/finalize')}
+      {tab === 'qualification' &&
+        !isDraft(t) &&
+        !direct &&
+        (operate || qual?.status === 'finalized') && (
+          <div className="actionbar">
+            {qual?.status === 'finalized' ? (
+              <button type="button" className="btn cta" onClick={() => setTab('final')}>
+                VAI ALLA FINALE
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn cta"
+                disabled={!canFinalize || mutation.isPending}
+                onClick={() => command('qualification/finalize')}
+              >
+                CONFERMA QUALIFICA
+              </button>
+            )}
+            <p
+              role="status"
+              className={`form-reason ${canFinalize || qual?.status === 'finalized' ? 'ok' : 'muted'}`}
             >
-              CONFERMA QUALIFICA
-            </button>
-          )}
-          <p
-            role="status"
-            className={`form-reason ${canFinalize || qual?.status === 'finalized' ? 'ok' : 'muted'}`}
-          >
-            {finalizeNote}
-          </p>
-        </div>
-      )}
+              {finalizeNote}
+            </p>
+          </div>
+        )}
       {tab === 'final' && finalAction && <div className="actionbar">{finalAction}</div>}
     </>
   );

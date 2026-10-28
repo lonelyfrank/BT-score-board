@@ -7,8 +7,8 @@ test('navigation keeps links, route ownership and browser history in sync', asyn
   for (const [name, path] of [
     ['Partite', '/partite/nuova'],
     ['Tornei', '/tornei'],
-    ['Hi-Score', '/hiscore'],
-    ['Giocatori', '/giocatori'],
+    ['Compagnia', '/compagnia'],
+    ['Profilo', '/profilo'],
     ['Home', '/'],
   ]) {
     await nav.getByRole('link', { name, exact: true }).click();
@@ -27,20 +27,25 @@ test('navigation keeps links, route ownership and browser history in sync', asyn
     }).toPass();
   }
   await page.goBack();
-  await expect(nav.getByRole('link', { name: 'Giocatori' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  );
+  await expect(nav.getByRole('link', { name: 'Profilo' })).toHaveAttribute('aria-current', 'page');
   // A tournament is created full screen, one step at a time: no bar to leave by mistake.
   await page.goto('/tornei/nuovo');
   await atBt(page);
   await expect(nav).toHaveCount(0);
   await page.goto('/tornei/nuovo?passo=2');
   await expect(nav).toHaveCount(0);
-  // Pages opened from Home belong to Home: its item marks the section, not the page.
+  // Pages opened from a destination belong to it: its item marks the section, not the page.
   await page.goto('/impostazioni');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
-  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'location');
+  await expect(nav.getByRole('link', { name: 'Profilo' })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
+  await page.goto('/hiscore');
+  await expect(nav.getByRole('link', { name: 'Tornei' })).toHaveAttribute(
+    'aria-current',
+    'location',
+  );
   await expect(nav.locator('.bt-nav-selection')).toHaveCount(1);
   await page.goto('/regole');
   await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'location');
@@ -157,7 +162,7 @@ test('rapid navigation and route variants preserve one stable selection', async 
   );
   // Several route changes in one frame: no queued stretches or stale pressed state.
   await nav.evaluate((el) => {
-    for (const path of ['/tornei', '/hiscore', '/giocatori', '/'])
+    for (const path of ['/tornei', '/compagnia', '/profilo', '/'])
       el.querySelector<HTMLAnchorElement>(`a[href="${path}"]`)!.click();
   });
   await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute(
@@ -175,9 +180,10 @@ test('rapid navigation and route variants preserve one stable selection', async 
     ),
   ).toEqual(boxes);
   for (const [path, label, current] of [
-    ['/giocatori/', 'Giocatori', 'page'],
-    ['/HISCORE', 'Hi-Score', 'page'],
-    ['/livelli', 'Giocatori', 'location'],
+    ['/compagnia/', 'Compagnia', 'page'],
+    ['/PROFILO', 'Profilo', 'page'],
+    ['/livelli', 'Compagnia', 'location'],
+    ['/hiscore', 'Tornei', 'location'],
     ['/regole', 'Home', 'location'],
   ]) {
     await page.goto(path);

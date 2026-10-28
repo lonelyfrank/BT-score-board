@@ -339,3 +339,24 @@ main.settings {
 .dot.off {
   background: var(--bt-accent-primary);
 }
+
+/* Profilo: il giocatore dell'account in testa alla pagina. */
+.me-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+.me-hero > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.me-hero strong {
+  font-size: 22px;
+}
+.me-hero small {
+  color: var(--bt-text-secondary);
+  font-size: var(--bt-text-xs);
+}

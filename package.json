@@ -25,6 +25,7 @@
     "smoke": "tsc -p tsconfig.build.json && node dist/scripts/smoke.js",
     "dev:web:shared": "npm run dev:shared --prefix apps/web",
     "dev:cloud": "npm run build:cloud --prefix apps/web && npm run dev --prefix apps/worker",
+    "dev:online": "npm run dev:cloud --prefix apps/web",
     "deploy:cloud": "npm run build:cloud --prefix apps/web && npm run deploy --prefix apps/worker"
   },
   "packageManager": "pnpm@12.14.0",

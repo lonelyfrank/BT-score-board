@@ -8,6 +8,7 @@ dev-dist/
 data/
 coverage/
 .env
+.env.local
 *.sqlite*
 *.db*
 apps/web/test-results/

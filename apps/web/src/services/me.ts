@@ -85,3 +85,22 @@ export function useRole(): Role {
   if (cloudApi) return roles[isAdmin(account) ? 'organizzatore' : 'privato'];
   return roles.privato;
 }
+
+const over = (status: string) => status === 'completed' || status === 'cancelled';
+/**
+ * Whether the commands of a tournament are offered here. In cloud mode only its scorer runs it,
+ * from the device that holds it, and a finished one only if the scorer is an admin; elsewhere
+ * the role decides. The server enforces the same rules: this only hides refused controls.
+ */
+export function useCanOperate(t: { id: string; status: string } | undefined): boolean {
+  const account = useAccount();
+  const role = useRole();
+  const access = useQuery({
+    queryKey: ['match-access', t?.id],
+    queryFn: () => cloudApi!.matchAccess(t!.id),
+    enabled: !!cloudApi && !!t,
+  });
+  if (!cloudApi) return role.id !== 'ospite';
+  const a = access.data;
+  return !!t && !!a?.mine && a.device !== 'elsewhere' && (isAdmin(account) || !over(t.status));
+}

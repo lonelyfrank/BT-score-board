@@ -11,7 +11,16 @@ const viewports = [
   { width: 768, height: 1024 },
   { width: 844, height: 390 },
 ];
-const pages = ['/', '/giocatori', '/tornei', '/hiscore', '/impostazioni', '/partite/nuova'];
+const pages = [
+  '/',
+  '/giocatori',
+  '/compagnia',
+  '/profilo',
+  '/tornei',
+  '/hiscore',
+  '/impostazioni',
+  '/partite/nuova',
+];
 
 /** Problems found on the current page, empty when the layout holds. */
 function audit(page: Page) {

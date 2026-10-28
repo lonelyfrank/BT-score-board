@@ -478,3 +478,26 @@
   font: 20px var(--bt-font-score);
   color: var(--bt-success-bright);
 }
+
+/* Classifiche della compagnia: valore a destra (miglior tiro, tornei vinti). */
+.crew-ranking .rank-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font: 22px var(--bt-font-score);
+  line-height: 1;
+  color: var(--bt-text-primary);
+}
+.crew-ranking li:first-child .rank-value {
+  color: var(--bt-rank-1);
+}
+.crew-ranking .rank-value small {
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.toolbar .field.compact select {
+  min-height: 42px;
+  font-size: 16px;
+}
