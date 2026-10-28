@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Search, Users } from 'lucide-react';
 import {
@@ -445,6 +445,16 @@ export function Players() {
   };
   const progression = useProgression();
   const { me } = useKnowsMe();
+  // `?profilo=<id>` (the chip on the Home) opens that profile once, then leaves the address clean.
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get('profilo');
+  const everyoneItems = everyone.data?.items ?? page?.items;
+  useEffect(() => {
+    const found = wanted ? everyoneItems?.find((p) => p.id === wanted) : undefined;
+    if (!found) return;
+    setOpen(found);
+    setParams({}, { replace: true });
+  }, [wanted, everyoneItems, setParams]);
   return (
     <>
       <Header

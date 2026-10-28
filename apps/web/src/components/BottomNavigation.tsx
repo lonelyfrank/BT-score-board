@@ -18,7 +18,7 @@ const sections = [
   ['/partite'],
   ['/tornei'],
   ['/hiscore'],
-  ['/giocatori'],
+  ['/giocatori', '/livelli'],
 ];
 const sectionOf = (pathname: string) =>
   sections.findIndex((paths) =>

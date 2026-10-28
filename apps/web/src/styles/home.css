@@ -269,3 +269,16 @@
 main.not-found {
   justify-content: center;
 }
+.htools a.mechip {
+  width: auto;
+  height: 44px;
+  margin-right: auto;
+  margin-left: 4px;
+  padding: 0 10px 0 5px;
+  gap: 8px;
+  border-radius: 22px;
+  font: 600 17px var(--bt-font-ui);
+}
+.mechip .avatar {
+  flex: none;
+}

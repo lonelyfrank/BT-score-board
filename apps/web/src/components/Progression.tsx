@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Crown } from 'lucide-react';
 import { localData } from '../services/api';
 import {
@@ -121,6 +122,9 @@ export function ProgressPanel({ p }: { p: PlayerProgression }) {
           </div>
         )}
       </dl>
+      <Link className="level-more" to="/livelli">
+        Come si sale
+      </Link>
       {bests.length > 0 && (
         <p className="hint">
           Migliori personali:{' '}

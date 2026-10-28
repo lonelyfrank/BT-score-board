@@ -1,15 +1,18 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Crown, Share2, Download, Users } from 'lucide-react';
+import { ChevronRight, Crown, Share2, Download, Trash2, UserPen, Users } from 'lucide-react';
 import { api, localData, type Player } from '../services/api';
 import { useCanManage } from '../services/me';
 import { BT_PLAY_SPACE_ID } from '../../../../packages/domain/src/playspaces/playspaces';
 import { SpaceSelect } from './PlaySpaces';
 import { canShareFiles, downloadFile, shareFile } from '../services/device';
 import { tournamentPath } from '../services/session';
+import { ActionsMenu } from './Tournaments';
 import { games, type GameMode } from '../services/rules';
 import {
+  Tabs,
+  useTab,
   AddButton,
   Avatar,
   Empty,
@@ -113,24 +116,36 @@ export function Crews() {
                   <span>{c.name}</span>
                   <small>{count(c.memberIds.length, 'membro', 'membri')}</small>
                 </span>
-                <span />
+                <span className="stack" aria-hidden="true">
+                  {c.memberIds.slice(0, 3).map((id) => {
+                    const m = players.data?.items.find((x) => x.id === id);
+                    return m ? (
+                      <Avatar key={id} name={m.displayName} avatar={m.avatar} size="xs" />
+                    ) : null;
+                  })}
+                </span>
                 <ChevronRight aria-hidden="true" />
               </Link>
             </li>
           ))}
         </ul>
         <ReceivePanel />
-        <Panel id="how-title" title="Come funziona">
-          <p>
-            Ognuno tiene i dati sul proprio telefono. Chi ha segnato una serata manda il pacchetto
-            della compagnia; gli altri lo uniscono. Ogni partita ha un identificativo unico: unire
-            due volte lo stesso pacchetto non duplica nulla e nessun dato viene perso.
-          </p>
-          <p>
-            Il livello di ciascuno viaggia con il pacchetto, quindi è lo stesso in ogni compagnia.
-            Le partite giocate fuori dalla compagnia restano solo sul tuo telefono.
-          </p>
-        </Panel>
+        <h2 className="set-h">Come funziona</h2>
+        <ol className="card crew-steps">
+          <li>
+            <span className="xpgain">1</span>Ognuno tiene i dati sul proprio telefono
+          </li>
+          <li>
+            <span className="xpgain">2</span>Chi ha segnato la serata invia il pacchetto in chat
+          </li>
+          <li>
+            <span className="xpgain">3</span>Gli altri lo uniscono: niente doppioni, niente persi
+          </li>
+        </ol>
+        <p className="hint">
+          Il livello di ciascuno viaggia con il pacchetto ed è lo stesso in ogni compagnia. Le
+          partite giocate fuori dalla compagnia restano solo sul tuo telefono.
+        </p>
       </main>
       {editing && players.data && (
         <CrewSheet players={players.data.items} close={() => setEditing(false)} />
@@ -291,6 +306,7 @@ export function CrewDetail() {
     queryFn: () => localData!.crewTournaments(id),
     enabled: !!crew,
   });
+  const [tab, setTab] = useTab('lv');
   const [editing, setEditing] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -337,127 +353,149 @@ export function CrewDetail() {
         title={crew.name}
         subtitle={`${count(crew.memberIds.length, 'membro', 'membri')} · ${count(shared.data?.length ?? 0, 'torneo condiviso', 'tornei condivisi')}`}
         back="/compagnie"
-      />
-      <main className="lists">
-        <Panel id="send-title" title="Condividi con la compagnia">
-          <p>
-            Dopo una serata manda il pacchetto agli altri membri: contiene solo i tornei della
-            compagnia, i giocatori e i livelli dei membri.
-          </p>
-          <div className="pair">
-            {canShareFiles() && (
-              <button
-                className="btn cta"
-                disabled={send.isPending}
-                onClick={() => send.mutate('share')}
-              >
-                <Share2 aria-hidden="true" /> Invia pacchetto
-              </button>
-            )}
-            <button
-              className={canShareFiles() ? 'btn' : 'btn cta'}
-              disabled={send.isPending}
-              onClick={() => send.mutate('download')}
-            >
-              <Download aria-hidden="true" /> Scarica pacchetto
-            </button>
-          </div>
-          {message && (
-            <p className="form-reason ok" role="status">
-              {message}
-            </p>
-          )}
-          <ErrorMessage error={send.error} />
-        </Panel>
-
-        <Panel id="ranking-title" title="Livelli">
-          <ol className="crew-ranking">
-            {ranking.map(({ playerId, p }, i) => (
-              <li key={playerId}>
-                <span className="rank">{i + 1}</span>
-                <Avatar name={name(playerId)} avatar={byId.get(playerId)?.avatar} />
-                <span>
-                  <FxName name={name(playerId)} p={p} />
-                  {playerId === me && <i className="me-tag">TU</i>}
-                  <small>
-                    {p
-                      ? `${p.cosmetics.levelTitle} · ${p.xp.toLocaleString('it-IT')} XP`
-                      : 'Nessuna partita'}
-                  </small>
-                </span>
-                <LevelChip p={p} />
-              </li>
-            ))}
-          </ol>
-          <button onClick={() => setEditing(true)}>Modifica membri</button>
-        </Panel>
-
-        <Panel id="records-title" title="Record della compagnia">
-          <SpaceSelect
-            value={activeSpace}
-            change={setSpaceId}
-            label="Record nel punto di incontro"
+        action={
+          <ActionsMenu
+            title="Compagnia"
+            label="Modifica membri o elimina dal telefono"
+            actions={[
+              {
+                icon: <UserPen aria-hidden="true" />,
+                label: 'Modifica membri',
+                hint: 'Nome della compagnia e giocatori',
+                run: () => setEditing(true),
+              },
+              {
+                icon: <Trash2 aria-hidden="true" />,
+                label: 'Elimina da questo telefono',
+                hint: 'Tornei, giocatori e livelli restano; gli altri membri tengono la loro copia',
+                run: () => setConfirmDelete(true),
+              },
+            ]}
           />
-          {records.length === 0 ? (
-            <p className="hint">
-              Ancora nessun record. Hi-Score e Shanghai premiano il punteggio più alto, Exacta chi
-              si avvicina di più all’obiettivo; 301 e 501 chi chiude in meno round, se i round sono
-              registrati.
-            </p>
-          ) : (
-            <ul className="record-list">
-              {records.map((r) => (
-                <li key={r.game}>
-                  <Crown aria-hidden="true" />
+        }
+      />
+      <div className="toolbar">
+        <Tabs
+          label="Sezioni della compagnia"
+          value={tab}
+          change={setTab}
+          tabs={[
+            { id: 'lv', label: 'Livelli' },
+            { id: 'rec', label: 'Record' },
+            { id: 'tor', label: 'Tornei' },
+          ]}
+        />
+      </div>
+      <main className="lists">
+        {tab === 'lv' && (
+          <>
+            <ol className="crew-ranking" aria-label="Classifica dei livelli">
+              {ranking.map(({ playerId, p }, i) => (
+                <li key={playerId}>
+                  <span className="rank">{i + 1}</span>
+                  <Avatar name={name(playerId)} avatar={byId.get(playerId)?.avatar} />
                   <span>
-                    <strong>{games[r.game as GameMode].label}</strong>
-                    <small>{r.spec.title}</small>
-                  </span>
-                  <span>
-                    <FxName name={name(r.playerId)} p={progression.data?.players.get(r.playerId)} />
+                    <FxName name={name(playerId)} p={p} />
+                    {playerId === me && <i className="me-tag">TU</i>}
                     <small>
-                      {recordValue(r)} · {day(r.achievedAt)}
+                      {p
+                        ? `${p.cosmetics.levelTitle} · ${p.xp.toLocaleString('it-IT')} XP`
+                        : 'Nessuna partita'}
                     </small>
                   </span>
+                  <LevelChip p={p} />
                 </li>
               ))}
-            </ul>
-          )}
-        </Panel>
-
-        <Panel id="shared-title" title="Tornei condivisi">
-          <p className="hint">
-            {crew.autoShare
-              ? 'Entrano da soli i tornei giocati solo tra membri. Puoi aggiungerne o escluderne.'
-              : 'Condivisione automatica spenta: entrano solo i tornei scelti.'}
+            </ol>
+            <p className="hint">
+              Il livello viaggia con il pacchetto: è lo stesso in ogni compagnia.
+            </p>
+          </>
+        )}
+        {tab === 'rec' && (
+          <>
+            <SpaceSelect
+              value={activeSpace}
+              change={setSpaceId}
+              label="Record nel punto di incontro"
+            />
+            {records.length === 0 ? (
+              <p className="hint">
+                Ancora nessun record. Hi-Score e Shanghai premiano il punteggio più alto, Exacta chi
+                si avvicina di più all’obiettivo; 301 e 501 chi chiude in meno round, se i round
+                sono registrati.
+              </p>
+            ) : (
+              <ul className="record-list">
+                {records.map((r) => (
+                  <li key={r.game}>
+                    <Crown aria-hidden="true" />
+                    <span>
+                      <strong>{games[r.game as GameMode].label}</strong>
+                      <small>{r.spec.title}</small>
+                    </span>
+                    <span>
+                      <FxName
+                        name={name(r.playerId)}
+                        p={progression.data?.players.get(r.playerId)}
+                      />
+                      <small>
+                        {recordValue(r)} · {day(r.achievedAt)}
+                      </small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        {tab === 'tor' && (
+          <>
+            <p className="hint">
+              {crew.autoShare
+                ? 'Entrano da soli i tornei giocati solo tra membri. Puoi aggiungerne o escluderne.'
+                : 'Condivisione automatica spenta: entrano solo i tornei scelti.'}
+            </p>
+            <div className="list">
+              {shared.data?.map((t) => (
+                <Link className="mrow" key={t.id} to={tournamentPath(t)}>
+                  <span>
+                    {t.name} <small>· {day(t.createdAt)}</small>
+                  </span>
+                  <ChevronRight aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
+            <button className="btn" onClick={() => setChoosing(true)}>
+              Scegli i tornei
+            </button>
+          </>
+        )}
+        {message && (
+          <p className="form-reason ok" role="status">
+            {message}
           </p>
-          <div className="list">
-            {shared.data?.map((t) => (
-              <Link className="mrow" key={t.id} to={tournamentPath(t)}>
-                <span>
-                  {t.name} <small>· {day(t.createdAt)}</small>
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-            ))}
-          </div>
-          <button className="btn" onClick={() => setChoosing(true)}>
-            Scegli i tornei
-          </button>
-        </Panel>
-
-        <ReceivePanel />
-
-        <Panel id="delete-title" title="Elimina">
-          <p className="hint">
-            Toglie la compagnia solo da questo telefono: tornei, giocatori e livelli restano, e gli
-            altri membri mantengono la loro copia.
-          </p>
-          <button className="btn danger" onClick={() => setConfirmDelete(true)}>
-            Elimina da questo telefono
-          </button>
-        </Panel>
+        )}
+        <ErrorMessage error={send.error} />
       </main>
+      <div className="actionbar crew-actions">
+        {canShareFiles() && (
+          <button
+            className="btn cta"
+            disabled={send.isPending}
+            onClick={() => send.mutate('share')}
+          >
+            <Share2 aria-hidden="true" /> Invia pacchetto
+          </button>
+        )}
+        <button
+          className={canShareFiles() ? 'btn' : 'btn cta'}
+          disabled={send.isPending}
+          onClick={() => send.mutate('download')}
+        >
+          <Download aria-hidden="true" /> Scarica
+        </button>
+      </div>
       {editing && players.data && (
         <CrewSheet crew={crew} players={players.data.items} close={() => setEditing(false)} />
       )}

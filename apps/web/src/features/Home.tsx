@@ -17,7 +17,7 @@ import { api, cloudApi, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
 import { CrewOnboarding } from './Crews';
-import { WhoAmICard } from '../components/WhoAmI';
+import { MeChip, WhoAmICard } from '../components/WhoAmI';
 
 export function Home() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
@@ -59,6 +59,7 @@ export function Home() {
         <Link to="/impostazioni" aria-label="Impostazioni e backup">
           <Settings />
         </Link>
+        <MeChip />
         {sharedApi && (
           <Link className={`access-pill ${locked ? 'locked' : ''}`} to="/impostazioni">
             <span aria-hidden="true" />

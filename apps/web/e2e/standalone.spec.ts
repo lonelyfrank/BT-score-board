@@ -500,9 +500,10 @@ test('crews: existing players are offered a crew, whose package carries matches 
   await page.goto('/compagnie');
   await page.getByRole('link', { name: /Giovedì/ }).click();
   await expect(page).toHaveURL(/\/compagnie\/[0-9a-f-]{36}$/);
+  await page.getByRole('tab', { name: 'Record' }).click();
   await expect(page.locator('.record-list')).toContainText('640 punti');
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: /Scarica pacchetto/ }).click();
+  await page.getByRole('button', { name: /Scarica/ }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/^bt-compagnia-giovedi-\d{4}-\d{2}-\d{2}\.json$/);
 

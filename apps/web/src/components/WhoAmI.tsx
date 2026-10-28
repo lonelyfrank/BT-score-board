@@ -1,10 +1,11 @@
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, UserRound } from 'lucide-react';
 import { api, cloudApi, localData, nickname } from '../services/api';
 import { meStore, useMe } from '../services/me';
 import { Avatar, ErrorMessage, Loading, Modal } from './ui';
-import { FxName, useProgression } from './Progression';
+import { FxName, LevelChip, useProgression } from './Progression';
 
 function useAllPlayers() {
   return useQuery({ queryKey: ['players', 'all'], queryFn: () => api.players('', 0) });
@@ -111,5 +112,25 @@ export function WhoAmICard() {
       </button>
       {open && <WhoAmISheet close={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** Home, top bar: who owns this phone, with the level, linking to their profile. */
+export function MeChip() {
+  const { me, players } = useKnowsMe();
+  const progression = useProgression();
+  const player = me ? players.find((p) => p.id === me) : undefined;
+  if (!localData || cloudApi || !player) return null;
+  const level = progression.data?.players.get(player.id);
+  return (
+    <Link
+      className="mechip"
+      to={`/giocatori?profilo=${player.id}`}
+      aria-label={`Il mio profilo: ${player.displayName}${level ? `, livello ${level.progress.level.level}` : ''}`}
+    >
+      <Avatar name={player.displayName} avatar={player.avatar} size="sm" />
+      <FxName name={player.displayName.split(' ')[0] ?? player.displayName} p={level} />
+      <LevelChip p={level} />
+    </Link>
   );
 }

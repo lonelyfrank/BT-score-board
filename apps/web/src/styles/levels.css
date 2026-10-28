@@ -1,0 +1,52 @@
+/* ---- Livelli e XP (canvas V1.5) ---- */
+main.levels {
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ladder {
+  min-height: 52px;
+  padding: 0 12px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  list-style: none;
+  border: 1px solid var(--bt-border-section);
+  border-radius: var(--bt-radius-lg);
+  background: var(--bt-bg-secondary);
+}
+.ladder .n {
+  font: 20px var(--bt-font-score);
+  text-align: center;
+  color: var(--bt-text-secondary);
+}
+.ladder b {
+  font-size: 18px;
+  font-weight: 600;
+}
+.ladder small {
+  font-size: 15px;
+  color: var(--bt-text-secondary);
+}
+.ladder.done .n {
+  color: var(--bt-success-bright);
+}
+.ladder.cur {
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+}
+.ladder.cur .n {
+  color: var(--bt-accent-soft);
+}
+.fx-sample {
+  font-size: 18px;
+  font-weight: 600;
+}
+.level-more {
+  align-self: flex-end;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--bt-accent-soft);
+}

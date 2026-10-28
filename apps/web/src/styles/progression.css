@@ -399,8 +399,13 @@
 }
 .crew-onboarding > .pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.4fr;
   gap: 8px;
+}
+.crew-onboarding .btn {
+  min-height: 44px;
+  font-size: 17px;
+  white-space: nowrap;
 }
 .card .pair > :only-child {
   grid-column: 1 / -1;
@@ -425,4 +430,51 @@
 }
 .who-card > svg:first-child {
   color: var(--bt-accent-bright);
+}
+.crew-actions {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+.crew-actions > :only-child {
+  grid-column: 1 / -1;
+}
+.crew-rows .stack {
+  display: flex;
+}
+.crew-rows .stack > * {
+  width: 24px;
+  height: 24px;
+  margin-left: -8px;
+  font-size: 10px;
+  border: 2px solid var(--bt-bg-secondary);
+}
+.crew-rows .stack > :first-child {
+  margin-left: 0;
+}
+.crew-steps {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+.crew-steps li {
+  min-height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  border-top: 1px solid var(--bt-divider);
+}
+.crew-steps li:first-child {
+  border-top: 0;
+}
+.crew-steps .xpgain {
+  min-width: 24px;
+  justify-content: center;
+}
+
+.xpgain {
+  display: inline-flex;
+  align-items: center;
+  font: 20px var(--bt-font-score);
+  color: var(--bt-success-bright);
 }

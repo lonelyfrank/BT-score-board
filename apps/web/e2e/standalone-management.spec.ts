@@ -34,3 +34,13 @@ test('Accesso e permessi shows the role table for the private owner', async ({ p
   );
   await expect(page.getByText('ATTIVO')).toBeVisible();
 });
+
+test('Livelli e XP shows the ladder and how the XP are earned', async ({ page }) => {
+  await page.goto('/livelli');
+  await expect(page.getByRole('heading', { name: 'Livelli e XP' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Scala dei livelli' })).toContainText(
+    'Master Birraio',
+  );
+  await page.getByRole('tab', { name: 'Come si sale' }).click();
+  await expect(page.getByText('+50 XP')).toBeVisible();
+});

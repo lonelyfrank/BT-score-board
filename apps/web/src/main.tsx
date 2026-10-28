@@ -21,6 +21,7 @@ import { CrewDetail, Crews } from './features/Crews';
 import { Login } from './features/Login';
 import { FollowRoute } from './features/Follow';
 import { JoinSpace, PlaySpaceDetail, PlaySpaces } from './features/PlaySpaces';
+import { Levels } from './features/Levels';
 import { Management, ManageTournament, Permissions } from './features/Management';
 import { Welcome } from './components/Welcome';
 import './styles/fonts.css';
@@ -126,6 +127,7 @@ function App() {
           <Route path="/serate" element={<Events />} />
           <Route path="/regole" element={<Rules />} />
           <Route path="/giocatori" element={<Players />} />
+          <Route path="/livelli" element={<Levels />} />
           <Route path="/compagnie" element={<Crews />} />
           <Route path="/compagnie/:id" element={<CrewDetail />} />
           <Route path="/impostazioni" element={<Settings />} />

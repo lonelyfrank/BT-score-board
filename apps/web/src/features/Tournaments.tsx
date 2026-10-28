@@ -792,21 +792,24 @@ export type MenuAction = {
   disabled?: boolean;
 };
 /** The less frequent commands of a tournament, behind one header button. */
-export function ActionsMenu({ actions }: { actions: MenuAction[] }) {
+export function ActionsMenu({
+  actions,
+  title = 'Azioni del torneo',
+  label = 'Altre azioni del torneo',
+}: {
+  actions: MenuAction[];
+  title?: string;
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   if (!actions.length) return null;
   return (
     <>
-      <button
-        type="button"
-        className="ibtn box"
-        aria-label="Altre azioni del torneo"
-        onClick={() => setOpen(true)}
-      >
+      <button type="button" className="ibtn box" aria-label={label} onClick={() => setOpen(true)}>
         <MoreHorizontal />
       </button>
       {open && (
-        <Modal title="Azioni del torneo" close={() => setOpen(false)}>
+        <Modal title={title} close={() => setOpen(false)}>
           <div className="list">
             {actions.map((a) =>
               a.to ? (
