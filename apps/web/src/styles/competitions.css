@@ -357,9 +357,3 @@ main.tournament {
 .form-reason.muted {
   color: var(--bt-text-secondary);
 }
-
-.t-admin {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
-}

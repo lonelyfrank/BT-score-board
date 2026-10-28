@@ -14,7 +14,7 @@ export const navigationDestinations = [
 ] as const;
 /** Sections of each destination: the pages opened from Home belong to Home. */
 const sections = [
-  ['/', '/regole', '/serate', '/impostazioni'],
+  ['/', '/regole', '/serate', '/impostazioni', '/gestione', '/permessi'],
   ['/partite'],
   ['/tornei'],
   ['/hiscore'],

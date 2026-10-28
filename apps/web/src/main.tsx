@@ -21,6 +21,7 @@ import { CrewDetail, Crews } from './features/Crews';
 import { Login } from './features/Login';
 import { FollowRoute } from './features/Follow';
 import { JoinSpace, PlaySpaceDetail, PlaySpaces } from './features/PlaySpaces';
+import { Management, ManageTournament, Permissions } from './features/Management';
 import { Welcome } from './components/Welcome';
 import './styles/fonts.css';
 import './styles/tokens.css';
@@ -128,6 +129,9 @@ function App() {
           <Route path="/compagnie" element={<Crews />} />
           <Route path="/compagnie/:id" element={<CrewDetail />} />
           <Route path="/impostazioni" element={<Settings />} />
+          <Route path="/gestione" element={<Management />} />
+          <Route path="/gestione/:id" element={<ManageTournament />} />
+          <Route path="/permessi" element={<Permissions />} />
           <Route
             path="*"
             element={

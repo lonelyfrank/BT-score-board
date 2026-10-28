@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertTriangle, Eye, EyeOff, Lock } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Eye, EyeOff, Lock, SlidersHorizontal } from 'lucide-react';
 import { ApiError, appVersion, cloudApi, localData, sharedApi } from '../services/api';
 import { useAccount, isAdmin } from '../services/cloud';
 import type { BackupFile, BackupSummary } from '../../../../packages/local-store/src/index.js';
@@ -55,6 +55,22 @@ export function Settings() {
         backLabel="Indietro alla Home"
       />
       <main className="settings">
+        <section className="card" aria-label="Gestione e accesso">
+          <Link className="row" to="/gestione">
+            <span>
+              <SlidersHorizontal aria-hidden="true" /> Gestione
+              <small className="hint"> · tornei e partite di questo telefono</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+          <Link className="row" to="/permessi">
+            <span>
+              <Lock aria-hidden="true" /> Accesso e permessi
+              <small className="hint"> · chi può fare cosa</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        </section>
         {cloudApi ? (
           <>
             <AccountSection />
@@ -458,7 +474,7 @@ function AppSection() {
   );
 }
 
-function OrganizerAccess() {
+export function OrganizerAccess() {
   const [token, setToken] = useState('');
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);

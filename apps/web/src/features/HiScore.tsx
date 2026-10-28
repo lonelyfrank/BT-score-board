@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronDown, Lock, Pause, Play, UserMinus } from 'lucide-react';
+import { ChevronDown, Lock, Pause, Play, SlidersHorizontal, UserMinus } from 'lucide-react';
 import { CrownIcon } from '../components/BrandIcons';
 import {
   Avatar,
@@ -11,6 +11,7 @@ import {
   Modal,
   StatusChip,
   Tabs,
+  useAzione,
   useTab,
   type Tone,
 } from '../components/ui';
@@ -148,6 +149,7 @@ export function HiScoreDetail() {
   const [early, setEarly] = useState(false);
   const [earlyReason, setEarlyReason] = useState('');
   const [leaving, setLeaving] = useState('');
+  const [azione, consumeAzione] = useAzione();
   if (query.isPending) return <Loading />;
   const t = query.data;
   if (!t)
@@ -201,6 +203,12 @@ export function HiScoreDetail() {
     ? players.filter((p) => !finished(qualMatch, p.tournamentEntryId))
     : [];
   const stillIn = t.entries.filter((e) => e.status === 'registered' || e.status === 'qualified');
+  // Opened from the management page: the first player still in, or the early-close dialog.
+  const leave = leaving || (azione === 'ritira' ? (stillIn[0]?.id ?? '') : '');
+  const closeLeave = () => {
+    setLeaving('');
+    consumeAzione();
+  };
   const canFinalize =
     active &&
     qual?.status === 'open' &&
@@ -290,6 +298,12 @@ export function HiScoreDetail() {
         action={
           <ActionsMenu
             actions={[
+              {
+                icon: <SlidersHorizontal aria-hidden="true" />,
+                label: 'Gestione del torneo',
+                hint: 'Ruoli, condivisione, luogo e serata',
+                to: `/gestione/${t.id}`,
+              },
               ...(active || paused
                 ? [
                     {
@@ -553,13 +567,13 @@ export function HiScoreDetail() {
             }}
           />
         )}
-        {leaving && (
+        {leave && (
           <Modal
             title="Ritirare un giocatore?"
-            close={() => setLeaving('')}
+            close={closeLeave}
             footer={
               <>
-                <button type="button" className="btn ghost" onClick={() => setLeaving('')}>
+                <button type="button" className="btn ghost" onClick={closeLeave}>
                   Annulla
                 </button>
                 <button
@@ -567,8 +581,8 @@ export function HiScoreDetail() {
                   className="btn cta"
                   disabled={!earlyReason.trim() || mutation.isPending}
                   onClick={() => {
-                    command('entries/withdraw', { entryId: leaving, reason: earlyReason.trim() });
-                    setLeaving('');
+                    command('entries/withdraw', { entryId: leave, reason: earlyReason.trim() });
+                    closeLeave();
                     setEarlyReason('');
                   }}
                 >
@@ -584,7 +598,7 @@ export function HiScoreDetail() {
             <label className="field">
               Giocatore
               <span className="select">
-                <select value={leaving} onChange={(e) => setLeaving(e.target.value)}>
+                <select value={leave} onChange={(e) => setLeaving(e.target.value)}>
                   {stillIn.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.displayNameAtRegistration}
@@ -605,13 +619,23 @@ export function HiScoreDetail() {
             <ErrorMessage error={mutation.error} />
           </Modal>
         )}
-        {early && qualMatch && (
+        {(early || azione === 'chiudi') && qualMatch && (
           <Modal
             title="Chiudere la qualifica in anticipo?"
-            close={() => setEarly(false)}
+            close={() => {
+              setEarly(false);
+              consumeAzione();
+            }}
             footer={
               <>
-                <button type="button" className="btn ghost" onClick={() => setEarly(false)}>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setEarly(false);
+                    consumeAzione();
+                  }}
+                >
                   Annulla
                 </button>
                 <button
@@ -624,6 +648,7 @@ export function HiScoreDetail() {
                       reason: earlyReason.trim(),
                     });
                     setEarly(false);
+                    consumeAzione();
                   }}
                 >
                   ESCLUDI E CHIUDI

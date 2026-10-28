@@ -1,7 +1,17 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUp, ArrowUpDown, ChevronDown, Info, Pause, Play, UserMinus, X } from 'lucide-react';
+import {
+  ArrowUp,
+  ArrowUpDown,
+  ChevronDown,
+  Info,
+  Pause,
+  Play,
+  SlidersHorizontal,
+  UserMinus,
+  X,
+} from 'lucide-react';
 import { CrownIcon } from '../components/BrandIcons';
 import {
   StageTimeline,
@@ -19,6 +29,7 @@ import {
   StatusChip,
   Tabs,
   statusLabel,
+  useAzione,
   useTab,
 } from '../components/ui';
 import { api, type Tournament } from '../services/api';
@@ -203,6 +214,7 @@ export function GroupsDetail() {
   const [decision, setDecision] = useState<{ table: Table; group: Row[] } | null>(null);
   const [leaving, setLeaving] = useState('');
   const [leaveReason, setLeaveReason] = useState('');
+  const [azione, consumeAzione] = useAzione();
   const t = query.data;
   const event = useQuery({
     queryKey: ['events'],
@@ -226,6 +238,17 @@ export function GroupsDetail() {
   const current = stages.at(-1);
   const active = t.status === 'active';
   const paused = t.status === 'paused';
+  // Opened from the management page: the first player still in the tournament.
+  const leave =
+    leaving ||
+    (azione === 'ritira'
+      ? (t.entries.find((e) => e.status === 'registered' || e.status === 'qualified')?.id ?? '')
+      : '');
+  const closeLeave = () => {
+    setLeaving('');
+    setLeaveReason('');
+    consumeAzione();
+  };
   const ended = ['completed', 'cancelled'].includes(t.status);
   const groups = t.groups.filter((g) => g.status !== 'invalidated');
   const selected = groups[Math.min(group, groups.length - 1)];
@@ -374,6 +397,12 @@ export function GroupsDetail() {
         action={
           <ActionsMenu
             actions={[
+              {
+                icon: <SlidersHorizontal aria-hidden="true" />,
+                label: 'Gestione del torneo',
+                hint: 'Ruoli, condivisione, luogo e serata',
+                to: `/gestione/${t.id}`,
+              },
               ...(!isDraft(t) && !ended
                 ? [
                     {
@@ -739,13 +768,13 @@ export function GroupsDetail() {
             }}
           />
         )}
-        {leaving && (
+        {leave && (
           <Modal
             title="Ritirare un giocatore?"
-            close={() => setLeaving('')}
+            close={closeLeave}
             footer={
               <>
-                <button type="button" className="btn ghost" onClick={() => setLeaving('')}>
+                <button type="button" className="btn ghost" onClick={closeLeave}>
                   Annulla
                 </button>
                 <button
@@ -753,8 +782,8 @@ export function GroupsDetail() {
                   className="btn cta"
                   disabled={!leaveReason.trim() || mutation.isPending}
                   onClick={() => {
-                    command('entries/withdraw', { entryId: leaving, reason: leaveReason.trim() });
-                    setLeaving('');
+                    command('entries/withdraw', { entryId: leave, reason: leaveReason.trim() });
+                    closeLeave();
                     setLeaveReason('');
                   }}
                 >
@@ -770,7 +799,7 @@ export function GroupsDetail() {
             <label className="field">
               Giocatore
               <span className="select">
-                <select value={leaving} onChange={(e) => setLeaving(e.target.value)}>
+                <select value={leave} onChange={(e) => setLeaving(e.target.value)}>
                   {t.entries
                     .filter((e) => e.status === 'registered' || e.status === 'qualified')
                     .map((e) => (

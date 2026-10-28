@@ -1,0 +1,244 @@
+/* ---- Gestione, gestione torneo, accesso e permessi (canvas V1.5) ---- */
+.mg-top {
+  flex: none;
+  padding: 0 var(--bt-gutter) 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+main.mg-page {
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mg-empty {
+  padding: 8px 2px;
+}
+
+.mg-role {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 212, 155, 0.45);
+  border-radius: var(--bt-radius-lg);
+  background: #0b1f19;
+  color: var(--bt-text-primary);
+}
+.mg-role.ospite {
+  border-color: rgba(255, 191, 56, 0.5);
+  background: #17130a;
+}
+.mg-role > svg {
+  width: 22px;
+  height: 22px;
+  color: var(--bt-success-bright);
+}
+.mg-role.ospite > svg {
+  color: var(--bt-warning);
+}
+.mg-role b {
+  display: block;
+  font-size: 16px;
+}
+.mg-role small {
+  display: block;
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--bt-text-secondary);
+}
+
+.mg-item {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mg-item.live {
+  border-color: var(--bt-accent-primary);
+}
+.mg-item.warn {
+  border-color: rgba(255, 191, 56, 0.5);
+}
+.mg-item-h {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mg-item-h b {
+  display: block;
+  font: 500 19px/1.15 var(--bt-font-display);
+}
+.mg-item-a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  gap: 8px;
+}
+.mg-item-a .btn:last-child {
+  padding: 0;
+}
+
+.mg-gh {
+  display: flex;
+  justify-content: space-between;
+}
+.mg-gh .ok {
+  letter-spacing: 0.6px;
+  color: var(--bt-success-bright);
+}
+.mg-gh .org {
+  letter-spacing: 0.6px;
+  color: var(--bt-accent-soft);
+}
+.mg-rows {
+  padding: 0;
+  overflow: hidden;
+}
+.mg-rows.risk {
+  border-color: rgba(255, 35, 139, 0.35);
+}
+.mg-act {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 0;
+  border-top: 1px solid var(--bt-divider);
+  background: transparent;
+  text-align: left;
+  color: var(--bt-text-primary);
+}
+.mg-act:first-child {
+  border-top: 0;
+}
+.mg-act .ai {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bt-surface-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bt-success-bright);
+}
+.mg-act.org .ai {
+  color: var(--bt-accent-bright);
+}
+.mg-act .ai svg {
+  width: 18px;
+  height: 18px;
+}
+.mg-act b {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.mg-act small {
+  display: block;
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--bt-text-secondary);
+}
+.mg-act > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--bt-text-secondary);
+}
+.mg-act.off {
+  opacity: 0.5;
+}
+.mg-act.danger b {
+  color: var(--bt-accent-soft);
+}
+.mg-act:disabled {
+  opacity: 0.45;
+}
+
+.mg-summary {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mg-summary b {
+  font: 500 22px/1.1 var(--bt-font-display);
+}
+
+.mg-you {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+}
+.mg-you > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mg-you b {
+  font: 500 22px var(--bt-font-display);
+}
+.mg-table {
+  padding: 0;
+  overflow: hidden;
+}
+.mg-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.mg-table th {
+  padding: 8px 6px;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--bt-text-secondary);
+  text-align: center;
+}
+.mg-table th:first-child,
+.mg-table td:first-child {
+  padding-left: 12px;
+  text-align: left;
+}
+.mg-table td {
+  min-height: 40px;
+  padding: 8px 6px;
+  border-top: 1px solid var(--bt-divider);
+  text-align: center;
+  color: var(--bt-text-secondary);
+}
+.mg-table td:first-child {
+  color: var(--bt-text-primary);
+}
+.mg-table .me {
+  background: rgba(255, 35, 139, 0.08);
+}
+.mg-table svg {
+  width: 18px;
+  height: 18px;
+  color: var(--bt-success-bright);
+  vertical-align: middle;
+}
+.mg-roles .row {
+  align-items: flex-start;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.mg-roles b {
+  flex: none;
+  width: 92px;
+  font-size: 15px;
+}
+.mg-roles b.me {
+  color: var(--bt-accent-soft);
+}

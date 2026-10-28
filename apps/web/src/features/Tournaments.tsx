@@ -24,7 +24,6 @@ import {
   type Tournament,
   type TournamentAction,
 } from '../services/api';
-import { useCanManage } from '../services/me';
 import { activeSession, recentResults, tournamentPath } from '../services/session';
 import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
@@ -42,45 +41,33 @@ import {
   type Tone,
 } from '../components/ui';
 import { AddPlayerSheet } from '../components/PlayerSheets';
-import { TournamentAdminSheet } from '../components/TournamentAdmin';
 
 export type Table = Standings[number];
 export type Row = Table['rows'][number];
 export type TMatch = Tournament['matches'][number];
 
-type Archive = 'all' | 'open' | 'done' | 'removed';
+type Archive = 'all' | 'open' | 'done';
 const isOpen = (status: string) => !['completed', 'cancelled'].includes(status);
 const dateOf = (iso: string) =>
   new Date(iso).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** Tornei, or with `highscore` the Hi-Score Nights: tonight's first, then the archive. */
 export function TournamentList({ highscore = false }: { highscore?: boolean }) {
-  const manage = useCanManage();
   const [params, setParams] = useSearchParams();
   const [offset, setOffset] = useState(0);
   const filter =
-    (['all', 'open', 'done', 'removed'] as const).find((f) => f === params.get('filtro')) ?? 'all';
+    (['all', 'open', 'done'] as const).find((f) => f === params.get('filtro')) ?? 'all';
   const setFilter = (f: Archive) => setParams(f === 'all' ? {} : { filtro: f }, { replace: true });
-  const [managing, setManaging] = useState<Summary | null>(null);
-  // Removed tournaments are seen by admins only (the server refuses everyone else).
-  const showRemoved = manage && !!localData && filter === 'removed';
   const query = useQuery({
     queryKey: ['tournaments', offset],
     queryFn: () => api.tournaments(offset),
-  });
-  const removed = useQuery({
-    queryKey: ['tournaments', 'removed'],
-    queryFn: () => localData!.removedTournaments(),
-    enabled: showRemoved,
   });
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
   const recent = useQuery({ queryKey: ['recent-results'], queryFn: () => recentResults(api) });
   const live = session.data?.tournament;
   const mode = (t: Summary) => !highscore || t.mode === 'QUICK_HIGH_SCORE';
   const all = (query.data?.items ?? []).filter(mode);
-  const items = showRemoved
-    ? (removed.data ?? []).filter(mode)
-    : all.filter((t) => filter === 'all' || (filter === 'open') === isOpen(t.status));
+  const items = all.filter((t) => filter === 'all' || (filter === 'open') === isOpen(t.status));
   const winner = (id: string) => recent.data?.find((r) => r.summary.id === id)?.winner;
   const groupOf = (t: Summary) =>
     t.id === live?.id
@@ -97,11 +84,9 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
   const order = highscore
     ? ['Stasera', 'In corso', 'Iscrizioni aperte', 'Concluse']
     : ['Al bersaglio', 'In corso', 'Iscrizioni aperte', 'Archivio'];
-  const groups = showRemoved
-    ? [{ label: 'Eliminati', items }].filter((g) => g.items.length)
-    : order
-        .map((label) => ({ label, items: items.filter((t) => groupOf(t) === label) }))
-        .filter((g) => g.items.length);
+  const groups = order
+    .map((label) => ({ label, items: items.filter((t) => groupOf(t) === label) }))
+    .filter((g) => g.items.length);
   const open = all.filter((t) => isOpen(t.status)).length;
   const sub = (t: Summary) => {
     if (t.id === live?.id && session.data) {
@@ -152,7 +137,6 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
             { id: 'all', label: 'Tutti' },
             { id: 'open', label: 'In corso' },
             { id: 'done', label: 'Archivio' },
-            ...(manage && localData ? [{ id: 'removed' as const, label: 'Eliminati' }] : []),
           ]}
         />
       </div>
@@ -205,26 +189,14 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
                     <ChevronRight aria-hidden="true" />
                   </Link>
                   {isLive && highscore && <TonightStats t={live!} />}
-                  {manage && (
-                    <div className="t-admin">
-                      <button type="button" className="btn sm ghost" onClick={() => setManaging(t)}>
-                        <MoreHorizontal aria-hidden="true" />
-                        Gestisci
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </section>
         ))}
-        {(showRemoved ? removed.data : query.data) && !items.length && (
-          <Empty title={showRemoved ? 'Nessun torneo eliminato' : 'Il bersaglio vi aspetta'}>
-            <p>
-              {showRemoved
-                ? 'I tornei eliminati compaiono qui e si possono ripristinare.'
-                : `Nessun ${highscore ? 'Hi-Score Night' : 'torneo'} in questa vista. Crea il prossimo evento del locale.`}
-            </p>
+        {query.data && !items.length && (
+          <Empty title="Il bersaglio vi aspetta">
+            <p>{`Nessun ${highscore ? 'Hi-Score Night' : 'torneo'} in questa vista. Crea il prossimo evento del locale.`}</p>
           </Empty>
         )}
         {query.data && query.data.total > 100 && (
@@ -248,9 +220,6 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
           </div>
         )}
       </main>
-      {managing && (
-        <TournamentAdminSheet t={managing} removed={showRemoved} close={() => setManaging(null)} />
-      )}
     </>
   );
 }
@@ -817,7 +786,9 @@ export type MenuAction = {
   icon: ReactNode;
   label: string;
   hint: string;
-  run: () => void;
+  run?: () => void;
+  /** A page instead of a command: the management page of the tournament. */
+  to?: string;
   disabled?: boolean;
 };
 /** The less frequent commands of a tournament, behind one header button. */
@@ -837,24 +808,34 @@ export function ActionsMenu({ actions }: { actions: MenuAction[] }) {
       {open && (
         <Modal title="Azioni del torneo" close={() => setOpen(false)}>
           <div className="list">
-            {actions.map((a) => (
-              <button
-                type="button"
-                key={a.label}
-                className="act"
-                disabled={a.disabled}
-                onClick={() => {
-                  setOpen(false);
-                  a.run();
-                }}
-              >
-                {a.icon}
-                <span>
-                  <b>{a.label}</b>
-                  <small>{a.hint}</small>
-                </span>
-              </button>
-            ))}
+            {actions.map((a) =>
+              a.to ? (
+                <Link key={a.label} className="act" to={a.to} onClick={() => setOpen(false)}>
+                  {a.icon}
+                  <span>
+                    <b>{a.label}</b>
+                    <small>{a.hint}</small>
+                  </span>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  key={a.label}
+                  className="act"
+                  disabled={a.disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    a.run?.();
+                  }}
+                >
+                  {a.icon}
+                  <span>
+                    <b>{a.label}</b>
+                    <small>{a.hint}</small>
+                  </span>
+                </button>
+              ),
+            )}
           </div>
         </Modal>
       )}

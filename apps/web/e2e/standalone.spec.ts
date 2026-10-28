@@ -266,16 +266,18 @@ test('game night with a tournament and players with nicknames', async ({ page })
     'Bite the Trouble Open',
   );
 
-  // An admin removes a test tournament: it leaves the lists, and comes back from "Eliminati".
-  await page.goto('/tornei');
-  await page.getByRole('button', { name: 'Gestisci' }).click();
+  // The owner removes a test tournament from Gestione: it leaves the lists, and comes back from "Eliminati".
+  await page.goto('/gestione');
+  await page.getByRole('link', { name: 'Gestisci Bite the Trouble Open' }).click();
+  await page.getByRole('button', { name: /^Elimina il torneo/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Elimina il torneo' }).click();
+  await expect(page.getByRole('heading', { name: 'Gestione', exact: true })).toBeVisible();
   await expect(page.getByText('Bite the Trouble Open')).toHaveCount(0);
   await page.getByRole('radio', { name: 'Eliminati' }).click();
   await expect(page.getByText('Bite the Trouble Open')).toBeVisible();
-  await page.getByRole('button', { name: 'Gestisci' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Ripristina torneo' }).click();
-  await page.getByRole('radio', { name: 'Tutti' }).click();
+  await page.getByRole('button', { name: 'Ripristina' }).click();
+  await expect(page.getByText('Bite the Trouble Open')).toHaveCount(0);
+  await page.goto('/tornei');
   await expect(page.getByText('Bite the Trouble Open')).toBeVisible();
 
   await page.goto('/giocatori');

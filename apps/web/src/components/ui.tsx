@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, Crosshair, X, Minus, Plus, Pause, Play } from 'lucide-react';
@@ -460,6 +460,21 @@ export function useTab(defaultValue: string) {
     params.get('tab') ?? defaultValue,
     (value: string) => setParams({ tab: value }, { replace: true }),
   ] as const;
+}
+/**
+ * `?azione=x` in the address (the management page links here): remembered once, so the page can
+ * open that dialog when its data is in, and the address is left clean.
+ */
+export function useAzione() {
+  const [params, setParams] = useSearchParams();
+  const [azione, setAzione] = useState(() => params.get('azione'));
+  useEffect(() => {
+    if (!params.has('azione')) return;
+    const next = new URLSearchParams(params);
+    next.delete('azione');
+    setParams(next, { replace: true });
+  }, [params, setParams]);
+  return [azione, () => setAzione(null)] as const;
 }
 export const statusLabel = (status: string) =>
   ({

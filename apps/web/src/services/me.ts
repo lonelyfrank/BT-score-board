@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { linkResolver } from '../../../../packages/domain/src/index.js';
-import { cloudApi, localData } from './api';
+import { cloudApi, localData, sharedApi } from './api';
 import { isAdmin, useAccount } from './cloud';
 
 // Which player of the device is its owner. A per-device convenience, not game data: it is
@@ -56,4 +56,32 @@ export function useMe(): string | null {
 export function useCanManage(): boolean {
   const account = useAccount();
   return !cloudApi || isAdmin(account);
+}
+
+export type Role = { id: 'ospite' | 'privato' | 'organizzatore'; label: string; hint: string };
+
+const roles: Record<Role['id'], Role> = {
+  ospite: {
+    id: 'ospite',
+    label: 'Ospite',
+    hint: 'Solo consultazione: per i comandi serve l’accesso organizzatore',
+  },
+  privato: { id: 'privato', label: 'Privato', hint: 'Crei, segni e correggi i tuoi tornei' },
+  organizzatore: {
+    id: 'organizzatore',
+    label: 'Organizzatore',
+    hint: 'Puoi segnare, correggere e cambiare il torneo',
+  },
+};
+
+/**
+ * Who this phone is for the tournaments: the owner of the data on the device (private), the
+ * holder of the venue server's token or a cloud admin (organizer), or a visitor who only reads.
+ * The server keeps the last word on every command: this only decides what the screens offer.
+ */
+export function useRole(): Role {
+  const account = useAccount();
+  if (sharedApi) return roles[sharedApi.hasToken() ? 'organizzatore' : 'ospite'];
+  if (cloudApi) return roles[isAdmin(account) ? 'organizzatore' : 'privato'];
+  return roles.privato;
 }
