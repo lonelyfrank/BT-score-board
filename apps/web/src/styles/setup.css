@@ -1,4 +1,4 @@
-/* Nuova partita (2 passi) e Nuovo torneo (wizard a 5 passi): un passo alla volta. */
+/* Nuova partita e Nuovo torneo: un passo alla volta. */
 
 .wz-prog {
   display: grid;
@@ -530,24 +530,169 @@ main.setup {
 /* Punto di incontro: la domanda iniziale dei wizard e il modulo di un nuovo punto. */
 .space-step {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
-.space-step .opt {
+main.setup-space {
+  padding-top: 0;
+}
+.space-intro {
+  display: grid;
+  gap: 3px;
+}
+.space-intro .wz-title {
+  font-size: 29px;
+  font-weight: 600;
+  line-height: 32px;
+}
+.space-intro p {
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--bt-text-secondary);
+}
+.space-choices {
+  display: grid;
+  gap: 8px;
+}
+.space-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 12px;
+  min-height: 85px;
+  padding: 10px 16px 10px 14px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: var(--bt-radius-lg);
+  background: var(--bt-surface-tile);
+  text-align: left;
+  cursor: pointer;
+}
+.space-option:has(input:checked) {
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+  box-shadow: var(--bt-neon);
+}
+.space-option-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.space-option:has(input:focus-visible) {
+  outline: 2px solid var(--bt-accent-soft);
+  outline-offset: 4px;
+}
+.space-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--bt-radius-lg);
+  background: var(--bt-surface-card);
+  color: var(--bt-text-muted);
+}
+.space-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.space-copy {
   display: grid;
   gap: 2px;
-  text-align: left;
+  min-width: 0;
+}
+.space-copy b {
+  font: 600 21px/1.1 var(--bt-font-display);
+}
+.space-copy small {
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--bt-text-secondary);
+}
+.space-radio {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--bt-border-strong);
+  border-radius: 50%;
+}
+.space-option:has(input:checked) .space-icon {
+  background: var(--bt-accent-deep);
+  color: var(--bt-accent-bright);
+}
+.space-option:has(input:checked) .space-copy small {
+  color: #ffc4df;
+}
+.space-option:has(input:checked) .space-radio {
+  border-color: var(--bt-accent-primary);
+}
+.space-option:has(input:checked) .space-radio::after {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bt-accent-primary);
 }
 .space-others,
 .space-new {
   display: grid;
   gap: 10px;
 }
+.space-others {
+  margin-top: -2px;
+  gap: 8px;
+}
+.space-create {
+  width: 100%;
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-surface-selected);
+  color: var(--bt-accent-soft);
+  font: 600 17px/1.25 var(--bt-font-display);
+}
+.space-create svg {
+  width: 18px;
+  height: 18px;
+}
 .space-others .mv[aria-pressed='true'] {
   outline: 2px solid var(--bt-accent-primary);
+}
+.space-new {
+  padding: 14px;
+  border: 1px solid var(--bt-border-section);
+  border-radius: var(--bt-radius-lg);
+  background: var(--bt-surface-sunken);
+}
+.space-new .field {
+  font-family: var(--bt-font-display);
+  font-size: 12px;
+  line-height: 1.2;
+  gap: 6px;
 }
 .space-new .field input {
   min-width: 0;
   width: 100%;
+  font-family: var(--bt-font-ui);
+}
+.space-new .hint {
+  margin-top: 2px;
+}
+@media (max-width: 359px) {
+  .space-option {
+    grid-template-columns: 36px minmax(0, 1fr) 22px;
+    gap: 10px;
+    padding-inline: 10px;
+  }
+  .space-icon {
+    width: 36px;
+    height: 40px;
+  }
+  .space-copy b {
+    font-size: 19px;
+  }
 }
 
 /* ---- Tracciato del wizard: passi numerati e scelte fatte ---- */

@@ -193,9 +193,9 @@ export function Setup() {
             <i />
           </div>
         </div>
-        <main className="setup">
+        <main className="setup setup-space">
           <PlaySpaceStep value={space} change={setSpace} />
-          {choiceReady(space) && (
+          {space?.kind === 'existing' && choiceReady(space) && (
             <p className="note" role="status">
               <Info aria-hidden="true" />
               <span>I risultati saranno conteggiati nella scoreboard {spaceName}.</span>

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Plus } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Beer, MapPin, Plus } from 'lucide-react';
 import { BT_PLAY_SPACE_ID } from '../../../../packages/domain/src/playspaces/playspaces';
 import { localData } from '../services/api';
 
@@ -55,7 +56,7 @@ export function usePlaySpaces() {
   });
 }
 
-/** "State giocando al Bite the Trouble?", then the other places, or a new one. */
+/** Choose the BT scoreboard, another meeting point, or a new one. */
 export function PlaySpaceStep({
   value,
   change,
@@ -64,41 +65,65 @@ export function PlaySpaceStep({
   change: (choice: PlaySpaceChoice | null) => void;
 }) {
   const spaces = usePlaySpaces();
+  const id = useId();
+  const [savedElsewhere, setSavedElsewhere] = useState<PlaySpaceChoice | null>(null);
+  const [savedDraft, setSavedDraft] = useState<Extract<PlaySpaceChoice, { kind: 'new' }> | null>(
+    null,
+  );
   const others = (spaces.data ?? []).filter((s) => s.id !== BT_PLAY_SPACE_ID);
   const elsewhere = value !== null && !choiceIsBt(value);
   const last = lastPlaySpace();
   const lastName = spaces.data?.find((s) => s.id === last)?.name;
   // A draft that was started stays as typed when the choice is toggled back and forth.
   const draft = value?.kind === 'new' ? value : null;
+  const choose = (next: PlaySpaceChoice) => {
+    if (elsewhere) setSavedElsewhere(value);
+    if (draft) setSavedDraft(draft);
+    change(next);
+  };
   return (
-    <section aria-labelledby="space-title" className="space-step">
-      <h2 className="wz-title" id="space-title">
-        State giocando al Bite the Trouble?
-      </h2>
-      <div className="choice" role="radiogroup" aria-labelledby="space-title">
-        <button
-          type="button"
-          role="radio"
-          className="opt"
-          aria-checked={choiceIsBt(value)}
-          onClick={() => change(BT_CHOICE)}
-        >
-          <b>Sì, siamo al BT</b>
-          <small>I risultati contano nella scoreboard del Bite the Trouble.</small>
-        </button>
-        <button
-          type="button"
-          role="radio"
-          className="opt"
-          aria-checked={elsewhere}
-          onClick={() => {
-            // Nothing is chosen for them: the list or the new-space form comes next.
-            if (!elsewhere) change(draft ?? { kind: 'existing', id: '' });
-          }}
-        >
-          <b>No, giochiamo altrove</b>
-          <small>Scegli un punto di incontro o creane uno nuovo.</small>
-        </button>
+    <section aria-labelledby={`${id}-title`} className="space-step">
+      <div className="space-intro">
+        <h2 className="wz-title" id={`${id}-title`}>
+          Dove giocate?
+        </h2>
+        <p>Ogni punto ha la sua scoreboard: classifiche e record restano separati.</p>
+      </div>
+      <div className="space-choices" role="radiogroup" aria-labelledby={`${id}-title`}>
+        <label className="space-option">
+          <input
+            className="space-option-input"
+            type="radio"
+            name={`${id}-location`}
+            checked={choiceIsBt(value)}
+            onChange={() => choose(BT_CHOICE)}
+          />
+          <span className="space-icon">
+            <Beer aria-hidden="true" />
+          </span>
+          <span className="space-copy">
+            <b>Al Bite the Trouble</b>
+            <small>Conta nella scoreboard del locale, con serate e record del BT</small>
+          </span>
+          <span className="space-radio" aria-hidden="true" />
+        </label>
+        <label className="space-option">
+          <input
+            className="space-option-input"
+            type="radio"
+            name={`${id}-location`}
+            checked={elsewhere}
+            onChange={() => choose(savedElsewhere ?? { kind: 'existing', id: '' })}
+          />
+          <span className="space-icon">
+            <MapPin aria-hidden="true" />
+          </span>
+          <span className="space-copy">
+            <b>Altrove</b>
+            <small>A casa, in un altro locale o in un punto di incontro vostro</small>
+          </span>
+          <span className="space-radio" aria-hidden="true" />
+        </label>
       </div>
       {elsewhere && (
         <div className="space-others">
@@ -110,7 +135,7 @@ export function PlaySpaceStep({
                     type="button"
                     className="mv big"
                     aria-pressed={value?.kind === 'existing' && value.id === s.id}
-                    onClick={() => change({ kind: 'existing', id: s.id })}
+                    onClick={() => choose({ kind: 'existing', id: s.id })}
                   >
                     <MapPin aria-hidden="true" />
                     <span className="nm">
@@ -129,24 +154,27 @@ export function PlaySpaceStep({
           )}
           <button
             type="button"
-            className="chip dashed"
+            className="btn space-create"
             aria-pressed={value?.kind === 'new'}
+            aria-expanded={!!draft}
+            aria-controls={`${id}-new`}
             onClick={() =>
-              change(
-                draft ?? {
-                  kind: 'new',
-                  draftId: crypto.randomUUID(),
-                  name: '',
-                  place: '',
-                  target: '',
-                },
+              choose(
+                draft ??
+                  savedDraft ?? {
+                    kind: 'new',
+                    draftId: crypto.randomUUID(),
+                    name: '',
+                    place: '',
+                    target: '',
+                  },
               )
             }
           >
-            <Plus aria-hidden="true" /> Crea punto di incontro
+            <Plus aria-hidden="true" /> Nuovo punto di incontro
           </button>
           {draft && (
-            <div className="space-new">
+            <div className="space-new" id={`${id}-new`}>
               <label className="field">
                 Nome del punto
                 <input
@@ -160,7 +188,7 @@ export function PlaySpaceStep({
                 Luogo (facoltativo)
                 <input
                   maxLength={160}
-                  placeholder="Es. Da Gino, sala sul retro"
+                  placeholder="Es. sala sul retro"
                   value={draft.place}
                   onChange={(e) => change({ ...draft, place: e.target.value })}
                 />
@@ -174,7 +202,7 @@ export function PlaySpaceStep({
                   onChange={(e) => change({ ...draft, target: e.target.value })}
                 />
               </label>
-              <p className="hint">Nessun indirizzo né posizione: serve solo a riconoscerlo.</p>
+              <p className="hint">Niente indirizzi né posizione: serve solo a riconoscerlo.</p>
             </div>
           )}
         </div>

@@ -137,7 +137,7 @@ export async function freeMatch(
 }
 
 /**
- * Answers the first question of the new match and new tournament wizards: «Sì, siamo al BT».
+ * Answers the first question of the new match and new tournament wizards: «Al Bite the Trouble».
  * A new match then moves on to the game; a tournament keeps the same step.
  */
 export async function atBt(page: Page) {
@@ -145,11 +145,11 @@ export async function atBt(page: Page) {
   // at the game (or, for a tournament, at its format).
   await page
     .getByRole('heading', {
-      name: /State giocando al Bite the Trouble\?|A cosa giocate\?|Che serata è\?/,
+      name: /Dove giocate\?|A cosa giocate\?|Che serata è\?/,
     })
     .first()
     .waitFor();
-  const yes = page.getByRole('radio', { name: /Sì, siamo al BT/ });
+  const yes = page.getByRole('radio', { name: /Al Bite the Trouble/ });
   if (!(await yes.isVisible())) return;
   await yes.click();
   const next = page.getByRole('button', { name: 'Scegli il gioco' });

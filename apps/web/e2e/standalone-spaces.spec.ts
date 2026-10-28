@@ -6,20 +6,27 @@ test('the wizard asks where the match counts, keeps the draft, and scoreboards s
 }) => {
   const guard = guardNetwork(page);
   await page.goto('/partite/nuova');
-  await expect(
-    page.getByRole('heading', { name: 'State giocando al Bite the Trouble?' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dove giocate?' })).toBeVisible();
   // Nothing is chosen for them.
   await expect(page.getByRole('button', { name: 'Scegli il gioco' })).toBeDisabled();
 
-  await page.getByRole('radio', { name: /No, giochiamo altrove/ }).click();
-  await page.getByRole('button', { name: /Crea punto di incontro/ }).click();
+  await page.getByRole('radio', { name: /Altrove/ }).click();
+  await page.getByRole('button', { name: /Nuovo punto di incontro/ }).click();
   await expect(page.getByRole('button', { name: 'Scegli il gioco' })).toBeDisabled();
   await page.getByLabel('Nome del punto').fill('Da Gino');
   await page.getByLabel(/^Luogo/).fill('sala sul retro');
-  await expect(
-    page.getByText('I risultati saranno conteggiati nella scoreboard Da Gino.'),
-  ).toBeVisible();
+  await page.getByLabel(/^Dov’è il bersaglio/).fill('vicino al bancone');
+
+  // Switching locations keeps all the new point's fields and restores the selection.
+  await page.getByRole('radio', { name: /Al Bite the Trouble/ }).check();
+  await expect(page.getByLabel('Nome del punto')).toBeHidden();
+  await expect(page.getByRole('status')).toHaveText(
+    'I risultati saranno conteggiati nella scoreboard Bite the Trouble.',
+  );
+  await page.getByRole('radio', { name: /Altrove/ }).check();
+  await expect(page.getByLabel('Nome del punto')).toHaveValue('Da Gino');
+  await expect(page.getByLabel(/^Luogo/)).toHaveValue('sala sul retro');
+  await expect(page.getByLabel(/^Dov’è il bersaglio/)).toHaveValue('vicino al bancone');
   await page.getByRole('button', { name: 'Scegli il gioco' }).click();
   await gameRadio(page, 'Hi-Score').click();
   await page.getByRole('button', { name: 'Scegli i giocatori' }).click();
