@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, Crosshair, X, Minus, Plus, Pause, Play } from 'lucide-react';
+import { ChevronLeft, Crosshair, Eye, X, Minus, Plus, Pause, Play } from 'lucide-react';
 
 /**
  * Fixed regions of a screen around its scrolling `main`: commands under the header
@@ -189,6 +189,20 @@ export function ErrorMessage({ error, retry }: { error: unknown; retry?: () => v
     </div>
   );
 }
+/** Why the controls are missing: the page is shown read-only to this account. */
+export function ReadOnlyNote({ status }: { status?: string }) {
+  return (
+    <p className="note" role="status">
+      <Eye aria-hidden="true" />
+      <span>
+        {status === 'completed' || status === 'cancelled'
+          ? 'Concluso: lo vedi in sola lettura. Solo un admin può ancora correggerlo.'
+          : 'Lo segui in diretta: punteggi e comandi li gestisce chi l’ha creato o un admin.'}
+      </span>
+    </p>
+  );
+}
+
 export function Loading() {
   return (
     <p className="loading" role="status">

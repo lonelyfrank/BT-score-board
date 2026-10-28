@@ -125,3 +125,20 @@ pnpm dev:cloud
 ```
 
 Poi apri http://127.0.0.1:8787 e usa `prova-locale` come codice. I dati locali non finiscono online.
+
+## Sviluppare in locale con i dati reali
+
+Per provare in locale il codice nuovo con i tuoi account e i dati online:
+
+1. crea `apps/web/.env.local` (non va su git) con l'indirizzo del Worker:
+   `BT_API_TARGET=https://bt-darts.<tuo-sottodominio>.workers.dev`
+2. avvia `npm run dev:online` e apri `http://127.0.0.1:5173`.
+
+Il frontend gira sul tuo PC, le chiamate `/api` vanno al server online.
+
+- Entra con **username e password**: le passkey sono legate al dominio online e in locale non
+  funzionano.
+- Ogni modifica (punteggi, giocatori, account) è **reale**: per esperimenti usa
+  `npm run dev:cloud` (Worker e dati locali di `wrangler dev`), oppure un tuo account non admin.
+- Senza `BT_API_TARGET`, `dev:cloud` del frontend resta collegato al Worker locale
+  (`127.0.0.1:8787`).

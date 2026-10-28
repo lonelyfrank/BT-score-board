@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Crown, Share2, Download, Trash2, UserPen, Users } from 'lucide-react';
-import { api, localData, type Player } from '../services/api';
+import { api, cloudApi, localData, type Player } from '../services/api';
 import { useCanManage } from '../services/me';
 import { BT_PLAY_SPACE_ID } from '../../../../packages/domain/src/playspaces/playspaces';
 import { SpaceSelect } from './PlaySpaces';
@@ -188,16 +188,19 @@ export function ReceivePanel() {
   );
 }
 
-function CrewSheet({
+export function CrewSheet({
   crew,
   players,
   close,
   initialMembers,
+  stay = false,
 }: {
   crew?: Crew;
   players: Player[];
   close: () => void;
   initialMembers?: string[];
+  /** Stay on the page after creating (admin panel) instead of opening the new crew. */
+  stay?: boolean;
 }) {
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -219,7 +222,7 @@ function CrewSheet({
     onSuccess: (saved) => {
       void client.invalidateQueries();
       close();
-      if (!crew) navigate(`/compagnie/${saved.id}`);
+      if (!crew && !stay) navigate(`/compagnie/${saved.id}`);
     },
   });
   // Members stay listed even when deactivated; others only while active.
@@ -264,7 +267,7 @@ function CrewSheet({
             ))}
           </div>
         </fieldset>
-        <div className="card">
+        <div className="card" hidden={!!cloudApi}>
           <div className="row">
             <span id="auto-share">
               <b className="row-title">Condividi in automatico</b>
@@ -782,7 +785,8 @@ export function CrewOnboarding() {
   const { me } = useKnowsMe();
   const active = players.data?.items.filter((p) => p.status === 'active') ?? [];
   // First the phone must know who owns it: the crew is then offered with them in it.
-  if (hidden || !localData || !me || crews.data?.length !== 0 || active.length < 2) return null;
+  if (hidden || !localData || cloudApi || !me || crews.data?.length !== 0 || active.length < 2)
+    return null;
   const later = (how: 'later' | 'never') => {
     onboarding.dismiss(how);
     setHidden(true);

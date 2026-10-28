@@ -35,6 +35,7 @@ const scorerWrites = new Set([
 /** What any enabled account may do, besides its own profile. */
 const accountWrites = new Set(['createTournament', 'createPlayer', 'createPlaySpace']);
 const matchCommands = ['matchCommand', 'recordResult', 'submitTurn', 'undo', 'correct'];
+const closed = new Set(['completed', 'cancelled']);
 
 const forbidden = () =>
   new DomainError('ADMIN_REQUIRED', 'Only an admin can change this data', 403);
@@ -141,6 +142,13 @@ export async function dispatch(
       return access.access(tournamentId);
     }
     access.assertScorer(tournamentId, account.id, session);
+    // A finished tournament stays as it ended: only admins correct it.
+    if (!isAdmin(account) && closed.has((await adapter.tournament(tournamentId)).status))
+      throw new DomainError(
+        'TOURNAMENT_CLOSED',
+        'Only an admin can change a finished tournament',
+        403,
+      );
   }
   if (method === 'linkPlayers' && accounts) {
     // Two people with an account cannot become one player: an admin sorts that out first.

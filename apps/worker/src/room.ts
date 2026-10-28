@@ -379,6 +379,16 @@ export class GameRoom extends DurableObject<Env> {
         await this.sweep();
         return json({ user });
       }
+      case 'POST /api/admin/users/create':
+        return json(await this.accounts.createUser(account, body.username, body.playerId));
+      case 'POST /api/admin/users/rename':
+        return json({ user: this.accounts.renameUser(account, body.userId, body.username) });
+      case 'POST /api/admin/users/delete': {
+        const removed = this.accounts.deleteUser(account, body.userId);
+        this.access.forget(removed.id, account.id);
+        await this.sweep();
+        return json({ ok: true });
+      }
     }
     return json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404);
   }

@@ -25,6 +25,7 @@ import {
   type TournamentAction,
 } from '../services/api';
 import { activeSession, recentResults, tournamentPath } from '../services/session';
+import { useCanOperate } from '../services/me';
 import { formatLabel, gameOf, isResultRecording } from '../services/rules';
 import {
   AddButton,
@@ -122,7 +123,8 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
             ? 'Qualifica a manche + finale'
             : `${open} in corso · ${all.length - open} conclusi`
         }
-        back={null}
+        back={highscore ? '/tornei' : null}
+        backLabel="Indietro ai tornei"
         action={
           <AddButton
             label={highscore ? 'Nuova Hi-Score Night' : 'Nuovo torneo'}
@@ -143,6 +145,16 @@ export function TournamentList({ highscore = false }: { highscore?: boolean }) {
         />
       </div>
       <main className="lists">
+        {!highscore && (
+          <Link className="crew-link" to="/hiscore">
+            <ChartNoAxesColumnIncreasing aria-hidden="true" />
+            <span>
+              <strong>Hi-Score Nights</strong>
+              <small>Qualifica a manche + finale dei migliori</small>
+            </span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        )}
         <ErrorMessage error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <Loading />}
         {groups.map((g) => (
@@ -309,7 +321,10 @@ export function useTournament(id: string) {
     },
   });
   const tables = standings.data?.filter((r) => r.stageStatus !== 'invalidated') ?? [];
+  const operate = useCanOperate(query.data);
   return {
+    /** Whether this account runs the tournament: otherwise its pages are read-only. */
+    operate,
     query,
     standings,
     mutation,
@@ -774,6 +789,7 @@ export function TieSheet({
 
 /** "Al bersaglio": the match on the board, or the next one to play. */
 export function BoardCard({ t, match, title }: { t: Tournament; match: TMatch; title: string }) {
+  const operate = useCanOperate(t);
   const live = match.status === 'active' || match.status === 'paused';
   const [a, b] = match.participants;
   const score = (p?: TMatch['participants'][number]) =>
@@ -825,7 +841,7 @@ export function BoardCard({ t, match, title }: { t: Tournament; match: TMatch; t
         </p>
       )}
       <Link className="btn cta" to={`/partite/${match.id}`}>
-        {live ? 'Apri il Live' : 'Gioca l’incontro'}
+        {live ? 'Apri il Live' : operate ? 'Gioca l’incontro' : 'Segui l’incontro'}
       </Link>
     </section>
   );

@@ -322,6 +322,19 @@ export class CloudAdapter {
   setDisabled(userId: string, disabled: boolean) {
     return request<{ user: Account }>('/admin/users/disable', { userId, disabled });
   }
+  /** A new account; the person chooses the password with the returned code. */
+  createUser(username: string, playerId: string | null) {
+    return request<{ user: Account; code: string; expiresAt: string }>('/admin/users/create', {
+      username,
+      playerId,
+    });
+  }
+  renameUser(userId: string, username: string) {
+    return request<{ user: Account }>('/admin/users/rename', { userId, username });
+  }
+  deleteUser(userId: string) {
+    return request('/admin/users/delete', { userId });
+  }
 
   // The engine surface (EngineApi) beyond the forwarded methods.
   async connect() {

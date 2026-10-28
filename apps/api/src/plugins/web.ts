@@ -21,6 +21,7 @@ export const clientRoutes = [
   '/regole',
   '/giocatori',
   '/livelli',
+  '/compagnia',
   '/compagnie',
   '/compagnie/*',
   '/segui/*',
@@ -31,6 +32,8 @@ export const clientRoutes = [
   '/gestione',
   '/gestione/*',
   '/permessi',
+  '/profilo',
+  '/admin',
 ];
 
 // Only the compiled client is public. API routes retain bearer authentication.

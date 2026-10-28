@@ -304,6 +304,24 @@ export class Access {
     );
     this.log(adminId, 'ADMIN_RECOVERY', tournamentId, { from: r?.scorerId ?? null, to, reason });
   }
+  /**
+   * A deleted account keeps nothing: no membership, and the matches it scored wait for an
+   * admin to assign a new scorer (recover).
+   */
+  forget(accountId: string, adminId: string) {
+    const scored = this.all(
+      'SELECT tournament_id FROM match_access WHERE scorer_id = ?',
+      accountId,
+    );
+    this.host.sql.exec('DELETE FROM space_members WHERE account_id = ?', accountId);
+    this.host.sql.exec(
+      'UPDATE match_access SET scorer_id = NULL, scorer_session = NULL, epoch = epoch + 1, updated_at = ? WHERE scorer_id = ?',
+      this.iso(),
+      accountId,
+    );
+    for (const r of scored)
+      this.log(adminId, 'ACCOUNT_DELETED', r.tournament_id as string, { from: accountId });
+  }
   /** Every tournament the account scores or created, for listings. */
   scoredBy(accountId: string): Set<string> {
     return new Set(

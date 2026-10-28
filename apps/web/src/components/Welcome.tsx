@@ -46,7 +46,7 @@ export function Welcome() {
   return null;
 }
 
-function PlayerStep({ close }: { close: () => void }) {
+export function PlayerStep({ close }: { close: () => void }) {
   const account = useAccount()!;
   const client = useQueryClient();
   const [name, setName] = useState(account.username);

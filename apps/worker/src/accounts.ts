@@ -443,14 +443,78 @@ export class Accounts {
     this.host.sql.exec('UPDATE users SET player_id = ? WHERE id = ?', playerId, target.id);
     return this.get(target.id)!;
   }
+  /**
+   * An account made by an admin, optionally linked to its player. It has no usable password yet:
+   * the person signs in once with the returned code (Accedi → Password) and chooses one.
+   */
+  async createUser(by: Account, username: unknown, playerId: unknown) {
+    this.requireAdmin(by);
+    const name = validUsername(username);
+    ensure(
+      !this.all('SELECT 1 FROM users WHERE username = ?', name).length,
+      'USERNAME_TAKEN',
+      'This username is already taken',
+      409,
+    );
+    const player = typeof playerId === 'string' && playerId ? playerId : null;
+    if (player)
+      ensure(!this.byPlayer(player), 'PLAYER_TAKEN', 'This player already has an account', 409);
+    const id = uuid();
+    this.host.sql.exec(
+      "INSERT INTO users (id, username, password, role, player_id, created_at) VALUES (?, ?, '!', 'player', ?, ?)",
+      id,
+      name,
+      player,
+      this.iso(),
+    );
+    return { user: this.get(id)!, ...(await this.resetCode(by, id, inviteTtl)) };
+  }
+  /** A new username; sessions and passkeys stay valid. */
+  renameUser(by: Account, userId: unknown, username: unknown) {
+    this.requireAdmin(by);
+    const target = this.target(userId);
+    this.requireOver(by, target);
+    const name = validUsername(username);
+    ensure(
+      !this.all('SELECT 1 FROM users WHERE username = ? AND id != ?', name, target.id).length,
+      'USERNAME_TAKEN',
+      'This username is already taken',
+      409,
+    );
+    this.host.sql.exec('UPDATE users SET username = ? WHERE id = ?', name, target.id);
+    return this.get(target.id)!;
+  }
+  /**
+   * Removes the account for good: the player record and its history stay. The caller also
+   * drops what other tables hold for it (play space membership, scoring rights).
+   */
+  deleteUser(by: Account, userId: unknown): Account {
+    this.requireAdmin(by);
+    const target = this.target(userId);
+    ensure(target.id !== by.id, 'SELF_DELETE', 'You cannot delete your own account', 409);
+    this.requireOver(by, target);
+    this.host.transactionSync(() => {
+      for (const table of ['sessions', 'passkeys', 'challenges'])
+        this.host.sql.exec(`DELETE FROM ${table} WHERE user_id = ?`, target.id);
+      this.host.sql.exec("DELETE FROM invites WHERE kind = 'reset' AND user_id = ?", target.id);
+      this.host.sql.exec('DELETE FROM users WHERE id = ?', target.id);
+    });
+    return target;
+  }
+  /** The owner is untouchable; admins are changed only by the owner. */
+  private requireOver(by: Account, target: Account) {
+    ensure(target.role !== 'owner', 'OWNER_ROLE', 'The owner cannot be changed', 409);
+    if (target.role === 'admin' && by.role !== 'owner')
+      throw forbidden('Only the owner can change an admin');
+  }
   /** A one-time code with which the person sets a new password (forgotten password). */
-  async resetCode(by: Account, userId: unknown) {
+  async resetCode(by: Account, userId: unknown, ttl = resetTtl) {
     this.requireAdmin(by);
     const target = this.target(userId);
     if (target.role !== 'player' && by.role !== 'owner')
       throw forbidden('Only the owner can reset an admin');
     const value = code();
-    const expiresAt = this.clock() + resetTtl;
+    const expiresAt = this.clock() + ttl;
     this.host.sql.exec(
       "INSERT INTO invites (id, code, kind, role, user_id, created_by, created_at, expires_at) VALUES (?, ?, 'reset', ?, ?, ?, ?, ?)",
       uuid(),

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 // @ts-ignore -- vite-plugin-pwa is supplied by the workspace at build time.
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json';
@@ -9,6 +9,24 @@ import pkg from './package.json';
 export default defineConfig(({ mode }) => {
   const shared = mode === 'shared';
   const cloud = mode === 'cloud';
+  // Cloud mode talks to `wrangler dev`, or with BT_API_TARGET (apps/web/.env.local) to the
+  // Worker online: real accounts and data, so every change there is a real change.
+  const target = loadEnv(mode, process.cwd(), '').BT_API_TARGET?.replace(/\/+$/, '');
+  const api: ProxyOptions = target
+    ? {
+        target,
+        changeOrigin: true,
+        secure: true,
+        ws: true,
+        // The Worker refuses writes and live sockets from another origin: the proxy speaks as
+        // the site itself. Passkeys stay bound to the real domain: sign in with the password.
+        configure: (proxy) => {
+          const origin = new URL(target).origin;
+          proxy.on('proxyReq', (req) => req.setHeader('Origin', origin));
+          proxy.on('proxyReqWs', (req) => req.setHeader('Origin', origin));
+        },
+      }
+    : { target: 'http://127.0.0.1:8787', ws: true };
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
   return {
     define: {
@@ -22,7 +40,7 @@ export default defineConfig(({ mode }) => {
     server: shared
       ? { proxy: { '/api': 'http://127.0.0.1:3000' } }
       : cloud
-        ? { proxy: { '/api': 'http://127.0.0.1:8787' } }
+        ? { proxy: { '/api': api } }
         : {},
     plugins: [
       VitePWA({

@@ -1,6 +1,14 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useLocation,
+  useParams,
+  Link,
+  Navigate,
+} from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { BottomNavigation, Empty, scrollToTop } from './components/ui';
 import { AppStatus } from './components/AppStatus';
@@ -24,6 +32,9 @@ import { JoinSpace, PlaySpaceDetail, PlaySpaces } from './features/PlaySpaces';
 import { Levels } from './features/Levels';
 import { Management, ManageTournament, Permissions } from './features/Management';
 import { Welcome } from './components/Welcome';
+import { Community } from './features/Community';
+import { MyProfile } from './features/MyProfile';
+import { Admin } from './features/Admin';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -70,6 +81,11 @@ function Gate({ children }: { children: React.ReactNode }) {
   ) : (
     <Login />
   );
+}
+/** Cloud mode: crews live on the server, their members' rankings are in Compagnia. */
+function CrewRedirect() {
+  const { id = '' } = useParams();
+  return <Navigate to={`/compagnia?crew=${encodeURIComponent(id)}`} replace />;
 }
 function App() {
   const { pathname, search } = useLocation();
@@ -128,8 +144,14 @@ function App() {
           <Route path="/regole" element={<Rules />} />
           <Route path="/giocatori" element={<Players />} />
           <Route path="/livelli" element={<Levels />} />
-          <Route path="/compagnie" element={<Crews />} />
-          <Route path="/compagnie/:id" element={<CrewDetail />} />
+          <Route path="/compagnia" element={<Community />} />
+          <Route
+            path="/compagnie"
+            element={cloudApi ? <Navigate to="/compagnia" replace /> : <Crews />}
+          />
+          <Route path="/compagnie/:id" element={cloudApi ? <CrewRedirect /> : <CrewDetail />} />
+          <Route path="/profilo" element={<MyProfile />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/impostazioni" element={<Settings />} />
           <Route path="/gestione" element={<Management />} />
           <Route path="/gestione/:id" element={<ManageTournament />} />
