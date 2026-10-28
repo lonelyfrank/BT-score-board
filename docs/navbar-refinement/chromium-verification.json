@@ -1,0 +1,65 @@
+{
+  "engine": "chromium",
+  "checks": [
+    "layout and targets 320x568",
+    "layout and targets 390x844",
+    "layout and targets 844x390",
+    "layout and targets 1440x900",
+    "five routes and active state",
+    "touch input focus hides bar; closing restores it (not a real keyboard)",
+    "pointer pressure preserves icon/hit-area geometry and reuses the map",
+    "reduced transparency emulated through Chromium CDP",
+    "contrast, forced colors, keyboard focus, reduced motion",
+    "lab synchronized selection, opaque and satin fallback",
+    "pixel-verified geometric refraction on real backdrop",
+    "satin blur changes raster",
+    "390x844 scroll/tab timing and zero map regeneration during scroll",
+    "no-backdrop CSS fallback remains opaque"
+  ],
+  "performance": {
+    "current": {
+      "frames": 119,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 16.700000000000045,
+      "over32ms": 0,
+      "mapRegenerations": 0,
+      "TaskDurationMs": 139.533,
+      "LayoutDurationMs": 1.5479999999999998,
+      "RecalcStyleDurationMs": 32.788
+    },
+    "cable": {
+      "frames": 119,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 16.700000000000273,
+      "over32ms": 0,
+      "mapRegenerations": 0,
+      "TaskDurationMs": 169.74699999999999,
+      "LayoutDurationMs": 1.977,
+      "RecalcStyleDurationMs": 40.967000000000006
+    },
+    "proposal": {
+      "frames": 119,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 16.700000000000728,
+      "over32ms": 0,
+      "mapRegenerations": 0,
+      "TaskDurationMs": 139.603,
+      "LayoutDurationMs": 1.858,
+      "RecalcStyleDurationMs": 39.543
+    }
+  },
+  "mode": "headless desktop, mobile viewport/touch emulated; no physical device",
+  "version": "156.0.8078.4",
+  "raster": {
+    "rimMeanDifference": 17.834249847247822,
+    "centerMeanDifference": 0
+  },
+  "satinStyle": {
+    "backdrop": "blur(16px) saturate(1.5) brightness(1)",
+    "contrast": false,
+    "forced": false,
+    "transparency": false,
+    "token": "16px"
+  },
+  "status": "passed"
+}

@@ -1,0 +1,32 @@
+{
+  "engine": "firefox",
+  "checks": [
+    "layout and targets 320x568",
+    "layout and targets 390x844",
+    "layout and targets 844x390",
+    "layout and targets 1440x900",
+    "five routes and active state",
+    "touch input focus hides bar; closing restores it (not a real keyboard)",
+    "pointer pressure preserves icon/hit-area geometry and reuses the map",
+    "contrast, forced colors, keyboard focus, reduced motion",
+    "lab synchronized selection, opaque and satin fallback",
+    "unverified engine retains identical satin fallback"
+  ],
+  "performance": {},
+  "mode": "headless desktop, mobile viewport/touch emulated; no physical device",
+  "version": "157.0",
+  "raster": {
+    "rimMeanDifference": 0,
+    "centerMeanDifference": 0
+  },
+  "satinStyle": {
+    "backdrop": "blur(16px) saturate(1.5) brightness(1)",
+    "contrast": false,
+    "forced": false,
+    "transparency": false,
+    "token": "16px"
+  },
+  "minimalBackdropChangesRaster": false,
+  "status": "failed or unavailable",
+  "error": "AssertionError [ERR_ASSERTION]: CSS blur must alter the grid raster; inspect minimalBackdropChangesRaster if this fails\n    at file:///home/frank/BT-score-board/apps/web/scripts/glass-verify.mjs:264:10"
+}

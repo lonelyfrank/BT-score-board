@@ -86,9 +86,9 @@
   /* ---- Misure ---- */
   --bt-touch-min: 44px;
   --bt-header-h: 64px; /* 68px nelle schermate con titolo singolo */
-  --bt-nav-h: 62px; /* barra flottante Liquid Glass */
-  --bt-nav-inset: 14px; /* margine laterale */
-  --bt-nav-bottom: max(12px, env(safe-area-inset-bottom));
+  --bt-nav-h: 58px; /* barra flottante Liquid Glass */
+  --bt-nav-inset: 20px; /* margine laterale */
+  --bt-nav-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 6px);
   --bt-nav-space: calc(var(--bt-nav-h) + var(--bt-nav-bottom)); /* schermo coperto dalla barra */
   --bt-cta-h: 58px; /* 62px in Nuova partita, 88px card Home primaria */
   --bt-key-h: 58px;
@@ -109,11 +109,35 @@
   --bt-glass-blur: 20px;
   --bt-elev-float: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.45);
 
-  /* Navigazione Liquid Glass V1.1: lente su Blink, vetro sfocato altrove. */
-  --bt-nav-tint: rgba(12, 11, 15, 0.34); /* serve a leggere le etichette su liste scure e chiare */
+  /* Materiale web satinato; geometria ottica in components/glass-map.ts.
+   * Parametri locali, non misure del materiale Apple. */
+  --bt-nav-blur: 10px;
+  --bt-nav-saturation: 150%;
+  --bt-nav-brightness: 1;
+  --bt-nav-tint-rgb: 18 18 22;
+  --bt-nav-tint-alpha: 0.14;
+  --bt-nav-reflection: 0.18;
+  --bt-nav-shadow: 0.2;
   --bt-nav-fallback: rgba(16, 16, 19, 0.96);
-  --bt-nav-duration: 520ms; /* scivolata lunga della capsula */
-  --bt-nav-easing: cubic-bezier(0.16, 1, 0.22, 1); /* senza rimbalzo */
+  --bt-nav-scrim-mid: 0.025;
+  --bt-nav-scrim-bottom: 0.12;
+  --bt-nav-item-inset: 6px; /* preserves 46px touch height */
+  --bt-nav-selection-gutter: 3px;
+  --bt-nav-selection-radius: calc((var(--bt-nav-h) - 14px) / 2);
+  --bt-nav-selected-alpha: 0.055;
+  --bt-nav-selected-fade-alpha: 0.02;
+  --bt-nav-hover-alpha: 0.035;
+  --bt-nav-pressed-alpha: 0.12;
+  --bt-nav-label: #e4e4e7;
+  --bt-nav-label-current: #fff;
+  --bt-nav-label-weight: 500;
+  --bt-nav-label-current-weight: 600;
+  --bt-nav-text-shadow: 0 1px 2px rgb(0 0 0 / 0.85), 0 0 4px rgb(0 0 0 / 0.6);
+  --bt-nav-icon-shadow: 0 1px 2px rgb(0 0 0 / 0.7);
+  --bt-nav-focus: var(--bt-accent-soft);
+  --bt-nav-duration: 200ms;
+  --bt-nav-feedback-duration: 120ms;
+  --bt-nav-easing: cubic-bezier(0.2, 0.8, 0.2, 1); /* no overshoot */
 
   /* ---- Movimento ---- */
   --bt-dur-press: 110ms;
@@ -132,6 +156,7 @@
     --bt-dur-turn: 0ms;
     --bt-dur-indicator: 0ms;
     --bt-nav-duration: 0ms;
+    --bt-nav-feedback-duration: 0ms;
     --bt-press-scale: 1;
   }
 }

@@ -1,8 +1,8 @@
-import { Fragment, useLayoutEffect, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent, ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChartNoAxesColumnIncreasing, Crosshair, Home, Trophy, Users } from 'lucide-react';
-import { glassMap } from './glass-map';
+import { createGlassMap, glassGeometry, verifiedGlassRefraction } from './glass-map';
 import '../styles/bottom-navigation.css';
 
 export const navigationDestinations = [
@@ -20,6 +20,7 @@ const sections = [
   ['/hiscore'],
   ['/giocatori', '/livelli'],
 ];
+const normalizedPath = (path: string) => path.toLowerCase().replace(/\/+$/, '') || '/';
 const sectionOf = (pathname: string) =>
   sections.findIndex((paths) =>
     paths.some((p) =>
@@ -27,71 +28,10 @@ const sectionOf = (pathname: string) =>
     ),
   );
 
-/*
- * CSS.supports checks syntax, not SVG backdrop compositing: Safari (iOS Chrome included) and
- * Firefox accept url() and then drop the glass. The lens is enabled on Blink only; the others
- * keep the blurred glass with the same geometry.
- */
-const refraction =
-  typeof navigator !== 'undefined' &&
-  /Chrome\/|Chromium\/|Edg\//.test(navigator.userAgent) &&
-  CSS.supports('backdrop-filter', 'url("#bt-warp")');
-
-const channels = [
-  ['R', '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0'],
-  ['G', '0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0'],
-  ['B', '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0'],
-] as const;
-
-/**
- * One lens per channel, slightly different scales: the colour fringes of the glass
- * (liquid-glass-react with aberrationIntensity 2: +10% per channel, blur 0.3).
- */
-function Lens({ id, scale }: { id: string; scale: number }) {
-  return (
-    <filter id={id} x="-35%" y="-35%" width="170%" height="170%" colorInterpolationFilters="sRGB">
-      <feImage
-        href={glassMap}
-        x="0"
-        y="0"
-        width="100%"
-        height="100%"
-        preserveAspectRatio="xMidYMid slice"
-        result="map"
-      />
-      {channels.map(([channel, matrix], k) => (
-        <Fragment key={channel}>
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="map"
-            scale={-scale * (1 + k * 0.1)}
-            xChannelSelector="R"
-            yChannelSelector="B"
-            result={`d${channel}`}
-          />
-          <feColorMatrix in={`d${channel}`} type="matrix" values={matrix} result={channel} />
-        </Fragment>
-      ))}
-      <feBlend in="G" in2="B" mode="screen" result="GB" />
-      <feBlend in="R" in2="GB" mode="screen" result="RGB" />
-      <feGaussianBlur in="RGB" stdDeviation="0.3" />
-    </filter>
-  );
+function clearPress(nav: HTMLElement | null) {
+  nav?.classList.remove('pressed');
+  nav?.querySelectorAll('.is-pressed').forEach((item) => item.classList.remove('is-pressed'));
 }
-
-/** SVG lenses referenced by the bar's CSS. Render once per page, next to the bar. */
-export function GlassFilters() {
-  return (
-    <svg width="0" height="0" className="bt-glass-filters" aria-hidden="true" focusable="false">
-      <defs>
-        <Lens id="bt-warp" scale={70} />
-        <Lens id="bt-lens" scale={28} />
-      </defs>
-    </svg>
-  );
-}
-
-const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** Shared geometry for production links, the match bar and the isolated DEV comparison. */
 export function NavigationSurface({
@@ -100,83 +40,153 @@ export function NavigationSurface({
   children,
   className = '',
   label = 'Navigazione principale',
+  material,
+  satinOnly = false,
 }: {
   current: number;
   count?: number;
   children: ReactNode;
   className?: string;
   label?: string;
+  /** DEV calibration; production uses the shared geometry and CSS tokens. */
+  material?: { band: number; displacement: number; style: CSSProperties };
+  satinOnly?: boolean;
 }) {
-  const blob = useRef<HTMLSpanElement>(null);
-  const previous = useRef(current);
-  // The capsule stretches a little while it glides to the new item, then settles.
+  const navRef = useRef<HTMLElement>(null);
+  const id = `bt-glass-${useId().replace(/:/g, '')}`;
+  const [map, setMap] = useState<{ href: string; width: number; height: number } | null>(null);
+  const band = material?.band ?? glassGeometry.band;
+  const displacement = material?.displacement ?? glassGeometry.displacement;
+  const refraction = !satinOnly && verifiedGlassRefraction();
   useLayoutEffect(() => {
-    if (previous.current === current) return;
-    previous.current = current;
-    const el = blob.current;
-    if (!el) return;
-    el.classList.remove('moving');
-    void el.offsetWidth;
-    el.classList.add('moving');
+    if (!refraction || !navRef.current) return;
+    const nav = navRef.current;
+    let last = '';
+    const update = () => {
+      const width = nav.offsetWidth;
+      const height = nav.offsetHeight;
+      if (!width || !height) return;
+      const radius = Math.min(parseFloat(getComputedStyle(nav).borderTopLeftRadius), height / 2);
+      const key = `${width}/${height}/${radius}/${band}`;
+      if (last === key) return;
+      last = key;
+      const href = createGlassMap(width, height, radius, band);
+      if (href) setMap({ href, width, height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [refraction, band]);
+  // Interaction is transient. Selection is always derived from current/route.
+  const activePointer = useRef<number | null>(null);
+  const release = () => {
+    activePointer.current = null;
+    clearPress(navRef.current);
+  };
+  useEffect(() => {
+    const reset = () => {
+      activePointer.current = null;
+      clearPress(navRef.current);
+    };
+    const endPointer = (event: globalThis.PointerEvent) => {
+      if (event.pointerId === activePointer.current) reset();
+    };
+    window.addEventListener('pointerup', endPointer);
+    window.addEventListener('pointercancel', endPointer);
+    window.addEventListener('blur', reset);
+    window.addEventListener('pagehide', reset);
+    document.addEventListener('visibilitychange', reset);
+    return () => {
+      window.removeEventListener('pointerup', endPointer);
+      window.removeEventListener('pointercancel', endPointer);
+      window.removeEventListener('blur', reset);
+      window.removeEventListener('pagehide', reset);
+      document.removeEventListener('visibilitychange', reset);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    activePointer.current = null;
+    clearPress(navRef.current);
   }, [current]);
 
-  // Under the finger the bar follows elastically and its rims turn towards the touch.
   const follow = (nav: HTMLElement, e: PointerEvent) => {
-    const r = nav.getBoundingClientRect();
-    const dx = e.clientX - (r.left + r.width / 2);
-    const dy = e.clientY - (r.top + r.height / 2);
-    nav.style.setProperty('--mx', ((dx / r.width) * 100).toFixed(1));
-    nav.style.setProperty('--px', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
-    if (still()) return;
-    const elasticity = 0.15;
-    const d = Math.hypot(dx, dy) || 1;
-    const s = Math.min(d / 300, 1) * elasticity;
-    const nx = Math.abs(dx / d);
-    const ny = Math.abs(dy / d);
-    const sx = Math.max(0.8, 1 + nx * s * 0.3 - ny * s * 0.15);
-    const sy = Math.max(0.8, 1 + ny * s * 0.3 - nx * s * 0.15);
-    nav.style.transform = `translate(${(dx * elasticity * 0.1).toFixed(2)}px,${(dy * elasticity * 0.1).toFixed(2)}px) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
-  };
-  const release = (e: PointerEvent<HTMLElement>) => {
-    const nav = e.currentTarget;
-    if (!nav.classList.contains('pressed')) return;
-    nav.classList.remove('pressed');
-    nav.style.transform = '';
-    nav.style.setProperty('--mx', '0');
-    nav.querySelector('.is-pressed')?.classList.remove('is-pressed');
-    blob.current?.classList.remove('bloom');
+    const rect = nav.getBoundingClientRect();
+    const percent = (n: number, size: number) =>
+      `${Math.max(0, Math.min(100, (n / size) * 100)).toFixed(1)}%`;
+    nav.style.setProperty('--px', percent(e.clientX - rect.left, rect.width));
+    nav.style.setProperty('--py', percent(e.clientY - rect.top, rect.height));
   };
 
   return (
     <nav
+      ref={navRef}
       className={`bt-navigation ${className}`}
       aria-label={label}
-      data-refraction={refraction || undefined}
-      style={{ '--nav-index': Math.max(current, 0), '--nav-count': count } as CSSProperties}
+      data-refraction={refraction && map ? true : undefined}
+      style={
+        {
+          '--nav-index': Math.max(current, 0),
+          '--nav-count': count,
+          '--nav-filter': `url("#${id}")`,
+          ...material?.style,
+        } as CSSProperties
+      }
       onPointerDown={(e) => {
+        if (!e.isPrimary || e.button !== 0) return;
         const item = (e.target as Element).closest('.bt-nav-item');
-        if (!item) return;
-        const nav = e.currentTarget;
-        nav.classList.add('pressed');
-        follow(nav, e);
-        if (item.matches('[aria-current], [aria-pressed="true"]'))
-          blob.current?.classList.add('bloom');
-        else item.classList.add('is-pressed');
+        if (!item || item.matches(':disabled, [aria-disabled="true"]')) return;
+        release();
+        activePointer.current = e.pointerId;
+        e.currentTarget.classList.add('pressed');
+        item.classList.add('is-pressed');
+        follow(e.currentTarget, e);
       }}
       onPointerMove={(e) => {
-        if (e.currentTarget.classList.contains('pressed')) follow(e.currentTarget, e);
+        if (activePointer.current === e.pointerId) follow(e.currentTarget, e);
       }}
       onPointerUp={release}
       onPointerCancel={release}
       onPointerLeave={release}
+      onLostPointerCapture={release}
+      onClickCapture={release}
     >
+      {refraction && map && (
+        <svg width="0" height="0" className="bt-glass-filters" aria-hidden="true" focusable="false">
+          <defs>
+            <filter
+              id={id}
+              filterUnits="userSpaceOnUse"
+              x="0"
+              y="0"
+              width={map.width}
+              height={map.height}
+              colorInterpolationFilters="sRGB"
+            >
+              <feImage
+                href={map.href}
+                x="0"
+                y="0"
+                width={map.width}
+                height={map.height}
+                result="map"
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="map"
+                scale={2 * displacement}
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
+            </filter>
+          </defs>
+        </svg>
+      )}
       <span className="bt-nav-lens" aria-hidden="true" />
       <span className="bt-nav-tint" aria-hidden="true" />
-      <span className="bt-nav-rim a" aria-hidden="true" />
-      <span className="bt-nav-rim b" aria-hidden="true" />
       {current >= 0 && (
         <span className="bt-nav-selection" aria-hidden="true">
-          <span ref={blob} className="bt-nav-blob" />
+          <span className="bt-nav-blob" />
         </span>
       )}
       {children}
@@ -186,10 +196,10 @@ export function NavigationSurface({
 
 export function BottomNavigation() {
   const { pathname } = useLocation();
-  const current = sectionOf(pathname);
+  const path = normalizedPath(pathname);
+  const current = sectionOf(path);
   return (
     <>
-      <GlassFilters />
       <div className="nav-scrim" aria-hidden="true" />
       <NavigationSurface current={current} className="bottom-nav">
         {navigationDestinations.map(([url, name, Icon], i) => (
@@ -198,7 +208,7 @@ export function BottomNavigation() {
             key={url}
             to={url}
             // The destination itself, or a page inside its section.
-            aria-current={i !== current ? undefined : pathname === url ? 'page' : 'location'}
+            aria-current={i !== current ? undefined : path === url ? 'page' : 'location'}
             onClick={() => navigator.vibrate?.(8)}
           >
             <Icon aria-hidden="true" strokeWidth={Icon === ChartNoAxesColumnIncreasing ? 2.4 : 2} />

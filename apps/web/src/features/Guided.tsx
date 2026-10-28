@@ -21,7 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import { CrownIcon } from '../components/BrandIcons';
-import { GlassFilters, NavigationSurface } from '../components/BottomNavigation';
+import { NavigationSurface } from '../components/BottomNavigation';
 import { DartCell, DartPad } from '../components/DartPad';
 import { HeatEditor, HeatTabs, viewedHeat } from '../components/Heats';
 import { NumberKeypad } from '../components/NumberKeypad';
@@ -392,7 +392,6 @@ function MatchNavigation({
   const i = tabs.findIndex(([id]) => id === tab);
   return (
     <>
-      <GlassFilters />
       <div className="nav-scrim" aria-hidden="true" />
       <NavigationSurface
         current={i}

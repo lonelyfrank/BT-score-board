@@ -1717,8 +1717,8 @@ dialog.warning .sh-h h2 {
   background: linear-gradient(
     180deg,
     rgba(9, 9, 11, 0),
-    rgba(9, 9, 11, 0.5) 55%,
-    rgba(9, 9, 11, 0.78)
+    rgb(9 9 11 / var(--bt-nav-scrim-mid)) 55%,
+    rgb(9 9 11 / var(--bt-nav-scrim-bottom))
   );
   transition: opacity var(--bt-dur-indicator);
 }

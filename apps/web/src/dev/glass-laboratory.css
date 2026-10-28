@@ -95,58 +95,132 @@ body {
   right: 0;
   margin-inline: auto;
 }
-.lab-frosted .bt-navigation {
-  --nav-material: rgba(28, 29, 34, 0.94);
-  --nav-blur: 10px;
-  --nav-selected: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 3px 12px #0003;
-}
-.lab-frosted .bt-nav-selection {
-  box-shadow: none;
-  border-radius: 18px;
-}
-.lab-optical .bt-navigation {
-  --nav-material: rgba(26, 27, 32, 0.78);
-  --nav-blur: 14px;
-}
-/* Progressive experiment confined to a 3px rim: never filter the readable content. */
-@supports (backdrop-filter: url('#lab-edge-refraction')) and (mask-composite: exclude) {
-  .glass-lab[data-refraction='true'] .lab-optical .bt-navigation::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    padding: 3px;
-    border-radius: inherit;
-    pointer-events: none;
-    backdrop-filter: url('#lab-edge-refraction');
-    background: linear-gradient(160deg, #ffffff14, transparent 40%, #ffffff08);
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-  }
-}
-.lab-filter-defs {
-  position: absolute;
-  pointer-events: none;
-}
-.glass-lab[data-fallback='true'] .bt-navigation {
-  background: var(--nav-fallback);
+
+/* Cable's dark material values at its default --tint: .45. Reference only. */
+.lab-current .bt-navigation {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-.glass-lab[data-fallback='true'] .bt-navigation::before {
-  display: none;
+.lab-cable .bt-navigation {
+  -webkit-backdrop-filter: blur(30px) saturate(185%);
+  backdrop-filter: blur(30px) saturate(185%);
+}
+.lab-cable .bt-nav-lens {
+  background: rgba(30, 30, 38, 0.514);
+  box-shadow:
+    0 0 0 0.5px #0008,
+    inset 0 1px 0 #ffffff38,
+    inset 0 -1px 0 #ffffff14,
+    0 22px 48px -20px #000a;
+}
+.lab-cable .bt-nav-tint {
+  background: linear-gradient(140deg, #ffffff59, transparent 38%, transparent 70%, #ffffff1f);
+  mix-blend-mode: soft-light;
+  box-shadow: none;
+}
+.lab-controls select,
+.glass-lab button:not(.bt-nav-item) {
+  padding: 10px;
+  color: inherit;
+  background: #272933;
+  border: 1px solid #777;
+  border-radius: 8px;
+}
+.lab-sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 20px;
+  padding: 20px 0;
+}
+.lab-sliders label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lab-sliders input {
+  width: 100%;
+  min-height: 28px;
+  accent-color: #ff83c0;
+}
+.lab-sliders output {
+  margin-left: auto;
+}
+.lab-sliders small {
+  color: #bfc0c7;
+}
+summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.lab-scene article:nth-of-type(3n + 1) {
+  background: #802f57;
+}
+.lab-scene article:nth-of-type(3n + 2) {
+  background: #1f6770;
+}
+.lab-scene article:nth-of-type(3n) {
+  background: #5c4894;
+}
+.lab-scene img {
+  width: calc(100% + 36px);
+  max-height: 230px;
+  object-fit: cover;
+  margin: -18px -18px 12px;
+}
+.lab-viewport[data-light='true'] article {
+  background: #e8d8c7;
+}
+.lab-viewport[data-scene='grid'] .lab-scene {
+  background: #cdd8e8;
+  color: #182238;
+}
+.lab-viewport[data-scene='grid'] article {
+  height: 240px;
+  border: 0;
+  border-radius: 0;
+  margin: 0 -20px;
+  background-image:
+    linear-gradient(#193457 1px, transparent 1px),
+    linear-gradient(90deg, #193457 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-color: #cdd8e8;
+}
+.lab-viewport[data-scene='grid'] article > * {
+  visibility: hidden;
+}
+.lab-viewport[data-scene='text'] article {
+  background: transparent;
+  border: 0;
+  padding: 10px 0;
+}
+.glass-lab[data-fallback='true'] .bt-navigation,
+.glass-lab[data-fallback='true'] .bt-navigation .bt-nav-lens {
+  background: var(--bt-nav-fallback);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: none;
 }
 .glass-lab[data-still='true'] .bt-navigation {
-  --nav-duration: 0ms;
+  --bt-nav-duration: 0ms;
 }
-.glass-lab[data-still='true'] .bt-nav-item {
-  transition: none;
+.glass-lab[data-still='true'] .bt-navigation *,
+.glass-lab[data-still='true'] .bt-navigation *::before,
+.glass-lab[data-still='true'] .bt-navigation *::after {
+  transition: none !important;
+  animation: none !important;
 }
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .lab-optical .bt-navigation::before {
-    display: none;
+.glass-lab[data-still='true'] .bt-navigation,
+.glass-lab[data-still='true'] .bt-nav-lens,
+.glass-lab[data-still='true'] .bt-nav-blob,
+.glass-lab[data-still='true'] .bt-nav-item > * {
+  transform: none !important;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .glass-lab .lab-cable .bt-navigation,
+  .glass-lab .lab-cable .bt-nav-lens {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--bt-nav-fallback);
   }
 }
 @media (max-width: 1050px) {

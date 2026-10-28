@@ -87,3 +87,104 @@ test('DEV laboratory is absent from the production application', async ({ page }
   await expect(page.getByRole('heading', { name: 'Pagina non trovata' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Glass Laboratory', exact: true })).toHaveCount(0);
 });
+
+test('selection, hover, press cancellation and focus stay independent', async ({ page }) => {
+  await page.goto('/');
+  const nav = page.locator('.bottom-nav');
+  const home = nav.getByRole('link', { name: 'Home', exact: true });
+  const games = nav.getByRole('link', { name: 'Partite', exact: true });
+  const selection = nav.locator('.bt-nav-selection');
+  await expect(selection).toHaveCount(1);
+  const homeRect = await home.locator('span').boundingBox();
+  const iconRect = await home.locator('svg').boundingBox();
+  expect(await home.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+    'rgba(0, 0, 0, 0)',
+  );
+  expect(
+    await nav.locator('.bt-nav-blob').evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backdropFilter, style.filter, style.boxShadow, style.borderTopWidth];
+    }),
+  ).toEqual(['none', 'none', 'none', '0px']);
+  await games.hover();
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(games).not.toHaveAttribute('aria-current');
+  await expect
+    .poll(() => games.evaluate((el) => getComputedStyle(el, '::before').opacity))
+    .toBe('1');
+  await home.hover();
+  expect(await home.evaluate((el) => getComputedStyle(el, '::before').opacity)).toBe('0');
+
+  await games.hover();
+  await page.mouse.down();
+  await expect(nav).toHaveClass(/pressed/);
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  expect(await home.locator('span').boundingBox()).toEqual(homeRect);
+  expect(await home.locator('svg').boundingBox()).toEqual(iconRect);
+  // A cancelled gesture must not navigate or leave a local light behind.
+  await games.dispatchEvent('pointercancel', { pointerId: 1, isPrimary: true });
+  await expect(nav).not.toHaveClass(/pressed/);
+  await expect(nav.locator('.is-pressed')).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/$/);
+
+  await games.hover();
+  await page.mouse.down();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(nav).not.toHaveClass(/pressed/);
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+  await home.focus();
+  await page.keyboard.press('Tab');
+  await expect(games).toBeFocused();
+  expect(await games.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await page.keyboard.press('Enter');
+  await expect(games).toHaveAttribute('aria-current', 'page');
+  await expect(nav.locator('.is-pressed')).toHaveCount(0);
+  await expect(selection).toHaveCount(1);
+});
+
+test('rapid navigation and route variants preserve one stable selection', async ({ page }) => {
+  await page.goto('/');
+  const nav = page.locator('.bottom-nav');
+  const boxes = await nav.locator('.bt-nav-item > *').evaluateAll((elements) =>
+    elements.map((el) => {
+      const r = el.getBoundingClientRect();
+      return [r.x, r.y, r.width, r.height];
+    }),
+  );
+  // Several route changes in one frame: no queued stretches or stale pressed state.
+  await nav.evaluate((el) => {
+    for (const path of ['/tornei', '/hiscore', '/giocatori', '/'])
+      el.querySelector<HTMLAnchorElement>(`a[href="${path}"]`)!.click();
+  });
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(nav.locator('.bt-nav-selection')).toHaveCount(1);
+  await expect(nav.locator('.pressed, .is-pressed')).toHaveCount(0);
+  expect(
+    await nav.locator('.bt-nav-item > *').evaluateAll((elements) =>
+      elements.map((el) => {
+        const r = el.getBoundingClientRect();
+        return [r.x, r.y, r.width, r.height];
+      }),
+    ),
+  ).toEqual(boxes);
+  for (const [path, label, current] of [
+    ['/giocatori/', 'Giocatori', 'page'],
+    ['/HISCORE', 'Hi-Score', 'page'],
+    ['/livelli', 'Giocatori', 'location'],
+    ['/regole', 'Home', 'location'],
+  ]) {
+    await page.goto(path);
+    await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute(
+      'aria-current',
+      current,
+    );
+    await expect(nav.locator('[aria-current]')).toHaveCount(1);
+  }
+});
