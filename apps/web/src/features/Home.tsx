@@ -158,28 +158,30 @@ export function Home() {
               </Link>
             </div>
             <ul className="hrows">
-              {recent.data.slice(0, 3).map(({ summary, winner }) => (
-                <li key={summary.id}>
-                  <Link className="hrow" to={resultsPath(summary)}>
-                    <span className="hrow-icon">
-                      <ResultIcon summary={summary} />
-                    </span>
-                    <span className="hrow-title">
-                      <small>
-                        {gameOf(summary).label} · {shortDate(summary.createdAt)}
-                      </small>
-                      <b>{summary.name}</b>
-                    </span>
-                    <span className="hrow-winner">
-                      <Trophy aria-hidden="true" />
-                      <span>
-                        <small>{winner ? 'Vince' : 'Esito'}</small> <b>{winner ?? 'Concluso'}</b>
+              {recent.data
+                .slice(0, backup.data?.backupRecommended ? 2 : 3)
+                .map(({ summary, winner }) => (
+                  <li key={summary.id}>
+                    <Link className="hrow" to={resultsPath(summary)}>
+                      <span className="hrow-icon">
+                        <ResultIcon summary={summary} />
                       </span>
-                    </span>
-                    <ChevronRight aria-hidden="true" />
-                  </Link>
-                </li>
-              ))}
+                      <span className="hrow-title">
+                        <small>
+                          {gameOf(summary).label} · {shortDate(summary.createdAt)}
+                        </small>
+                        <b>{summary.name}</b>
+                      </span>
+                      <span className="hrow-winner">
+                        <Trophy aria-hidden="true" />
+                        <span>
+                          <small>{winner ? 'Vince' : 'Esito'}</small> <b>{winner ?? 'Concluso'}</b>
+                        </span>
+                      </span>
+                      <ChevronRight aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
             </ul>
           </section>
         )}

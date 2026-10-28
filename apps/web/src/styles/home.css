@@ -1,10 +1,10 @@
-/* Home (mockup V2): logo su fondale, strumenti, tre azioni illustrate, ultimi risultati e avvisi.
- * Il fondale in basso (banner + footer) sta fermo dietro la barra flottante. */
+/* Home (mockup V2): logo con la corona, strumenti, tre azioni illustrate, ultimi risultati e avvisi.
+ * La foto in basso sta ferma dietro la barra flottante. */
 
 #main-content > main.home {
-  /* Strumenti (44px) + fondale del logo (123px) + respiro: da qui partono le azioni. */
-  --hero-top: calc(env(safe-area-inset-top) + 54px);
-  --hero-h: calc(var(--hero-top) + 123px + 10px);
+  /* Sotto gli strumenti (44px) il logo e la corona (126px); le azioni partono 12px dopo. */
+  --hero-top: calc(env(safe-area-inset-top) + 89px);
+  --hero-h: calc(var(--hero-top) + 138px);
   padding: 0;
   gap: 0;
 }
@@ -13,14 +13,24 @@
   top: var(--hero-top);
   left: 0;
   right: 0;
-  height: 123px;
+  height: 126px;
+  padding-top: 4px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  background: url('/assets/bt-home-backdrop.png') center / cover no-repeat;
   pointer-events: none;
 }
+.home-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 116px;
+  height: 123px;
+  background: url('/assets/bt-home-crown.png') center / contain no-repeat;
+}
 .home-logo {
+  position: relative;
   display: block;
   width: auto;
   height: 122px;
@@ -32,26 +42,10 @@
   left: 0;
   right: 0;
   bottom: 0;
-  height: 157px;
+  height: 245px;
+  opacity: 0.6;
   pointer-events: none;
-}
-.home-foot::before,
-.home-foot::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-}
-.home-foot::before {
-  top: 0;
-  height: 60px;
-  background: url('/assets/bt-home-banner.png') center / cover no-repeat;
-}
-.home-foot::after {
-  bottom: 0;
-  height: 97px;
-  opacity: 0.7;
-  background: url('/assets/bt-footer.jpg') center 70% / cover no-repeat;
+  background: url('/assets/bt-home-footer.png') center / cover no-repeat;
 }
 .htools {
   position: absolute;
