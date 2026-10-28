@@ -1,23 +1,35 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BookText,
   CalendarDays,
   ChartNoAxesColumnIncreasing,
   ChevronRight,
-  Crosshair,
   HardDriveDownload,
   Lock,
   MapPin,
+  NotepadText,
   Settings,
+  Target,
   Trophy,
   Users,
 } from 'lucide-react';
 import { api, cloudApi, localData, sharedApi } from '../services/api';
 import { activeSession, recentResults, resultsPath, tournamentPath } from '../services/session';
 import { gameOf } from '../services/rules';
+import type { Summary } from '../services/game';
 import { CrewOnboarding } from './Crews';
 import { MeChip, WhoAmICard } from '../components/WhoAmI';
+
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+
+/** The glyph of a finished tournament's row: its format, not its decoration. */
+function ResultIcon({ summary }: { summary: Summary }) {
+  if (summary.mode === 'QUICK_HIGH_SCORE')
+    return <ChartNoAxesColumnIncreasing aria-hidden="true" />;
+  if (summary.mode === 'GROUPS') return <Users aria-hidden="true" />;
+  return <Target aria-hidden="true" />;
+}
 
 export function Home() {
   const session = useQuery({ queryKey: ['session'], queryFn: () => activeSession(api) });
@@ -28,8 +40,6 @@ export function Home() {
     // On the server the reminder is for the admins' copy, in the settings.
     enabled: !!localData && !cloudApi,
   });
-  // Any signed-in account may start a match; the server decides what each one may change.
-  const manage = true;
   const s = session.data;
   // Shared mode only: commands need the organizer token of this tab.
   const locked = !!sharedApi && !sharedApi.hasToken();
@@ -68,7 +78,7 @@ export function Home() {
         )}
         <span className="htools-end">
           <Link to="/regole" aria-label="Regole del totem">
-            <BookText />
+            <NotepadText />
           </Link>
           <Link to="/serate" aria-label="Game Night">
             <CalendarDays />
@@ -95,52 +105,35 @@ export function Home() {
           </Link>
         )}
         <nav className="hcards" aria-label="Azioni principali">
-          {manage ? (
-            <>
-              <Link className="hcard primary" to="/partite/nuova">
-                <Crosshair aria-hidden="true" />
-                <span>
-                  <strong>NUOVA PARTITA</strong>
-                  <small>8 giochi · fino a 4 al totem</small>
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-              <Link className="hcard" to="/tornei/nuovo">
-                <Trophy aria-hidden="true" strokeWidth={1.5} />
-                <span>
-                  <strong>NUOVO TORNEO</strong>
-                  <small>Hi-Score, gironi o partita singola</small>
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link className="hcard primary" to="/tornei">
-                <Trophy aria-hidden="true" />
-                <span>
-                  <strong>TORNEI</strong>
-                  <small>In corso, classifiche e risultati</small>
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-              <Link className="hcard" to="/giocatori">
-                <Users aria-hidden="true" strokeWidth={1.5} />
-                <span>
-                  <strong>GIOCATORI</strong>
-                  <small>Livelli, record e statistiche</small>
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </Link>
-            </>
-          )}
-          <Link className="hcard" to="/hiscore">
-            <ChartNoAxesColumnIncreasing aria-hidden="true" strokeWidth={1.5} />
-            <span>
-              <strong>HI-SCORE NIGHTS</strong>
-              <small>Qualifica + finale dei migliori</small>
-            </span>
-            <ChevronRight aria-hidden="true" />
+          <Link className="hcard-new" to="/partite/nuova">
+            <span className="hchip">Partita rapida</span>
+            <strong>NUOVA PARTITA</strong>
+            <small>8 giochi · fino a 4 al totem</small>
+            <img src="/assets/bt-home-dartboard.png" alt="" width={112} height={107} />
+          </Link>
+          <Link className="hcard-tile gold" to="/tornei/nuovo">
+            <img src="/assets/bt-home-trophy.png" alt="" width={68} height={73} />
+            <span className="hchip">Organizza</span>
+            <strong>
+              <span>NUOVO</span>
+              <span>TORNEO</span>
+            </strong>
+            <small>
+              <span>Hi-Score, gironi</span>
+              <span>o partita singola</span>
+            </small>
+          </Link>
+          <Link className="hcard-tile pink" to="/hiscore">
+            <img src="/assets/bt-home-chart.png" alt="" width={62} height={70} />
+            <span className="hchip">Sfida il pub</span>
+            <strong>
+              <span>HI-SCORE</span>
+              <span>NIGHTS</span>
+            </strong>
+            <small>
+              <span>Qualifica + finale</span>
+              <span>dei migliori</span>
+            </small>
           </Link>
         </nav>
         {locked && (
@@ -155,6 +148,41 @@ export function Home() {
         )}
         <WhoAmICard />
         <CrewOnboarding />
+        {!!recent.data?.length && (
+          <section className="home-recent" aria-labelledby="recent-title">
+            <div className="home-recent-h">
+              <img src="/assets/bt-home-results.png" alt="" width={24} height={24} />
+              <h2 id="recent-title">RISULTATI RECENTI</h2>
+              <Link to="/tornei?filtro=done">
+                Tutti <ChevronRight aria-hidden="true" />
+              </Link>
+            </div>
+            <ul className="hrows">
+              {recent.data.slice(0, 3).map(({ summary, winner }) => (
+                <li key={summary.id}>
+                  <Link className="hrow" to={resultsPath(summary)}>
+                    <span className="hrow-icon">
+                      <ResultIcon summary={summary} />
+                    </span>
+                    <span className="hrow-title">
+                      <small>
+                        {gameOf(summary).label} · {shortDate(summary.createdAt)}
+                      </small>
+                      <b>{summary.name}</b>
+                    </span>
+                    <span className="hrow-winner">
+                      <Trophy aria-hidden="true" />
+                      <span>
+                        <small>{winner ? 'Vince' : 'Esito'}</small> <b>{winner ?? 'Concluso'}</b>
+                      </span>
+                    </span>
+                    <ChevronRight aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {backup.data?.backupRecommended && (
           <Link className="alert" to="/impostazioni#backup">
             <HardDriveDownload aria-hidden="true" />
@@ -164,24 +192,6 @@ export function Home() {
             </span>
             <ChevronRight aria-hidden="true" />
           </Link>
-        )}
-        {!!recent.data?.length && (
-          <section className="home-recent" aria-labelledby="recent-title">
-            <div className="sec-h">
-              <h2 id="recent-title">RISULTATI RECENTI</h2>
-              <Link to="/tornei?filtro=done">Tutti</Link>
-            </div>
-            <ul className="hstrip">
-              {recent.data.slice(0, 2).map(({ summary, winner }) => (
-                <li key={summary.id}>
-                  <Link to={resultsPath(summary)}>
-                    <b>{summary.name}</b>
-                    <small>{winner ? `Vince ${winner}` : 'Concluso'}</small>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
         )}
       </div>
     </main>
