@@ -24,7 +24,7 @@ import {
   Segmented,
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
-import { FxName, ProgressPanel, useProgression } from '../components/Progression';
+import { FxName, LevelChip, ProgressPanel, useProgression } from '../components/Progression';
 import { linkDirection } from '../../../../packages/domain/src/index.js';
 import { meStore, useCanManage } from '../services/me';
 import { SpaceStats } from './PlaySpaces';
@@ -395,8 +395,11 @@ function LinkDuplicate({ player, close }: { player: Player; close: () => void })
   );
 }
 
-const levelLabel = (p?: { progress: { level: { level: number; title: string } } }) =>
-  p ? `Lv ${p.progress.level.level} ${p.progress.level.title}` : '';
+/** The level's title and the records held: the level number is the chip on the right. */
+const levelLabel = (p?: {
+  progress: { level: { title: string } };
+  records: { spec: { title: string } }[];
+}) => (p ? [p.progress.level.title, ...p.records.map((r) => r.spec.title)].join(' · ') : '');
 
 export function Players() {
   const manage = useCanManage();
@@ -509,7 +512,7 @@ export function Players() {
             <li key={p.id}>
               <button
                 type="button"
-                className={`pl ${p.status === 'inactive' ? 'off' : ''}`}
+                className={`pl with-lv ${p.status === 'inactive' ? 'off' : ''}`}
                 onClick={() => setOpen(p)}
               >
                 <Avatar name={p.displayName} avatar={p.avatar} />
@@ -536,6 +539,7 @@ export function Players() {
                           .join(' · ')}
                   </small>
                 </span>
+                {p.status !== 'inactive' && <LevelChip p={progression.data?.players.get(p.id)} />}
                 <ChevronRight aria-hidden="true" />
               </button>
             </li>

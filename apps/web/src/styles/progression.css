@@ -212,9 +212,9 @@
   align-items: center;
   margin-bottom: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--bt-border-section);
+  border: 1px solid var(--bt-accent-primary);
   border-radius: var(--bt-radius-lg);
-  background: var(--bt-bg-secondary);
+  background: var(--bt-surface-selected);
   color: var(--bt-text-primary);
   text-decoration: none;
 }
