@@ -1,8 +1,8 @@
-/* Home: banner adattivo, strumenti in alto, ripresa, tre azioni, avvisi e risultati recenti.
- * Entra in 390 × 844 senza scroll; su schermi bassi il banner si accorcia. */
+/* Home: logo in alto, strumenti, ripresa, tre azioni, avvisi e risultati recenti.
+ * Entra in 390 × 844 senza scroll; su schermi bassi il logo si riduce. */
 
 #main-content > main.home {
-  --hero-h: clamp(170px, calc(100dvh - 594px), 300px);
+  --hero-h: clamp(190px, calc(100dvh - 574px), 270px);
   padding: 0;
   gap: 0;
 }
@@ -12,25 +12,19 @@
   left: 0;
   right: 0;
   height: calc(var(--hero-h) + env(safe-area-inset-top));
-  overflow: hidden;
-  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  pointer-events: none;
 }
-/* Il logo resta intero; ai lati una copia sfocata della stessa immagine. */
-.home-hero::before {
-  content: '';
-  position: absolute;
-  inset: -24px;
-  z-index: -1;
-  background: url('/assets/bt-hero.jpg') center / cover;
-  filter: blur(14px) brightness(0.55);
-}
-.home-hero::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(9, 9, 11, 0) 55%, var(--bt-bg-primary) 100%),
-    url('/assets/bt-hero.jpg') center top / auto 100% no-repeat;
+/* Il logo trasparente sullo sfondo scuro, sotto la riga degli strumenti. */
+.home-logo {
+  display: block;
+  width: auto;
+  height: min(155px, calc(var(--hero-h) - 100px));
+  max-width: min(300px, 78vw);
+  object-fit: contain;
 }
 .home-foot {
   position: absolute;
@@ -100,7 +94,7 @@
 .home-body {
   position: relative;
   z-index: 1;
-  padding: calc(var(--hero-h) + env(safe-area-inset-top) - 44px) var(--shell-gutter)
+  padding: calc(var(--hero-h) + env(safe-area-inset-top)) var(--shell-gutter)
     calc(var(--shell-end) + var(--shell-toast, 0px));
   display: flex;
   flex-direction: column;

@@ -46,8 +46,8 @@ export default defineConfig(({ mode }) => {
           theme_color: '#09090b',
           categories: ['sports', 'games', 'utilities'],
           icons: [
-            { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png' },
+            { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
             {
               src: '/icons/maskable-512.png',
               sizes: '512x512',

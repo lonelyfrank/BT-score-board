@@ -88,9 +88,9 @@ test('starts, navigates and saves scores offline after the first visit', async (
   ).toBe(true);
   expect(
     await page.evaluate(async () =>
-      (await fetch('/assets/bt-hero.jpg')).headers.get('content-type'),
+      (await fetch('/assets/bt-logo.png')).headers.get('content-type'),
     ),
-  ).toContain('image/jpeg');
+  ).toContain('image/png');
   expect(api).toEqual([]);
 });
 

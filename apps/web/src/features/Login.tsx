@@ -41,7 +41,9 @@ export function Login() {
     <div className="app-shell without-nav">
       <div id="main-content">
         <main className="home login">
-          <div className="home-hero" aria-hidden="true" />
+          <div className="home-hero" aria-hidden="true">
+            <img className="home-logo" src="/assets/bt-logo.png" alt="" width={960} height={497} />
+          </div>
           <div className="home-foot" aria-hidden="true" />
           <h1 className="visually-hidden">BT Darts Score Board — accesso</h1>
           <div className="home-body">
