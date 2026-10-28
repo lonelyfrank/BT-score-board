@@ -28,27 +28,6 @@
   gap: 4px;
   padding-bottom: 4px;
 }
-.wz-steps {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--bt-text-secondary);
-}
-.wz-steps span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wz-steps .on {
-  color: var(--bt-accent-soft);
-}
-.wz-steps .done {
-  color: var(--bt-success-bright);
-}
 main.setup {
   padding-top: 14px;
   gap: 12px;
@@ -569,4 +548,133 @@ main.setup {
 .space-new .field input {
   min-width: 0;
   width: 100%;
+}
+
+/* ---- Tracciato del wizard: passi numerati e scelte fatte ---- */
+.toolbar:has(> .wz-track) {
+  padding-bottom: 6px;
+}
+.wz-track {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wz-track ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+}
+.wz-track li {
+  display: flex;
+  align-items: center;
+}
+.wz-track li + li::before {
+  content: '';
+  width: 100%;
+  min-width: 10px;
+  flex: 1;
+  height: 2px;
+  margin: 0 0;
+  border-radius: 1px;
+  background: var(--bt-border-subtle);
+}
+.wz-track ol {
+  justify-content: space-between;
+}
+.wz-track li {
+  flex: 1 1 auto;
+}
+.wz-track li:first-child {
+  flex: none;
+}
+.wz-track li.done + li::before,
+.wz-track li.on::before {
+  background: var(--bt-success);
+}
+.wz-track li > span,
+.wz-track li > button {
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--bt-border-default);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 15px var(--bt-font-score);
+  color: var(--bt-text-disabled);
+}
+.wz-track li.on > span {
+  border-color: var(--bt-accent-primary);
+  background: var(--bt-accent-primary);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(255, 35, 139, 0.65);
+}
+.wz-track li.done > button {
+  border-color: var(--bt-success);
+  background: var(--bt-success);
+  color: var(--bt-success-ink);
+}
+.wz-track li svg {
+  width: 15px;
+  height: 15px;
+}
+.wz-track-now {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--bt-accent-soft);
+}
+.wz-track-now .saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--bt-success-bright);
+}
+.wz-track-now .saved svg {
+  width: 13px;
+  height: 13px;
+}
+.wz-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.wz-chips button {
+  flex: none;
+  height: 32px;
+  min-height: 0;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--bt-border-subtle);
+  border-radius: 16px;
+  background: var(--bt-surface-tile);
+  color: var(--bt-text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wz-chips small {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--bt-text-secondary);
 }

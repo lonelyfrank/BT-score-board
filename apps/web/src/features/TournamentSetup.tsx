@@ -44,6 +44,7 @@ import {
   Switch,
 } from '../components/ui';
 import { NewPlayerSheet } from '../components/PlayerSheets';
+import { WizardTrack } from '../components/WizardTrack';
 import { shortDate } from './Setup';
 import {
   BT_CHOICE,
@@ -379,7 +380,6 @@ export function TournamentSetup() {
       assigned: {},
     });
   const locked = !!created || save.isPending;
-  const steps = ['Formato', 'Giocatori', isGroups ? 'Gironi' : 'Manche', 'Regole', 'Riepilogo'];
   const unitWord = d.teamMode ? 'squadre' : 'giocatori';
   const heatsHint =
     n < minUnits
@@ -414,22 +414,23 @@ export function TournamentSetup() {
         backLabel="Esci, la bozza resta salvata"
       />
       <div className="toolbar">
-        <div className="wz-prog" aria-hidden="true">
-          {steps.map((s, i) => (
-            <i key={s} className={i + 1 < step ? 'done' : i + 1 === step ? 'on' : ''} />
-          ))}
-        </div>
-        <ol className="wz-steps" aria-label={`Passo ${step} di 5`}>
-          {steps.map((s, i) => (
-            <li
-              key={s}
-              className={i + 1 < step ? 'done' : i + 1 === step ? 'on' : ''}
-              aria-current={i + 1 === step ? 'step' : undefined}
-            >
-              <span>{s}</span>
-            </li>
-          ))}
-        </ol>
+        <WizardTrack
+          step={step}
+          go={go}
+          steps={[
+            { label: 'Formato', chip: { key: 'FORMATO', value: formatLabel(d.format) } },
+            { label: 'Giocatori', chip: { key: 'GIOCATORI', value: String(n) } },
+            {
+              label: isGroups ? 'Gironi' : 'Manche',
+              chip: {
+                key: isGroups ? 'GIRONI' : 'MANCHE',
+                value: isGroups ? String(d.groups) : combo,
+              },
+            },
+            { label: 'Regole' },
+            { label: 'Riepilogo' },
+          ]}
+        />
       </div>
       <main className="setup">
         <fieldset disabled={locked} className="setup-step">

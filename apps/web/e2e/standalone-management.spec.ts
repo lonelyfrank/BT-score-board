@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addPlayers, atBt, chooseTracking, guardNetwork } from './helpers';
+import { addPlayers, atBt, chooseTracking, guardNetwork, newTournament } from './helpers';
 
 test.beforeEach(({ page }) => guardNetwork(page));
 
@@ -43,4 +43,18 @@ test('Livelli e XP shows the ladder and how the XP are earned', async ({ page })
   );
   await page.getByRole('tab', { name: 'Come si sale' }).click();
   await expect(page.getByText('+50 XP')).toBeVisible();
+});
+
+test('the tournament wizard shows the choices made and goes back to correct them', async ({
+  page,
+}) => {
+  await newTournament(page, {
+    format: 'Hi-Score rapido',
+    players: ['P1', 'P2', 'P3'],
+    start: false,
+  });
+  await expect(page.getByText('Passo 5 di 5 · Riepilogo')).toBeVisible();
+  await page.getByRole('button', { name: /^Giocatori: 3, tocca per correggere/ }).click();
+  await expect(page.getByText('Passo 2 di 5 · Giocatori')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Formato:/ })).toBeVisible();
 });
